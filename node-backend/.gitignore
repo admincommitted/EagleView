@@ -1,0 +1,50 @@
+# EagleView node-backend
+
+node_modules/
+
+# Secrets (copy .env.example to .env and fill it in)
+.env
+.env.*
+!.env.example
+
+# Database: live data, never in git (2 GB; take backups with BACKUP_EDI_DB.bat)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db
+data_backup.json
+
+# Files saved by the app: KYC, e-Sanchit PDFs, signed documents (customer data)
+uploads/
+
+# WhatsApp login sessions (they hold the logged-in WhatsApp account)
+.whatsapp-session/
+.whatsapp-test/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs, backups, runtime files
+logs/
+*.log
+backups/
+FIELD_PUBLIC_URL.txt
+
+# Built frontend (npm run build in frontend/ writes it here)
+public/
+
+# Data dumps from iCAFFE / Logisys (customer data, up to 145 MB). Only the lookup files the code reads are kept.
+_tariff_load/*
+!_tariff_load/igst_options.json
+!_tariff_load/agency_cth.json
+!_tariff_load/notif_country.json
+
+# Old one-off patch scripts with hard-coded D:/EDI_AUTOMATION paths
+_scripts/
+
+# Unused large data file
+all_cities.json
+
+*.gz
+*.tgz
+*.zip

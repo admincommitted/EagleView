@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head><script>window.onerror = function(msg, url, line, col, error) { document.body.innerHTML = '<div style="color:red;padding:20px;font-size:20px;z-index:999999;position:fixed;background:white;width:100%;height:100%;">ERROR: ' + msg + ' at ' + line + ':' + col + '<br/><br/>' + (error && error.stack ? error.stack : '') + '</div>'; }; window.addEventListener('unhandledrejection', function(e) { document.body.innerHTML = '<div style="color:red;padding:20px;font-size:20px;z-index:999999;position:fixed;background:white;width:100%;height:100%;">PROMISE ERROR: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason) + '</div>'; });</script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+      <script>
+        document.addEventListener('keypress', function(e) {
+        if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'text') {
+            // 23-Nov-2026: letter boxes are never numbers-only. A 1-2 character box is a flag (Y/N, A/D/B, F/P) even when its
+            // label says "value" / "duty" - e.g. "SVB load on ass. value/duty/both[A/D/B]" took digits only. Any other box
+            // that must take letters can opt out with data-allow-text.
+            if (e.target.hasAttribute('data-allow-text') || (e.target.maxLength > 0 && e.target.maxLength <= 2)) return;
+            const name = (e.target.name || '').toLowerCase();
+            const placeholder = (e.target.placeholder || '').toLowerCase();
+            let labelText = '';
+            
+            // Try to find the label associated with this input
+            if (e.target.previousElementSibling && e.target.previousElementSibling.tagName === 'LABEL') {
+                labelText = e.target.previousElementSibling.textContent.toLowerCase();
+            } else if (e.target.parentElement && e.target.parentElement.previousElementSibling && e.target.parentElement.previousElementSibling.tagName === 'LABEL') {
+                labelText = e.target.parentElement.previousElementSibling.textContent.toLowerCase();
+            }
+
+            const keywords = ['wt', 'weight', 'qty', 'quantity', 'pkg', 'pkgs', 'pieces', 'val', 'value', 'amount', 'amt', 'price', 'rate', 'duty', 'vol', 'volume', 'freight', 'insurance', 'discount', 'packages', 'fob', 'pmv', 'taxable'];
+            
+            const isNumeric = keywords.some(k => {
+                // Ensure word boundaries or simple includes so we don't block normal text fields accidentally
+                return name.includes(k) || placeholder.includes(k) || labelText.includes(k);
+            });
+            
+            if (isNumeric) {
+                // Allow numbers, period, minus (for negative), and standard control keys
+                if (!/[0-9.-]/.test(e.key)) {
+                    e.preventDefault();
+                }
+            }
+        }
+    }, true);
+    </script>
+  </body>
+</html>
+
+

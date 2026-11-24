@@ -1,0 +1,10 @@
+Flask
+pyHanko
+python-pkcs11
+cryptography
+asn1crypto
+pywebview
+pystray
+Pillow
+tzdata
+pymupdf

@@ -1,0 +1,1178 @@
+﻿<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>EagleView – Field App</title>
+  <link rel="manifest" href="/field-app/manifest.json" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --pink:  #e91e8c; --blue:  #0ea5e9; --dark:  #0f172a;
+      --card:  #1e293b; --text:  #f1f5f9; --muted: #94a3b8;
+      --green: #10b981; --amber: #f59e0b; --red:   #ef4444;
+    }
+    body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--dark); color:var(--text); min-height:100dvh; overflow-x:hidden; }
+
+    .topbar { background:linear-gradient(135deg,#1e293b,#0f172a); padding:14px 16px 10px; border-bottom:1px solid #1e293b; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+    .topbar .logo { display:flex; align-items:center; gap:10px; }
+    .topbar .logo .badge { background:var(--pink); color:white; font-size:11px; font-weight:800; padding:2px 7px; border-radius:6px; }
+    .topbar h1 { font-size:16px; font-weight:700; color:white; }
+    .live-dot { width:10px; height:10px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(16,185,129,0.3); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.4)} }
+
+    /* ── RELIABILITY BANNER ── */
+    #reliabilityBanner {
+      display:none; margin:12px 16px 0;
+      padding:12px 14px; border-radius:14px;
+      font-size:13px; font-weight:600; line-height:1.5;
+      border-left:4px solid;
+    }
+    #reliabilityBanner.warn  { background:rgba(245,158,11,0.12); border-color:var(--amber); color:var(--amber); }
+    #reliabilityBanner.error { background:rgba(239,68,68,0.12);  border-color:var(--red);   color:var(--red);   }
+    #reliabilityBanner.ok    { background:rgba(16,185,129,0.12); border-color:var(--green); color:var(--green); }
+
+    /* ── SIGNAL STRENGTH BAR ── */
+    .signal-bar { display:flex; gap:3px; align-items:flex-end; }
+    .signal-bar span { width:5px; border-radius:2px; background:#334155; }
+    .signal-bar span.active { background:var(--green); }
+    .signal-bar span:nth-child(1) { height:6px; }
+    .signal-bar span:nth-child(2) { height:10px; }
+    .signal-bar span:nth-child(3) { height:14px; }
+    .signal-bar span:nth-child(4) { height:18px; }
+
+    #loginScreen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80dvh; padding:24px; }
+    .login-icon { width:80px; height:80px; background:linear-gradient(135deg,var(--pink),var(--blue)); border-radius:24px; display:flex; align-items:center; justify-content:center; font-size:40px; margin-bottom:24px; box-shadow:0 12px 40px rgba(233,30,140,0.4); }
+    .login-title { font-size:24px; font-weight:800; margin-bottom:6px; }
+    .login-sub { font-size:14px; color:var(--muted); margin-bottom:32px; text-align:center; }
+    .input-group { width:100%; margin-bottom:14px; }
+    .input-group label { display:block; font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+    .input-group input, .input-group select, .input-group textarea { width:100%; padding:14px 16px; background:var(--card); border:1px solid #334155; border-radius:12px; color:white; font-size:15px; outline:none; transition:border-color 0.2s; font-family:inherit; }
+    .input-group input:focus, .input-group select:focus { border-color:var(--pink); }
+
+    .btn { width:100%; padding:16px; border:none; border-radius:14px; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .btn-primary { background:linear-gradient(135deg,var(--pink),#c2186a); color:white; box-shadow:0 8px 24px rgba(233,30,140,0.35); }
+    .btn-success { background:linear-gradient(135deg,var(--green),#059669); color:white; }
+    .btn-warning { background:linear-gradient(135deg,var(--amber),#d97706); color:white; }
+    .btn-danger  { background:linear-gradient(135deg,var(--red),#dc2626); color:white; }
+    .btn-dark    { background:var(--card); color:white; border:1px solid #334155; }
+    .btn:active  { transform:scale(0.97); }
+    .btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+    #mainApp { display:none; padding:0 0 100px; }
+
+    .status-card { margin:16px; background:linear-gradient(135deg,#1e293b,#162032); border-radius:20px; padding:20px; border:1px solid #334155; }
+    .agent-name { font-size:20px; font-weight:800; margin-bottom:4px; }
+    .agent-role { font-size:13px; color:var(--muted); margin-bottom:16px; }
+    .status-pill { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:50px; font-size:14px; font-weight:700; }
+    .status-pill.transit { background:rgba(16,185,129,0.15); color:var(--green); border:1px solid rgba(16,185,129,0.3); }
+    .status-pill.idle    { background:rgba(245,158,11,0.15);  color:var(--amber); border:1px solid rgba(245,158,11,0.3); }
+    .status-pill.offline { background:rgba(148,163,184,0.1);  color:var(--muted); border:1px solid #334155; }
+
+    .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px; }
+    .info-tile { background:var(--card); border-radius:16px; padding:16px; border:1px solid #334155; }
+    .info-tile .label { font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+    .info-tile .value { font-size:20px; font-weight:800; display:flex; align-items:center; gap:8px; }
+    .info-tile .unit  { font-size:12px; font-weight:500; color:var(--muted); margin-top:4px; }
+
+    .task-card { margin:16px; background:var(--card); border-radius:20px; padding:18px; border:1px solid #334155; }
+    .task-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .task-label { font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+    .task-badge { font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; }
+    .task-badge.pending  { background:rgba(245,158,11,0.2); color:var(--amber); }
+    .task-badge.progress { background:rgba(14,165,233,0.2); color:var(--blue); }
+    .task-badge.done     { background:rgba(16,185,129,0.2); color:var(--green); }
+    .task-badge.na       { background:rgba(148,163,184,0.1); color:var(--muted); }
+    .task-title { font-size:16px; font-weight:700; margin-bottom:6px; }
+    .task-location { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+
+    .section-wrap { margin:16px; }
+    .card-block { background:var(--card); border-radius:20px; padding:20px; border:1px solid #334155; display:flex; flex-direction:column; gap:14px; }
+    .card-header { display:flex; justify-content:space-between; align-items:center; }
+    .card-title { font-size:15px; font-weight:700; }
+    .card-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+
+    /* Tracking info box */
+    #trackingInfo { display:none; font-size:12px; color:var(--muted); background:#0f172a; padding:12px; border-radius:10px; line-height:1.8; }
+
+    /* Toggle */
+    .toggle-switch { position:relative; width:56px; height:30px; }
+    .toggle-switch input { display:none; }
+    .toggle-slider { position:absolute; inset:0; background:#334155; border-radius:30px; cursor:pointer; transition:0.3s; }
+    .toggle-slider::before { content:''; position:absolute; left:3px; top:3px; width:24px; height:24px; background:white; border-radius:50%; transition:0.3s; box-shadow:0 2px 6px rgba(0,0,0,0.4); }
+    .toggle-switch input:checked + .toggle-slider { background:var(--green); }
+    .toggle-switch input:checked + .toggle-slider::before { transform:translateX(26px); }
+
+    /* GPS bar */
+    .gps-bar { background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.2); border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; font-size:13px; color:var(--blue); }
+    .gps-icon { font-size:20px; }
+    .gps-coords { font-size:11px; color:var(--muted); margin-top:2px; }
+
+    /* Status actions */
+    .status-actions { margin:16px; display:flex; gap:12px; }
+    .status-actions .btn { flex:1; padding:14px; }
+
+    /* Offline queue badge */
+    #queueBadge { display:none; position:fixed; top:14px; right:56px; background:var(--amber); color:#0f172a; font-size:11px; font-weight:800; padding:3px 9px; border-radius:20px; z-index:200; }
+
+    /* Siren */
+    #sirenAlert { display:none; position:fixed; inset:0; background:rgba(239,68,68,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; animation:siren-flash 0.5s infinite alternate; }
+    @keyframes siren-flash { from{background:rgba(239,68,68,0.95)} to{background:rgba(153,27,27,0.98)} }
+    #sirenAlert .siren-icon { font-size:80px; margin-bottom:16px; animation:shake 0.3s infinite; }
+    @keyframes shake { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+    #sirenAlert .siren-title { font-size:28px; font-weight:900; color:white; margin-bottom:12px; }
+    #sirenAlert .siren-msg { font-size:18px; color:rgba(255,255,255,0.9); margin-bottom:32px; line-height:1.5; }
+    #sirenAlert .btn-ack { background:white; color:var(--red); font-size:16px; font-weight:800; padding:16px 40px; border-radius:14px; border:none; cursor:pointer; }
+
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; background:#1e293b; border-top:1px solid #334155; display:flex; padding:8px 0 max(8px,env(safe-area-inset-bottom)); z-index:50; }
+    .nav-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px; cursor:pointer; font-size:10px; font-weight:600; color:var(--muted); transition:color 0.2s; border:none; background:none; }
+    .nav-item.active { color:var(--pink); }
+    .nav-icon { font-size:22px; }
+
+    #historyTab { padding:16px; }
+    .history-item { background:var(--card); border-radius:14px; padding:14px 16px; margin-bottom:10px; border:1px solid #334155; display:flex; gap:14px; align-items:center; }
+    .history-time { font-size:11px; color:var(--muted); min-width:60px; }
+    .history-loc { font-size:13px; font-weight:600; flex:1; }
+    .history-speed { font-size:12px; color:var(--blue); }
+    .history-sent { font-size:11px; color:var(--green); }
+    .history-failed { font-size:11px; color:var(--red); }
+
+    #profileTab { padding:16px; }
+    .profile-card { background:var(--card); border-radius:20px; padding:24px; border:1px solid #334155; margin-bottom:16px; }
+    .profile-avatar { width:72px; height:72px; background:linear-gradient(135deg,var(--pink),var(--blue)); border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:32px; margin-bottom:16px; }
+
+    #toast { position:fixed; bottom:80px; left:16px; right:16px; background:#334155; color:white; padding:14px 18px; border-radius:14px; font-size:14px; font-weight:600; display:none; z-index:200; border-left:4px solid var(--green); box-shadow:0 8px 30px rgba(0,0,0,0.4); }
+
+    .spinner { width:20px; height:20px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    .acc-good{color:var(--green)} .acc-ok{color:var(--amber)} .acc-bad{color:var(--red)}
+    .battery-bar { height:6px; background:#334155; border-radius:6px; overflow:hidden; margin-top:6px; }
+    .battery-fill { height:100%; border-radius:6px; transition:width 0.5s; }
+
+    section { display:none; }
+    section.active { display:block; }
+
+    /* Self-task modal */
+    #selfTaskModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:500; align-items:flex-end; }
+    #selfTaskModal .modal-body { background:#1e293b; width:100%; border-radius:24px 24px 0 0; padding:24px; max-height:90dvh; overflow-y:auto; }
+    .prio-btn { padding:12px; border-radius:12px; border:2px solid #334155; background:#0f172a; color:var(--muted); font-weight:700; font-size:13px; cursor:pointer; }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar" id="topbar" style="display:none">
+  <div class="logo">
+    <div class="badge">360</div>
+    <h1>EagleView</h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="signal-bar" id="signalBar">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <span id="connStatus" style="font-size:11px;color:var(--muted)">Connecting…</span>
+    <div class="live-dot" id="liveDot" style="background:var(--muted)"></div>
+  </div>
+</div>
+
+<!-- OFFLINE QUEUE BADGE -->
+<div id="queueBadge">📦 <span id="queueCount">0</span></div>
+
+<!-- RELIABILITY BANNER -->
+<div id="reliabilityBanner"></div>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-icon">📍</div>
+  <div class="login-title">Field Tracker</div>
+  <div class="login-sub">EagleView 360 — Field Boy App<br>Register this phone</div>
+
+  <div id="loginLoading" style="text-align:center;padding:20px 0;color:var(--muted)">
+    <div class="spinner" style="margin:0 auto 12px"></div>
+    Connecting to the server…
+  </div>
+
+  <!-- 14-Nov-2026: register this phone once with the mobile number and the office code (Field Tracking > Phone access) -->
+  <div id="loginForm" style="display:none;width:100%">
+    <div class="input-group"><label>Mobile number *</label><input type="tel" id="regPhone" placeholder="98765 43210" autocomplete="tel" /></div>
+    <div class="input-group"><label>Office code *</label><input type="text" id="regCode" placeholder="Ask the office" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase" /></div>
+    <div id="regNewBox" style="display:none">
+      <div style="font-size:12px;color:var(--amber,#f59e0b);margin:-4px 0 12px">This number is not in the office list yet. Enter your name to be added.</div>
+      <div class="input-group"><label>Your name *</label><input type="text" id="regName" placeholder="e.g. Raju Singh" /></div>
+      <div class="input-group">
+        <label>Role</label>
+        <select id="regRole">
+          <option value="Fleet Driver">Fleet Driver</option>
+          <option value="Doc Collection">Doc Collection</option>
+          <option value="Customs Clerk">Customs Clerk</option>
+          <option value="Airport Runner">Airport Runner</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="startBtn" onclick="handleRegister()">🚀 Register and start</button>
+    <p style="text-align:center;font-size:12px;color:var(--muted);margin-top:16px">Only once on this phone. The office gives the code.<br>Your location goes to the office only while tracking is on.</p>
+  </div>
+
+  <div id="manualForm" style="display:none"></div>
+
+  <div id="loginError" style="display:none;width:100%;text-align:center">
+    <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+    <div style="color:var(--muted);margin-bottom:20px;font-size:14px">Could not connect to the server</div>
+    <button class="btn btn-dark" onclick="loadAgents()" style="margin-bottom:12px">🔄 Try again</button>
+    <button class="btn btn-dark" onclick="showManualForm()" style="font-size:13px;padding:12px">✏️ Enter manually</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp">
+  <section id="homeTab" class="active">
+    <div class="status-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="agent-name" id="agentName">—</div>
+          <div class="agent-role" id="agentRole">—</div>
+        </div>
+        <div class="status-pill transit" id="statusPill">
+          <span>●</span><span id="statusText">Idle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-tile">
+        <div class="label">⚡ Battery</div>
+        <div class="value" id="batteryVal">—<span class="unit">%</span></div>
+        <div class="battery-bar"><div class="battery-fill" id="batteryFill" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="info-tile">
+        <div class="label">🏃 Speed</div>
+        <div class="value" id="speedVal">0<span class="unit">km/h</span></div>
+      </div>
+      <div class="info-tile">
+        <div class="label">📡 GPS Accuracy</div>
+        <div class="value acc-good" id="accuracyVal">—<span class="unit">m</span></div>
+      </div>
+      <div class="info-tile">
+        <div class="label">🕐 Last Ping</div>
+        <div class="value" style="font-size:14px" id="lastPingVal">—</div>
+      </div>
+    </div>
+
+    <div class="task-card">
+      <div class="task-header">
+        <div class="task-label">📋 Current Task</div>
+        <div class="task-badge na" id="taskBadge">N/A</div>
+      </div>
+      <div class="task-title" id="taskTitle">No task</div>
+      <div class="task-location"><span>📍</span><span id="taskLoc">—</span></div>
+      <!-- Task Done Button (only shows when task active) -->
+      <div id="taskDoneSection" style="display:none;margin-top:14px">
+        <button onclick="markTaskDone()"
+          style="width:100%;padding:13px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">
+          ✅ Task done
+        </button>
+      </div>
+    </div>
+
+
+    <!-- GPS Status -->
+    <div class="section-wrap">
+      <div class="gps-bar">
+        <div class="gps-icon">📡</div>
+        <div>
+          <div id="gpsStatus">Looking for GPS signal…</div>
+          <div class="gps-coords" id="gpsCoords">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tracking Toggle -->
+    <div class="section-wrap">
+      <div class="card-block">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📍 Live Tracking</div>
+            <div class="card-sub" id="trackingSubText">Tracking is off</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="trackingToggle" onchange="toggleTracking(this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="trackingInfo">
+          ✅ Sends your location to the office server every <b>15 seconds</b><br>
+          🔒 Only the admin dashboard sees it<br>
+          📵 <b>Do not turn the screen off</b> — tracking can stop
+        </div>
+        <!-- Wake Lock button -->
+        <div id="wakeLockSection" style="display:none">
+          <button class="btn btn-dark" id="wakeLockBtn" onclick="requestWakeLock()" style="font-size:13px;padding:12px">
+            💡 Keep Screen On (for tracking)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Buttons -->
+    <div class="status-actions">
+      <button class="btn btn-success" onclick="setStatus('In Transit')">🟢 In Transit</button>
+      <button class="btn btn-warning" onclick="setStatus('Idle')">🟡 Idle</button>
+    </div>
+    <div style="margin:0 16px 8px">
+      <button class="btn btn-dark" onclick="setStatus('Offline')">⚫ Offline (Break)</button>
+    </div>
+    <div style="margin:0 16px 16px">
+      <button class="btn" onclick="openSelfTaskModal()"
+        style="background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;box-shadow:0 8px 24px rgba(124,58,237,0.35)">
+        ✏️ Set Your Task / Urgent Report
+      </button>
+    </div>
+  </section>
+
+  <section id="historyTabSection">
+    <div id="historyTab">
+      <h3 style="font-size:16px;font-weight:800;margin-bottom:4px">📍 Today's Location History</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:16px">✅ = Reached the server &nbsp;|&nbsp; ⏳ = In the queue</p>
+      <div id="historyList">
+        <div style="text-align:center;color:var(--muted);padding:40px 0">
+          <div style="font-size:40px;margin-bottom:12px">🗺️</div>
+          Start tracking to see the history here
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="profileTabSection">
+    <div id="profileTab">
+      <div class="profile-card">
+        <div class="profile-avatar" id="profileAvatar">👤</div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:4px" id="profileName">—</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:4px" id="profileRole">—</div>
+        <div style="font-size:13px;color:var(--muted)" id="profilePhone">—</div>
+        <div style="margin-top:12px;padding:10px;background:#0f172a;border-radius:10px;font-size:12px;color:var(--blue)">
+          Agent ID: <strong id="profileId">—</strong>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="btn btn-dark" onclick="showInstallPrompt()">📲 Install on Home Screen</button>
+        <button class="btn btn-dark" onclick="testConnection()">🔌 Server Connection Test</button>
+        <button class="btn btn-dark" onclick="flushQueue()">📤 Send Queued Pings (<span id="queueCountProfile">0</span>)</button>
+        <button class="btn btn-danger" onclick="logout()" style="margin-top:8px">🚪 Logout</button>
+      </div>
+      <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--muted)">
+        EagleView 360 — Field Tracker v2.0<br>Committed Cargo Care Limited
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav" id="bottomNav" style="display:none">
+  <button class="nav-item active" id="navHome" onclick="switchTab('home')"><span class="nav-icon">🏠</span>Home</button>
+  <button class="nav-item" id="navHistory" onclick="switchTab('history')"><span class="nav-icon">📍</span>History</button>
+  <button class="nav-item" id="navProfile" onclick="switchTab('profile')"><span class="nav-icon">👤</span>Profile</button>
+</nav>
+
+<!-- SELF-TASK MODAL -->
+<div id="selfTaskModal">
+  <div class="modal-body">
+    <div style="width:40px;height:4px;background:#475569;border-radius:4px;margin:0 auto 20px"></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div style="width:44px;height:44px;background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px">✏️</div>
+      <div>
+        <div style="font-size:18px;font-weight:800">Set Your Task</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">The admin is notified at once</div>
+      </div>
+    </div>
+    <div class="input-group"><label>What is the task? *</label><input type="text" id="selfTaskTitle" placeholder="e.g. Urgent: customs duty payment at IGI" /></div>
+    <div class="input-group"><label>Location / Destination</label><input type="text" id="selfTaskLocation" placeholder="e.g. IGI Airport Cargo Terminal 1" /></div>
+    <div class="input-group">
+      <label>Priority</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+        <button id="prio-Normal" class="prio-btn" onclick="selectPriority('Normal')">🔵 Normal</button>
+        <button id="prio-High"   class="prio-btn" onclick="selectPriority('High')">🟠 High</button>
+        <button id="prio-Urgent" class="prio-btn" onclick="selectPriority('Urgent')">🔴 Urgent</button>
+        <button id="prio-Low"    class="prio-btn" onclick="selectPriority('Low')">🟢 Low</button>
+      </div>
+    </div>
+    <div class="input-group"><label>Note for the admin (optional)</label><textarea id="selfTaskNote" placeholder="e.g. AWB no. 123-456 is on hold" rows="3"></textarea></div>
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <button class="btn btn-dark" onclick="closeSelfTaskModal()" style="flex:1;padding:14px">Cancel</button>
+      <button class="btn" onclick="submitSelfTask()" style="flex:2;padding:14px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;font-weight:800">📤 Submit Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIREN ALERT -->
+<div id="sirenAlert">
+  <div class="siren-icon">🚨</div>
+  <div class="siren-title">EMERGENCY ALERT!</div>
+  <div class="siren-msg" id="sirenMsg">URGENT: Call Operations immediately!</div>
+  <button class="btn-ack" onclick="acknowledgeSiren()">✅ Got it — Dismiss</button>
+</div>
+
+<div id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════════════════
+const API           = '/api/field-tracking';
+// 14-Nov-2026: this phone's own key (from the office code); sent with every call; 401 = disconnected by the office
+const TOKEN_KEY     = 'ev_field_token';
+function fieldToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+async function fx(url, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  const t = fieldToken(); if (t) headers['X-Field-Token'] = t;
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  if (res.status === 401) {
+    let d = {}; try { d = await res.clone().json(); } catch (e) {}
+    if (d && d.needRegister) { showToast('🔒 ' + (d.error || 'Register this phone again'), 'var(--red)', 6000); setTimeout(() => logout(), 300); }
+  }
+  return res;
+}
+const PING_INTERVAL = 15000;  // 15 seconds
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+let agent           = null;
+let socket          = null;
+let watchId         = null;
+let pingTimer       = null;
+let lastCoords      = null;
+let locationHistory = [];
+let allAgents       = [];
+let selectedPriority = 'Normal';
+let installPrompt   = null;
+let isTracking      = false;
+
+// ── RELIABILITY STATE ──
+let wakeLock        = null;         // Screen Wake Lock
+let offlineQueue    = [];           // Failed pings queued for retry
+let consecutiveFails = 0;           // Track consecutive ping failures
+let lastSuccessfulPing = null;      // Timestamp of last successful ping
+let isOnline        = navigator.onLine;
+
+// ═══════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+function showToast(msg, color = 'var(--green)', duration = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block'; t.style.borderLeftColor = color;
+  setTimeout(() => { t.style.display = 'none'; }, duration);
+}
+function vibrate(p = [100]) { if (navigator.vibrate) navigator.vibrate(p); }
+function formatTime(d) { return d.toLocaleTimeString('hi-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
+
+// ── RELIABILITY BANNER ──
+function showBanner(msg, type = 'warn') {
+  const b = document.getElementById('reliabilityBanner');
+  b.textContent = msg; b.className = 'reliabilityBanner ' + type;
+  b.style.display = 'block';
+  if (type === 'ok') setTimeout(() => { b.style.display = 'none'; }, 4000);
+}
+function hideBanner() { document.getElementById('reliabilityBanner').style.display = 'none'; }
+
+// ── SIGNAL STRENGTH ──
+function updateSignal(bars) {
+  document.querySelectorAll('#signalBar span').forEach((s, i) => {
+    s.classList.toggle('active', i < bars);
+  });
+}
+
+// ── QUEUE BADGE ──
+function updateQueueBadge() {
+  const badge  = document.getElementById('queueBadge');
+  const count  = document.getElementById('queueCount');
+  const countP = document.getElementById('queueCountProfile');
+  const n = offlineQueue.length;
+  count.textContent  = n;
+  if (countP) countP.textContent = n;
+  badge.style.display = n > 0 ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WAKE LOCK — Keeps screen on during tracking
+// ═══════════════════════════════════════════════════════════════════════
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) {
+    showToast('⚠️ This browser cannot keep the screen on', 'var(--amber)');
+    return;
+  }
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    document.getElementById('wakeLockBtn').textContent = '✅ Screen stays on (tracking safe)';
+    document.getElementById('wakeLockBtn').style.color = 'var(--green)';
+    showToast('💡 The screen will now stay on — tracking is safe!', 'var(--green)', 5000);
+
+    wakeLock.addEventListener('release', () => {
+      wakeLock = null;
+      document.getElementById('wakeLockBtn').textContent = '💡 Keep Screen On (for tracking)';
+      document.getElementById('wakeLockBtn').style.color = '';
+      showBanner('⚠️ The screen may lock — tap "Keep Screen On" again', 'warn');
+    });
+  } catch(e) {
+    showToast('Wake lock: ' + e.message, 'var(--amber)');
+  }
+}
+
+// Re-acquire wake lock when page becomes visible again
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible') {
+    // Page foreground mein aayi — immediately ping
+    if (isTracking && lastCoords) {
+      sendLocationPing();
+    }
+    // Re-acquire wake lock if lost
+    if (isTracking && !wakeLock && 'wakeLock' in navigator) {
+      try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {}
+    }
+    // Check how long we were hidden
+    hideBanner();
+  } else {
+    // Page background mein gayi
+    if (isTracking) {
+      showBanner('📵 The app is in the background — tracking may slow down. Keep the app open!', 'warn');
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// ONLINE/OFFLINE DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+window.addEventListener('online', () => {
+  isOnline = true;
+  updateSignal(4);
+  document.getElementById('connStatus').textContent = 'Online';
+  showBanner('✅ Internet is back — sending the queued pings', 'ok');
+  flushQueue(); // Send all queued pings
+});
+
+window.addEventListener('offline', () => {
+  isOnline = false;
+  updateSignal(0);
+  document.getElementById('connStatus').textContent = 'Offline';
+  document.getElementById('liveDot').style.background = 'var(--amber)';
+  showBanner('📵 No internet — pings are saved in the queue', 'warn');
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// LOAD AGENTS
+// ═══════════════════════════════════════════════════════════════════════
+async function loadAgents() {
+  // 14-Nov-2026: no staff list any more - the phone registers with its mobile number and the office code
+  document.getElementById('loginLoading').style.display = 'none';
+  document.getElementById('loginError').style.display  = 'none';
+  document.getElementById('loginForm').style.display   = 'block';
+}
+
+async function handleRegister() {
+  const phone = document.getElementById('regPhone').value.trim();
+  const code  = document.getElementById('regCode').value.trim().toUpperCase();
+  const newBox = document.getElementById('regNewBox');
+  const name  = newBox.style.display === 'none' ? '' : document.getElementById('regName').value.trim();
+  const role  = document.getElementById('regRole').value;
+  if (phone.replace(/\D/g, '').length < 10) { showToast('❌ Enter your 10-digit mobile number', 'var(--red)'); return; }
+  if (!code) { showToast('❌ Enter the office code', 'var(--red)'); return; }
+  if (newBox.style.display !== 'none' && !name) { showToast('❌ Enter your name', 'var(--red)'); return; }
+  const btn = document.getElementById('startBtn'); btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/device/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, code, name, role }) });
+    const data = await res.json();
+    if (data.needName) { newBox.style.display = 'block'; showToast('ℹ️ ' + data.error, 'var(--blue)', 5000); return; }
+    if (!data.success) throw new Error(data.error || 'Could not register');
+    localStorage.setItem(TOKEN_KEY, data.token);
+    agent = { id: data.agent.id, name: data.agent.name, role: data.agent.role, phone, vehicleNumber: data.agent.vehicleNumber || '' };
+    localStorage.setItem('eagleview_agent', JSON.stringify(agent));
+    showToast(`✅ Registered as ${agent.name}`, 'var(--green)');
+    setTimeout(() => startApp(), 600);
+  } catch (e) { showToast('❌ ' + e.message, 'var(--red)', 5000); }
+  finally { btn.disabled = false; }
+}
+
+function showManualForm() { loadAgents(); }
+function showAgentList()   { loadAgents(); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// APP START
+// ═══════════════════════════════════════════════════════════════════════
+function startApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display     = 'block';
+  document.getElementById('topbar').style.display      = 'flex';
+  document.getElementById('bottomNav').style.display   = 'flex';
+
+  const roleEmojis = {'Fleet Driver':'🚚','Doc Collection':'🛵','Customs Clerk':'📋','Airport Runner':'✈️','Other':'👤'};
+  document.getElementById('agentName').textContent     = agent.name;
+  document.getElementById('agentRole').textContent     = agent.role;
+  document.getElementById('profileName').textContent   = agent.name;
+  document.getElementById('profileRole').textContent   = agent.role;
+  document.getElementById('profilePhone').textContent  = agent.phone||'No phone given';
+  document.getElementById('profileId').textContent     = agent.id;
+  // 14-Nov-2026: a phone still on the old way (no key) works while the office allows it; ask it to register
+  if (!fieldToken()) setTimeout(() => showBanner('🔒 Register this phone: ask the office for the code, then Logout and register with your mobile number.', 'warn'), 1500);
+  document.getElementById('profileAvatar').textContent = roleEmojis[agent.role]||'👤';
+
+  // Battery API
+  if (navigator.getBattery) {
+    navigator.getBattery().then(bat => {
+      updateBattery(Math.round(bat.level * 100));
+      bat.onlevelchange = () => updateBattery(Math.round(bat.level * 100));
+    });
+  }
+
+  // Show Wake Lock button if supported
+  if ('wakeLock' in navigator) {
+    document.getElementById('wakeLockSection').style.display = 'block';
+  }
+
+  connectSocket();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/field-app/sw.js').catch(() => {});
+  }
+
+  // Auto-start tracking
+  document.getElementById('trackingToggle').checked = true;
+  toggleTracking(true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BATTERY
+// ═══════════════════════════════════════════════════════════════════════
+function updateBattery(level) {
+  document.getElementById('batteryVal').innerHTML = `${level}<span class="unit">%</span>`;
+  const fill = document.getElementById('batteryFill');
+  fill.style.width      = level + '%';
+  fill.style.background = level > 50 ? 'var(--green)' : level > 20 ? 'var(--amber)' : 'var(--red)';
+}
+function getBatteryLevel() {
+  const text = document.getElementById('batteryVal').textContent;
+  return parseInt(text) || null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SOCKET.IO
+// ═══════════════════════════════════════════════════════════════════════
+function connectSocket() {
+  socket = io({ transports: ['websocket', 'polling'], reconnectionAttempts: Infinity, reconnectionDelay: 2000, auth: fieldToken() ? { fieldToken: fieldToken() } : {} });
+
+  socket.on('connect', () => {
+    document.getElementById('connStatus').textContent = 'Connected';
+    document.getElementById('liveDot').style.background = 'var(--green)';
+    updateSignal(4);
+    showToast('✅ Connected to the server', 'var(--green)');
+  });
+
+  socket.on('disconnect', () => {
+    document.getElementById('connStatus').textContent = 'Reconnecting…';
+    document.getElementById('liveDot').style.background = 'var(--amber)';
+    updateSignal(1);
+  });
+
+  socket.on('connect_error', () => updateSignal(0));
+
+  socket.on('siren_triggered', ({ agentId, message }) => {
+    if (agentId === agent.id) triggerSiren(message);
+  });
+
+  socket.on('agent_task_updated', ({ agentId, task, location }) => {
+    if (agentId === agent.id) {
+      document.getElementById('taskTitle').textContent = task;
+      document.getElementById('taskLoc').textContent   = location||'—';
+      document.getElementById('taskBadge').textContent = 'Pending';
+      document.getElementById('taskBadge').className   = 'task-badge pending';
+      document.getElementById('taskDoneSection').style.display = 'block'; // Show Done button
+      vibrate([200, 100, 200]);
+      showToast('📋 New task: ' + task, 'var(--blue)', 5000);
+    }
+  });
+}
+
+// ─── MARK TASK DONE ──────────────────────────────────────────────────
+async function markTaskDone() {
+  if (!agent) return;
+  try {
+    const res  = await fx(`${API}/agents/${agent.id}/task-complete`, { method: 'PATCH' });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('taskBadge').textContent = 'Done ✅';
+      document.getElementById('taskBadge').className   = 'task-badge done';
+      document.getElementById('taskDoneSection').style.display = 'none';
+      document.getElementById('statusText').textContent = 'Idle';
+      document.getElementById('statusPill').className   = 'status-pill idle';
+      vibrate([100, 50, 100, 50, 100]);
+      showToast('✅ Task complete! The admin has been notified', 'var(--green)', 5000);
+    } else throw new Error(data.error);
+  } catch(e) {
+    showToast('❌ ' + e.message, 'var(--red)', 4000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🛡️ BULLETPROOF GPS TRACKING ENGINE — 7 Layers
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Layer 1: Persistent Queue (LocalStorage — survives reload/crash) ──
+const QUEUE_KEY = 'ev_ping_queue';
+const LAST_PING_KEY = 'ev_last_ping_ts';
+
+function loadQueueFromStorage() {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    if (raw) offlineQueue = JSON.parse(raw);
+  } catch(e) {}
+}
+function saveQueueToStorage() {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(offlineQueue.slice(-200))); } catch(e) {}
+}
+function saveToQueue(pingData) {
+  offlineQueue.push({ ...pingData, queuedAt: new Date().toISOString() });
+  if (offlineQueue.length > 200) offlineQueue.shift();
+  saveQueueToStorage(); // Persist immediately
+  updateQueueBadge();
+}
+
+// ── Layer 2: Toggle Tracking ─────────────────────────────────────────
+function toggleTracking(enabled) {
+  isTracking = enabled;
+  const sub  = document.getElementById('trackingSubText');
+  const info = document.getElementById('trackingInfo');
+  if (enabled) {
+    sub.textContent = '● Live tracking on'; sub.style.color = 'var(--green)';
+    info.style.display = 'block';
+    loadQueueFromStorage(); // Restore any queued pings from before
+    startGPS();
+    requestWakeLock();
+    startHealthCheck();
+    startHeartbeatWatchdog();
+  } else {
+    sub.textContent = 'Tracking is off'; sub.style.color = 'var(--muted)';
+    info.style.display = 'none';
+    stopGPS();
+    if (wakeLock) { wakeLock.release(); wakeLock = null; }
+    stopHealthCheck();
+    stopHeartbeatWatchdog();
+  }
+}
+
+// ── Layer 3: Triple GPS Strategy ────────────────────────────────────
+let gpsRetryCount    = 0;
+let backupGpsTimer   = null;
+
+function startGPS() {
+  if (!navigator.geolocation) { showToast('❌ GPS is not available', 'var(--red)'); return; }
+  document.getElementById('gpsStatus').textContent = '📡 Looking for GPS signal…';
+
+  // Primary: watchPosition (fires automatically on movement)
+  startWatchPosition();
+
+  // Backup: Every 20s, force a getCurrentPosition if watch hasn't updated
+  backupGpsTimer = setInterval(backupGetLocation, 20000);
+
+  // Ping timer (separate from GPS)
+  pingTimer = setInterval(sendLocationPing, PING_INTERVAL);
+  sendLocationPing(); // First ping immediately
+}
+
+function startWatchPosition(accuracy = true) {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); }
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      gpsRetryCount = 0;
+      lastCoords = {
+        lat:      pos.coords.latitude,
+        lng:      pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+        speed:    pos.coords.speed ? pos.coords.speed * 3.6 : 0,
+        heading:  pos.coords.heading,
+        ts:       Date.now()
+      };
+      updateGpsUI(lastCoords);
+    },
+    err => {
+      gpsRetryCount++;
+      console.warn('[GPS Watch] Error #' + gpsRetryCount + ':', err.message);
+      if (gpsRetryCount === 2 && accuracy) {
+        // Layer 4: Fallback to lower accuracy if high accuracy keeps failing
+        showBanner('📡 GPS accuracy is low — retrying…', 'warn');
+        startWatchPosition(false); // Try with low accuracy
+      } else if (gpsRetryCount >= 4) {
+        document.getElementById('gpsStatus').textContent = '⚠️ No GPS signal — move to an open place';
+        showBanner('🔴 No GPS — move to an open place or set the location by hand', 'error');
+      }
+    },
+    {
+      enableHighAccuracy: accuracy,
+      maximumAge:         accuracy ? 5000 : 30000,
+      timeout:            accuracy ? 15000 : 30000
+    }
+  );
+}
+
+// Backup: getCurrentPosition — if watchPosition stuck
+async function backupGetLocation() {
+  if (!isTracking) return;
+  const now = Date.now();
+  const lastGpsAge = lastCoords ? now - (lastCoords.ts || 0) : Infinity;
+
+  // Only use backup if last GPS update > 25 seconds ago
+  if (lastGpsAge < 25000) return;
+
+  return new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        lastCoords = {
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed ? pos.coords.speed * 3.6 : 0,
+          heading: pos.coords.heading, ts: Date.now()
+        };
+        updateGpsUI(lastCoords);
+        resolve();
+      },
+      err => { console.warn('[GPS Backup]', err.message); resolve(); },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+function stopGPS() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (pingTimer)        { clearInterval(pingTimer); pingTimer = null; }
+  if (backupGpsTimer)   { clearInterval(backupGpsTimer); backupGpsTimer = null; }
+}
+
+function updateGpsUI(c) {
+  const acc = Math.round(c.accuracy || 0);
+  const el  = document.getElementById('accuracyVal');
+  el.innerHTML  = `${acc}<span class="unit">m</span>`;
+  el.className  = 'value ' + (acc < 20 ? 'acc-good' : acc < 60 ? 'acc-ok' : 'acc-bad');
+  document.getElementById('speedVal').innerHTML = `${Math.round(c.speed||0)}<span class="unit">km/h</span>`;
+  document.getElementById('gpsStatus').textContent = `✅ GPS signal (±${acc}m)`;
+  document.getElementById('gpsCoords').textContent = `${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`;
+  updateSignal(acc < 10 ? 4 : acc < 30 ? 3 : acc < 60 ? 2 : 1);
+}
+
+// ── Layer 5: Server Health Check ─────────────────────────────────────
+let healthTimer  = null;
+let serverOnline = true;
+
+function startHealthCheck() {
+  healthTimer = setInterval(async () => {
+    try {
+      const r = await fx(`${API}/health`, { signal: AbortSignal.timeout(5000) });
+      if (r.ok) {
+        if (!serverOnline) {
+          serverOnline = true;
+          showBanner('✅ Server back online — sending the queue', 'ok');
+          flushQueue();
+        }
+      } else throw new Error('not ok');
+    } catch(e) {
+      if (serverOnline) {
+        serverOnline = false;
+        showBanner('🔴 Cannot reach the server — pings are saved in the queue', 'error');
+      }
+    }
+  }, 60000);
+}
+function stopHealthCheck() { if (healthTimer) { clearInterval(healthTimer); healthTimer = null; } }
+
+// ── Layer 6: Heartbeat Watchdog — force ping if silent too long ───────
+let heartbeatTimer = null;
+
+function startHeartbeatWatchdog() {
+  heartbeatTimer = setInterval(() => {
+    if (!isTracking || !agent) return;
+    const lastTs = parseInt(localStorage.getItem(LAST_PING_KEY) || '0');
+    const silentMs = Date.now() - lastTs;
+    if (silentMs > 35000) {
+      // No successful ping in 35s — force one now
+      console.warn('[Heartbeat] Ping silent for', Math.round(silentMs/1000) + 's — forcing ping');
+      backupGetLocation().then(sendLocationPing);
+    }
+  }, 30000);
+}
+function stopHeartbeatWatchdog() { if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; } }
+
+// ── Layer 7: Send Ping — Exponential Backoff + Bulk Flush ────────────
+let retryTimeout   = null;
+let retryDelay     = 5000; // starts at 5s, doubles each fail up to 60s
+
+async function sendLocationPing() {
+  if (!agent || !isTracking) return;
+
+  // If no coords, try backup GPS first
+  if (!lastCoords) {
+    await backupGetLocation();
+    if (!lastCoords) {
+      document.getElementById('gpsStatus').textContent = '⚠️ No GPS fix — retrying…';
+      return;
+    }
+  }
+
+  const pingData = {
+    agentId:   agent.id,
+    lat:       lastCoords.lat,
+    lng:       lastCoords.lng,
+    accuracy:  lastCoords.accuracy,
+    speed:     lastCoords.speed,
+    heading:   lastCoords.heading,
+    battery:   getBatteryLevel(),
+    timestamp: new Date().toISOString()
+  };
+
+  // Offline → queue immediately
+  if (!isOnline || !serverOnline) {
+    saveToQueue(pingData);
+    document.getElementById('lastPingVal').textContent = '📦 Queued';
+    return;
+  }
+
+  try {
+    const res = await Promise.race([
+      fx(`${API}/location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pingData)
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
+    ]);
+
+    if (res.ok) {
+      // ✅ SUCCESS
+      consecutiveFails = 0;
+      retryDelay       = 5000; // reset backoff
+      lastSuccessfulPing = new Date();
+      localStorage.setItem(LAST_PING_KEY, Date.now().toString());
+
+      document.getElementById('lastPingVal').textContent = formatTime(lastSuccessfulPing);
+      document.getElementById('liveDot').style.background = 'var(--green)';
+      pingStatus = 'ok';
+      hideBanner();
+
+      locationHistory.unshift({ time: new Date(), lat: lastCoords.lat, lng: lastCoords.lng, speed: Math.round(lastCoords.speed||0), sent: true });
+      if (locationHistory.length > 100) locationHistory.pop();
+
+      // Flush any queued pings
+      if (offlineQueue.length > 0) setTimeout(flushQueue, 500);
+
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+  } catch(e) {
+    consecutiveFails++;
+    saveToQueue(pingData);
+    pingStatus = 'queued';
+
+    locationHistory.unshift({ time: new Date(), lat: lastCoords.lat, lng: lastCoords.lng, speed: Math.round(lastCoords.speed||0), sent: false });
+    if (locationHistory.length > 100) locationHistory.pop();
+
+    document.getElementById('lastPingVal').textContent = `⚠️ Retry (${consecutiveFails}x)`;
+    document.getElementById('liveDot').style.background = consecutiveFails >= 3 ? 'var(--red)' : 'var(--amber)';
+
+    if (consecutiveFails === 3) {
+      showBanner(`⚠️ Failed ${consecutiveFails} times — ${offlineQueue.length} pings saved in the queue`, 'warn');
+    } else if (consecutiveFails >= 6) {
+      showBanner(`🔴 Cannot reach the server (${consecutiveFails}x) — ${offlineQueue.length} pings queued`, 'error');
+    }
+
+    // Exponential backoff retry (in addition to regular timer)
+    if (retryTimeout) clearTimeout(retryTimeout);
+    retryTimeout = setTimeout(() => {
+      retryTimeout = null;
+      sendLocationPing();
+    }, Math.min(retryDelay, 60000));
+    retryDelay = Math.min(retryDelay * 2, 60000);
+  }
+
+  renderHistory();
+}
+
+// ── Bulk Queue Flush — single request for all queued pings ────────────
+async function flushQueue() {
+  if (offlineQueue.length === 0 || (!isOnline && !serverOnline)) return;
+  const toSend = [...offlineQueue];
+  offlineQueue = [];
+  saveQueueToStorage();
+  updateQueueBadge();
+
+  try {
+    const res = await fx(`${API}/location/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pings: toSend })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      showToast(`✅ ${d.accepted}/${d.total} queued pings sent`, 'var(--green)', 4000);
+      localStorage.removeItem(QUEUE_KEY);
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch(e) {
+    // Put them back
+    offlineQueue = [...toSend, ...offlineQueue].slice(-200);
+    saveQueueToStorage();
+    updateQueueBadge();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATUS UPDATE
+// ═══════════════════════════════════════════════════════════════════════
+async function setStatus(status) {
+  const pill = document.getElementById('statusPill');
+  document.getElementById('statusText').textContent = status;
+  pill.className = 'status-pill ' + (status==='In Transit'?'transit':status==='Idle'?'idle':'offline');
+  try {
+    await fx(`${API}/agents/${agent.id}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    showToast(`Status: ${status}`, status==='In Transit'?'var(--green)':status==='Idle'?'var(--amber)':'var(--muted)');
+  } catch(e) { console.warn('Status update failed:', e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SELF-TASK MODAL
+// ═══════════════════════════════════════════════════════════════════════
+function openSelfTaskModal() {
+  document.getElementById('selfTaskTitle').value    = '';
+  document.getElementById('selfTaskLocation').value = '';
+  document.getElementById('selfTaskNote').value     = '';
+  selectedPriority = 'Normal';
+  document.querySelectorAll('.prio-btn').forEach(b => { b.style.borderColor='#334155'; b.style.background='#0f172a'; b.style.color='var(--muted)'; });
+  selectPriority('Normal');
+  document.getElementById('selfTaskModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function closeSelfTaskModal() { document.getElementById('selfTaskModal').style.display='none'; document.body.style.overflow=''; }
+function selectPriority(level) {
+  selectedPriority = level;
+  const colors = { Normal:{b:'#0ea5e9',bg:'rgba(14,165,233,0.15)',t:'#0ea5e9'}, High:{b:'#f59e0b',bg:'rgba(245,158,11,0.15)',t:'#f59e0b'}, Urgent:{b:'#ef4444',bg:'rgba(239,68,68,0.15)',t:'#ef4444'}, Low:{b:'#10b981',bg:'rgba(16,185,129,0.15)',t:'#10b981'} };
+  document.querySelectorAll('.prio-btn').forEach(b => { b.style.borderColor='#334155'; b.style.background='#0f172a'; b.style.color='var(--muted)'; });
+  const sel = document.getElementById(`prio-${level}`);
+  if (sel && colors[level]) { sel.style.borderColor=colors[level].b; sel.style.background=colors[level].bg; sel.style.color=colors[level].t; }
+}
+async function submitSelfTask() {
+  const task     = document.getElementById('selfTaskTitle').value.trim();
+  const location = document.getElementById('selfTaskLocation').value.trim();
+  const note     = document.getElementById('selfTaskNote').value.trim();
+  if (!task) { showToast('❌ Write what the task is', 'var(--red)'); return; }
+  const fullTask = note ? `${task} | Note: ${note}` : task;
+  try {
+    const res  = await fx(`${API}/task`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ agentId:agent.id, task:fullTask, location:location||'Field', priority:selectedPriority, assignedBy:`${agent.name} (Self-Assigned)` }) });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('taskTitle').textContent = task;
+      document.getElementById('taskLoc').textContent   = location||'Field';
+      const badge = document.getElementById('taskBadge');
+      badge.textContent = `${selectedPriority} Priority`;
+      badge.className   = 'task-badge ' + ({Urgent:'red',High:'orange',Normal:'progress',Low:'done'}[selectedPriority]||'progress');
+      if (selectedPriority==='Urgent'||selectedPriority==='High') setStatus('In Transit');
+      closeSelfTaskModal(); vibrate([100,50,100]);
+      showToast('✅ Task submitted! The admin has been notified', 'var(--green)', 4000);
+    } else throw new Error(data.error||'Unknown error');
+  } catch(e) { showToast('❌ Task not submitted: '+e.message, 'var(--red)', 4000); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SIREN
+// ═══════════════════════════════════════════════════════════════════════
+function triggerSiren(message) {
+  document.getElementById('sirenMsg').textContent = message;
+  document.getElementById('sirenAlert').style.display = 'flex';
+  vibrate([500,200,500,200,500,200,1000]);
+  window._sirenVibInterval = setInterval(() => vibrate([500,200,500]), 2000);
+  try {
+    const ctx = new AudioContext();
+    function beep() { const o=ctx.createOscillator(),g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value=880; o.type='sawtooth'; g.gain.value=0.6; o.start(); o.stop(ctx.currentTime+0.4); }
+    beep(); setTimeout(beep,600); setTimeout(beep,1200);
+  } catch(e) {}
+}
+function acknowledgeSiren() { document.getElementById('sirenAlert').style.display='none'; clearInterval(window._sirenVibInterval); vibrate([0]); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// HISTORY RENDER
+// ═══════════════════════════════════════════════════════════════════════
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!locationHistory.length) { list.innerHTML='<div style="text-align:center;color:var(--muted);padding:40px 0"><div style="font-size:40px;margin-bottom:12px">🗺️</div>No history yet</div>'; return; }
+  list.innerHTML = locationHistory.map(h => `
+    <div class="history-item">
+      <div class="history-time">${formatTime(h.time)}</div>
+      <div class="history-loc">📍 ${h.lat.toFixed(5)}, ${h.lng.toFixed(5)}</div>
+      <div>
+        <div class="history-speed">${h.speed} km/h</div>
+        <div class="${h.sent?'history-sent':'history-failed'}">${h.sent?'✅ Sent':'⏳ Queue'}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TAB / PROFILE / INSTALL
+// ═══════════════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (tab==='home') { document.getElementById('homeTab').classList.add('active'); document.getElementById('navHome').classList.add('active'); }
+  else if (tab==='history') { document.getElementById('historyTabSection').classList.add('active'); document.getElementById('navHistory').classList.add('active'); renderHistory(); }
+  else if (tab==='profile') { document.getElementById('profileTabSection').classList.add('active'); document.getElementById('navProfile').classList.add('active'); }
+}
+
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
+function showInstallPrompt() {
+  if (installPrompt) { installPrompt.prompt(); installPrompt.userChoice.then(r => { if(r.outcome==='accepted') showToast('✅ App installed!'); installPrompt=null; }); }
+  else showToast('ℹ️ Chrome menu → tap "Add to Home Screen"', 'var(--blue)', 5000);
+}
+
+async function testConnection() {
+  showToast('🔌 Testing the server…', 'var(--blue)');
+  try {
+    const res = await fx(`${API}/stats`);
+    const d   = await res.json();
+    if (d.success) showToast(`✅ Connected! Total ${d.data.total} agents`, 'var(--green)', 5000);
+    else throw new Error(JSON.stringify(d));
+  } catch(e) { showToast('❌ ' + e.message, 'var(--red)', 5000); }
+}
+
+function logout() {
+  stopGPS();
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  if (socket) socket.disconnect();
+  localStorage.removeItem('eagleview_agent');
+  try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  agent = null; offlineQueue = []; isTracking = false;
+  document.getElementById('mainApp').style.display     = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('topbar').style.display      = 'none';
+  document.getElementById('bottomNav').style.display   = 'none';
+  document.getElementById('trackingToggle').checked    = false;
+  loadAgents();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+(function init() {
+  const saved = localStorage.getItem('eagleview_agent');
+  if (saved) {
+    try { agent = JSON.parse(saved); startApp(); return; }
+    catch(e) { localStorage.removeItem('eagleview_agent'); }
+  }
+  loadAgents();
+})();
+</script>
+</body>
+</html>

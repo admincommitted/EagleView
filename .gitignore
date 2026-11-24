@@ -1,0 +1,35 @@
+# EagleView - repository root
+# node-backend/ and frontend/ have their own .gitignore for their own files.
+
+# Dependencies
+node_modules/
+
+# Secrets - never commit (node-backend/.env.example lists the keys)
+.env
+.env.*
+!.env.example
+
+# Logs and backups
+logs/
+*.log
+backups/
+*.zip
+*.gz
+
+# DSC signer: the .exe is built by BUILD_SIGNER_EXE.bat (117 MB - over GitHub's 100 MB file limit)
+*.exe
+signer_tool/build/
+signer_tool/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

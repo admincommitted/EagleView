@@ -1,0 +1,3979 @@
+{
+ "BE": {
+  "headerField": {
+   "senderID": [
+    "s",
+    30
+   ],
+   "receiverID": [
+    "s",
+    30
+   ],
+   "indicator": [
+    "s",
+    1
+   ],
+   "messageID": [
+    "s",
+    7
+   ],
+   "sequenceOrControlNumber": [
+    "n",
+    0
+   ],
+   "jobNumber": [
+    "n",
+    0
+   ],
+   "jobDate": [
+    "d",
+    0
+   ],
+   "messageType": [
+    "s",
+    1
+   ]
+  },
+  "master": {
+   "beModel": {
+    "beType": [
+     "s",
+     1
+    ],
+    "iecCode": [
+     "s",
+     10
+    ],
+    "branchSrNo": [
+     "n",
+     3
+    ],
+    "nameOfImporter": [
+     "s",
+     50
+    ],
+    "address1": [
+     "s",
+     35
+    ],
+    "address2": [
+     "s",
+     35
+    ],
+    "city": [
+     "s",
+     35
+    ],
+    "state": [
+     "s",
+     25
+    ],
+    "pin": [
+     "s",
+     6
+    ],
+    "beClass": [
+     "s",
+     1
+    ],
+    "modeOfTransport": [
+     "s",
+     1
+    ],
+    "importerType": [
+     "s",
+     1
+    ],
+    "kachchaBE": [
+     "s",
+     1
+    ],
+    "highSeaSaleFlag": [
+     "s",
+     1
+    ],
+    "portOfOrigin": [
+     "s",
+     6
+    ],
+    "chaCode": [
+     "s",
+     15
+    ],
+    "countryOfOrigin": [
+     "s",
+     2
+    ],
+    "countryOfConsignment": [
+     "s",
+     2
+    ],
+    "portOfShipment": [
+     "s",
+     6
+    ],
+    "greenChannelRequested": [
+     "s",
+     1
+    ],
+    "section48Requested": [
+     "s",
+     1
+    ],
+    "whetherPriorBE": [
+     "s",
+     1
+    ],
+    "authorizedEconomicDealerCode": [
+     "s",
+     10
+    ],
+    "firstCheckRequested": [
+     "s",
+     1
+    ],
+    "warehouseCode": [
+     "s",
+     8
+    ],
+    "warehouseCustomSiteId": [
+     "s",
+     6
+    ],
+    "warehouseBENo": [
+     "n",
+     7
+    ],
+    "warehouseBEDate": [
+     "d",
+     0
+    ],
+    "noOfPackagesReleased": [
+     "n",
+     8
+    ],
+    "packageCode": [
+     "s",
+     3
+    ],
+    "grossWeight": [
+     "n",
+     0
+    ],
+    "unitOfMeasurement": [
+     "s",
+     3
+    ],
+    "additionalChargesifanyPurchaseonHighseas": [
+     "n",
+     0
+    ],
+    "miscellaneousLoad": [
+     "n",
+     0
+    ],
+    "uniqueConsignmentReferenceNo": [
+     "s",
+     35
+    ],
+    "ucrType": [
+     "s",
+     6
+    ],
+    "paymentMethodCode": [
+     "s",
+     1
+    ]
+   },
+   "exchangeModel": {
+    "currencyCode": [
+     "s",
+     3
+    ],
+    "standardCurrency": [
+     "s",
+     1
+    ],
+    "unitInRs": [
+     "n",
+     0
+    ],
+    "rate": [
+     "n",
+     0
+    ],
+    "effectiveDate": [
+     "d",
+     0
+    ],
+    "banknamefornonstandardcurrency": [
+     "s",
+     35
+    ],
+    "certificateNumber": [
+     "s",
+     20
+    ],
+    "certificateDate": [
+     "d",
+     0
+    ]
+   },
+   "permissionModel": {
+    "permissionCode": [
+     "s",
+     3
+    ],
+    "reasonsForRequest": [
+     "s",
+     2000
+    ]
+   },
+   "invoiceModel": {
+    "invoiceSerialNumber": [
+     "n",
+     5
+    ],
+    "invoiceDate": [
+     "d",
+     0
+    ],
+    "purchaseOrderNumber": [
+     "s",
+     20
+    ],
+    "purchaseOrderDate": [
+     "d",
+     0
+    ],
+    "contractNumber": [
+     "s",
+     20
+    ],
+    "contractDate": [
+     "d",
+     0
+    ],
+    "lcNumber": [
+     "s",
+     20
+    ],
+    "lcDate": [
+     "d",
+     0
+    ],
+    "svbReferenceNumber": [
+     "s",
+     20
+    ],
+    "svbReferenceDate": [
+     "d",
+     0
+    ],
+    "svbLoadAssessableValue": [
+     "n",
+     0
+    ],
+    "svbLoadOnDuty": [
+     "n",
+     0
+    ],
+    "svbFlag": [
+     "s",
+     1
+    ],
+    "whetherloadProvisionalOnAssValue": [
+     "s",
+     1
+    ],
+    "whetherProvisionalOnDuty": [
+     "s",
+     1
+    ],
+    "customHouseCodeWhichHasImposedLoad": [
+     "s",
+     6
+    ],
+    "supplierName": [
+     "s",
+     100
+    ],
+    "supplierAddress1": [
+     "s",
+     100
+    ],
+    "supplierAddress2": [
+     "s",
+     100
+    ],
+    "supplierAddress3": [
+     "s",
+     100
+    ],
+    "supplierCountryName": [
+     "s",
+     25
+    ],
+    "supplierPin": [
+     "s",
+     10
+    ],
+    "sellerName": [
+     "s",
+     100
+    ],
+    "sellerAddress1": [
+     "s",
+     100
+    ],
+    "sellerAddress2": [
+     "s",
+     100
+    ],
+    "sellerAddress3": [
+     "s",
+     100
+    ],
+    "sellerCountryName": [
+     "s",
+     35
+    ],
+    "sellerPin": [
+     "s",
+     10
+    ],
+    "brokerName": [
+     "s",
+     50
+    ],
+    "brokerAddress1": [
+     "s",
+     35
+    ],
+    "brokerAddress2": [
+     "s",
+     35
+    ],
+    "brokerAddress3": [
+     "s",
+     35
+    ],
+    "brokerCountry": [
+     "s",
+     35
+    ],
+    "brokerPin": [
+     "s",
+     10
+    ],
+    "invoiceValue": [
+     "n",
+     0
+    ],
+    "termsOfInvoice": [
+     "s",
+     0
+    ],
+    "invoiceCurrency": [
+     "s",
+     3
+    ],
+    "natureOfDiscount": [
+     "s",
+     35
+    ],
+    "discountRate": [
+     "n",
+     0
+    ],
+    "discountAmount": [
+     "n",
+     0
+    ],
+    "hssLoadRate": [
+     "n",
+     0
+    ],
+    "hssLoadAmount": [
+     "n",
+     0
+    ],
+    "freightValue": [
+     "n",
+     0
+    ],
+    "freightRate": [
+     "n",
+     0
+    ],
+    "whetherFreightActual": [
+     "s",
+     1
+    ],
+    "freightCurrency": [
+     "s",
+     3
+    ],
+    "insuranceRate": [
+     "n",
+     0
+    ],
+    "insuranceValue": [
+     "n",
+     0
+    ],
+    "insuranceCurrency": [
+     "s",
+     3
+    ],
+    "miscCharges": [
+     "n",
+     0
+    ],
+    "miscCurrency": [
+     "s",
+     3
+    ],
+    "miscChargesRate": [
+     "n",
+     0
+    ],
+    "landingRate": [
+     "n",
+     0
+    ],
+    "loadingCharges": [
+     "n",
+     0
+    ],
+    "loadingCurrency": [
+     "s",
+     3
+    ],
+    "loadRate": [
+     "n",
+     0
+    ],
+    "agencyCommission": [
+     "n",
+     0
+    ],
+    "agencyCommissionCurrency": [
+     "s",
+     3
+    ],
+    "agencyCommissionRate": [
+     "n",
+     0
+    ],
+    "natureOfTransaction": [
+     "s",
+     0
+    ],
+    "paymentTerms": [
+     "s",
+     3
+    ],
+    "conditionsAttachedWithSale1": [
+     "s",
+     40
+    ],
+    "conditionsAttachedWithSale2": [
+     "s",
+     40
+    ],
+    "conditionsAttachedWithSale3": [
+     "s",
+     40
+    ],
+    "conditionsAttachedWithSale4": [
+     "s",
+     40
+    ],
+    "conditionsAttachedWithSale5": [
+     "s",
+     40
+    ],
+    "valuationMethodApplicable": [
+     "s",
+     40
+    ],
+    "actualInvoiceNumber": [
+     "s",
+     16
+    ],
+    "otherRelevantInform": [
+     "s",
+     100
+    ],
+    "termsPlace": [
+     "s",
+     35
+    ],
+    "thirdPartyName": [
+     "s",
+     70
+    ],
+    "thirdPartyAddress1": [
+     "s",
+     70
+    ],
+    "thirdPartyAddress2": [
+     "s",
+     50
+    ],
+    "thirdPartyCity": [
+     "s",
+     35
+    ],
+    "thirdPartyCntrySubDvsn": [
+     "s",
+     35
+    ],
+    "thirdPartyCountryCode": [
+     "s",
+     2
+    ],
+    "thirdPartyPin": [
+     "s",
+     10
+    ],
+    "authorizedEconomicOperatorCode": [
+     "s",
+     17
+    ],
+    "authorizedEconomicOperatorCountry": [
+     "s",
+     2
+    ],
+    "authorizedEconomicOperatorRole": [
+     "s",
+     3
+    ],
+    "whetherBuyerAndSellerAreRelated": [
+     "s",
+     1
+    ]
+   },
+   "misc_chModel": {
+    "invoiceSerialNumber": [
+     "n",
+     5
+    ],
+    "miscChargesCode": [
+     "s",
+     2
+    ],
+    "miscChargesDscrptn": [
+     "s",
+     35
+    ],
+    "miscCharges": [
+     "n",
+     0
+    ],
+    "miscRate": [
+     "n",
+     999
+    ]
+   },
+   "itemsModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "unitQuantityCode": [
+     "s",
+     3
+    ],
+    "ritcCode": [
+     "s",
+     8
+    ],
+    "itemDescription1": [
+     "s",
+     60
+    ],
+    "itemDescription2": [
+     "s",
+     60
+    ],
+    "itemCategory": [
+     "s",
+     2
+    ],
+    "genericDescriptionOfTheItem": [
+     "s",
+     60
+    ],
+    "accessoriesForTheItem": [
+     "s",
+     2000
+    ],
+    "manufacturerName": [
+     "s",
+     50
+    ],
+    "brandName": [
+     "s",
+     20
+    ],
+    "model": [
+     "s",
+     20
+    ],
+    "endUseOfItem": [
+     "s",
+     20
+    ],
+    "countryOfOrigin": [
+     "s",
+     2
+    ],
+    "cth": [
+     "s",
+     8
+    ],
+    "preferentialStandard": [
+     "s",
+     1
+    ],
+    "ceth": [
+     "s",
+     8
+    ],
+    "bcdNotification": [
+     "s",
+     10
+    ],
+    "bcdNotificationSrNo": [
+     "s",
+     10
+    ],
+    "cvdNotification": [
+     "s",
+     10
+    ],
+    "cvdNotificationSrNo": [
+     "s",
+     10
+    ],
+    "additionalNotification1": [
+     "s",
+     10
+    ],
+    "additionalNotification1SrNo": [
+     "s",
+     10
+    ],
+    "additionalNotification2": [
+     "s",
+     10
+    ],
+    "additionalNotification2SrNo": [
+     "s",
+     10
+    ],
+    "otherNotification": [
+     "s",
+     10
+    ],
+    "otherNotificationSrNo": [
+     "s",
+     10
+    ],
+    "cusEducessNotfnNumber": [
+     "s",
+     10
+    ],
+    "cusEducessNotfnSrNo": [
+     "s",
+     10
+    ],
+    "socialWelfareNotn": [
+     "s",
+     10
+    ],
+    "socialWelfareNotnSlno": [
+     "s",
+     10
+    ],
+    "ncdNotn": [
+     "s",
+     10
+    ],
+    "ncdNotnSrNo": [
+     "s",
+     10
+    ],
+    "antiDumpingDutyNotification": [
+     "s",
+     10
+    ],
+    "antiDumpingDutySerialNumber": [
+     "s",
+     10
+    ],
+    "cthSerialNumber": [
+     "s",
+     10
+    ],
+    "supplierSerialNumber": [
+     "s",
+     10
+    ],
+    "quantityAsPerAntiDumpingNotn": [
+     "n",
+     0
+    ],
+    "tariffValueNotn": [
+     "s",
+     10
+    ],
+    "tariffValueItemSerialNumber": [
+     "s",
+     10
+    ],
+    "quantityAsPerTariffValueNotn": [
+     "n",
+     0
+    ],
+    "saptaNotn": [
+     "s",
+     10
+    ],
+    "saptaSerialNumber": [
+     "s",
+     10
+    ],
+    "healthNotn": [
+     "s",
+     10
+    ],
+    "healthSrNo": [
+     "s",
+     10
+    ],
+    "additionalCvdNotn": [
+     "s",
+     10
+    ],
+    "additionalCvdSrNo": [
+     "s",
+     10
+    ],
+    "aggregateDutyNotn": [
+     "s",
+     10
+    ],
+    "aggregateDutyNotnSrNo": [
+     "s",
+     10
+    ],
+    "safeguardDutyNotn": [
+     "s",
+     10
+    ],
+    "safeguardDutyNotnSrNo": [
+     "s",
+     10
+    ],
+    "unitPriceInvoiced": [
+     "n",
+     0
+    ],
+    "discountRate": [
+     "n",
+     0
+    ],
+    "discountAmount": [
+     "n",
+     0
+    ],
+    "quantityAsPerCth": [
+     "n",
+     0
+    ],
+    "cthQty": [
+     "n",
+     0
+    ],
+    "svbReferenceNumber": [
+     "s",
+     20
+    ],
+    "svbReferenceDate": [
+     "d",
+     0
+    ],
+    "svbLoadAssessableValue": [
+     "n",
+     0
+    ],
+    "svbLoadOnDuty": [
+     "n",
+     0
+    ],
+    "svbFlag": [
+     "s",
+     0
+    ],
+    "whetherLoadProvisionalOnAssessableValue": [
+     "s",
+     1
+    ],
+    "whetherLoadProvisionalOnDuty": [
+     "s",
+     1
+    ],
+    "customHouseCodeWhichHasImposedLoad": [
+     "s",
+     6
+    ],
+    "policyParaNo": [
+     "s",
+     7
+    ],
+    "policyYear": [
+     "s",
+     5
+    ],
+    "rspApplicability": [
+     "s",
+     0
+    ],
+    "whetherReimport": [
+     "s",
+     1
+    ],
+    "previousBeNo": [
+     "s",
+     9999999
+    ],
+    "previousBeDate": [
+     "d",
+     0
+    ],
+    "prevUnitPriceInvoiced": [
+     "n",
+     0
+    ],
+    "prevCurrencyCode": [
+     "s",
+     3
+    ],
+    "prevCustomSite": [
+     "s",
+     6
+    ],
+    "customsFlag": [
+     "s",
+     1
+    ],
+    "itemManufacturerType": [
+     "s",
+     1
+    ],
+    "itemManufacturerCode": [
+     "s",
+     17
+    ],
+    "itemManufacturerAddress1": [
+     "s",
+     70
+    ],
+    "itemManufacturerAddress2": [
+     "s",
+     50
+    ],
+    "itemManufacturerCity": [
+     "s",
+     35
+    ],
+    "itemManufacturerSubdivision": [
+     "s",
+     35
+    ],
+    "itemManufacturerPin": [
+     "s",
+     10
+    ],
+    "itemManufacturerCntry": [
+     "s",
+     2
+    ],
+    "sourceCountry": [
+     "s",
+     2
+    ],
+    "transitCountry": [
+     "s",
+     2
+    ],
+    "accessoryStatus": [
+     "s",
+     1
+    ]
+   },
+   "licenseModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     9999
+    ],
+    "itemSrNoLicense": [
+     "s",
+     4
+    ],
+    "debitValue": [
+     "n",
+     0
+    ],
+    "debitQuantity": [
+     "n",
+     0
+    ],
+    "debitUnitOfMeasurement": [
+     "s",
+     3
+    ],
+    "licenseRegistrationNumber": [
+     "n",
+     9999999999
+    ],
+    "licenseRegistrationDate": [
+     "d",
+     0
+    ],
+    "licenseCode": [
+     "s",
+     2
+    ],
+    "licenseRegnPort": [
+     "s",
+     6
+    ]
+   },
+   "rspModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     9999
+    ],
+    "itemSrNoRsp": [
+     "n",
+     9999
+    ],
+    "rsp": [
+     "n",
+     0
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "descItem": [
+     "s",
+     40
+    ],
+    "rspNotification": [
+     "s",
+     10
+    ],
+    "rspNotificationSrNo": [
+     "s",
+     10
+    ]
+   },
+   "depbModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     9999
+    ],
+    "whetherExemption": [
+     "s",
+     1
+    ],
+    "bcdNotification": [
+     "s",
+     10
+    ],
+    "bcdNotificationSrNo": [
+     "s",
+     10
+    ]
+   },
+   "bondModel": {
+    "bondNumber": [
+     "n",
+     9999999999
+    ],
+    "bondCode": [
+     "s",
+     2
+    ],
+    "bondPort": [
+     "s",
+     6
+    ]
+   },
+   "certModel": {
+    "certificateNumber": [
+     "s",
+     30
+    ],
+    "certificationDate": [
+     "d",
+     0
+    ],
+    "certificationType": [
+     "s",
+     2
+    ]
+   },
+   "hssModel": {
+    "iec": [
+     "s",
+     10
+    ],
+    "branchSrNo": [
+     "n",
+     999
+    ],
+    "importerName": [
+     "s",
+     50
+    ],
+    "importerAddress1": [
+     "s",
+     35
+    ],
+    "importerAddress2": [
+     "s",
+     35
+    ],
+    "importerCity": [
+     "s",
+     35
+    ],
+    "importerPin": [
+     "s",
+     6
+    ],
+    "precedingLevel": [
+     "s",
+     1
+    ]
+   },
+   "reimportModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "shippingBillNo": [
+     "n",
+     9999999
+    ],
+    "shippingBillDate": [
+     "d",
+     0
+    ],
+    "portOfExport": [
+     "s",
+     6
+    ],
+    "invoiceNoSb": [
+     "n",
+     99
+    ],
+    "itemNoSb": [
+     "n",
+     9999
+    ],
+    "notificationNo": [
+     "s",
+     10
+    ],
+    "notificationSrNo": [
+     "s",
+     10
+    ],
+    "exportFreight": [
+     "n",
+     0
+    ],
+    "exportInsurance": [
+     "n",
+     0
+    ],
+    "customsDuty": [
+     "n",
+     0
+    ],
+    "exciseDuty": [
+     "n",
+     0
+    ]
+   },
+   "sbedutyModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "notificationNo": [
+     "s",
+     10
+    ],
+    "notificationSrNo": [
+     "s",
+     10
+    ],
+    "dutyType": [
+     "s",
+     0
+    ],
+    "addlDutyFlag": [
+     "s",
+     0
+    ],
+    "exmpNotificationNo": [
+     "s",
+     10
+    ],
+    "exmpNotificationSrNo": [
+     "s",
+     10
+    ],
+    "customsNotnExemptingIgstFlag": [
+     "s",
+     1
+    ],
+    "itemSlNo": [
+     "s",
+     10
+    ],
+    "supplierSlNo": [
+     "s",
+     10
+    ],
+    "nou": [
+     "n",
+     0
+    ]
+   },
+   "igmsModel": {
+    "igmNumber": [
+     "n",
+     9999999
+    ],
+    "igmDate": [
+     "d",
+     0
+    ],
+    "inwardDate": [
+     "d",
+     0
+    ],
+    "gatewayIgmNo": [
+     "n",
+     9999999
+    ],
+    "gatewayIgmDate": [
+     "d",
+     0
+    ],
+    "gatewayPortCode": [
+     "s",
+     6
+    ],
+    "mawbNo": [
+     "s",
+     20
+    ],
+    "mawbDate": [
+     "d",
+     0
+    ],
+    "hawbNo": [
+     "s",
+     20
+    ],
+    "hawbDate": [
+     "d",
+     0
+    ],
+    "totalNoOfPackages": [
+     "n",
+     99999999
+    ],
+    "grossWeight": [
+     "n",
+     0
+    ],
+    "unitQuantityCode": [
+     "s",
+     3
+    ],
+    "packageCode": [
+     "s",
+     3
+    ],
+    "marksAndNumbers1": [
+     "s",
+     40
+    ],
+    "marksAndNumbers2": [
+     "s",
+     40
+    ],
+    "marksAndNumbers3": [
+     "s",
+     40
+    ]
+   },
+   "containerModel": {
+    "igmNumber": [
+     "n",
+     9999999
+    ],
+    "igmDate": [
+     "d",
+     0
+    ],
+    "lclfcl": [
+     "s",
+     1
+    ],
+    "contNumber": [
+     "s",
+     11
+    ],
+    "sealNumber": [
+     "s",
+     10
+    ],
+    "truckNumber": [
+     "s",
+     20
+    ]
+   },
+   "ctxModel": {
+    "stateCode": [
+     "s",
+     2
+    ],
+    "commercialTaxType": [
+     "s",
+     0
+    ],
+    "commercialTaxRegistrationNo": [
+     "s",
+     20
+    ]
+   },
+   "infoTypeModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "infoType": [
+     "s",
+     3
+    ],
+    "infoQualifier": [
+     "s",
+     100
+    ],
+    "infoCode": [
+     "s",
+     100
+    ],
+    "infoText": [
+     "s",
+     100
+    ],
+    "infoMsr": [
+     "n",
+     0
+    ],
+    "infoUqc": [
+     "s",
+     3
+    ]
+   },
+   "sw_ConstModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "constituentSrNo": [
+     "n",
+     999
+    ],
+    "constituentElementName": [
+     "s",
+     256
+    ],
+    "constituentElementCode": [
+     "s",
+     17
+    ],
+    "constituentPercentage": [
+     "n",
+     0
+    ],
+    "constituentYieldPercentage": [
+     "n",
+     0
+    ],
+    "activeIngredientFlag": [
+     "s",
+     1
+    ]
+   },
+   "sw_ProdModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "productionBatchIdentifier": [
+     "s",
+     17
+    ],
+    "productionBatchQuantity": [
+     "n",
+     0
+    ],
+    "unitQuantityCode": [
+     "s",
+     3
+    ],
+    "dateOfManufacturing": [
+     "d",
+     0
+    ],
+    "dateOfExpiry": [
+     "d",
+     0
+    ],
+    "bestBefore": [
+     "d",
+     0
+    ]
+   },
+   "ctrlModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "controlTypeCode": [
+     "s",
+     17
+    ],
+    "controlLocation": [
+     "s",
+     17
+    ],
+    "controlStartDate": [
+     "d",
+     0
+    ],
+    "controlEndDate": [
+     "d",
+     0
+    ],
+    "controlResultCode": [
+     "s",
+     17
+    ],
+    "controlResultText": [
+     "s",
+     4000
+    ],
+    "controlMsr": [
+     "s",
+     0
+    ],
+    "controlUqc": [
+     "s",
+     3
+    ],
+    "controlSlNo": [
+     "n",
+     9999
+    ]
+   },
+   "statementModel": {
+    "declarationtype": [
+     "s",
+     1
+    ],
+    "declarationNo": [
+     "n",
+     9999999
+    ],
+    "declarationDate": [
+     "d",
+     0
+    ],
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "statementType": [
+     "s",
+     3
+    ],
+    "statementCode": [
+     "s",
+     7
+    ],
+    "statementText": [
+     "s",
+     4000
+    ]
+   },
+   "supportingDocsModel": {
+    "declarationType": [
+     "s",
+     1
+    ],
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     9999
+    ],
+    "chaLicenseNumber": [
+     "s",
+     15
+    ],
+    "iec": [
+     "s",
+     10
+    ],
+    "icegateUserId": [
+     "s",
+     25
+    ],
+    "imageReferenceNo": [
+     "s",
+     16
+    ],
+    "documentTypeCode": [
+     "s",
+     6
+    ],
+    "documentIssuingPartyCode": [
+     "s",
+     35
+    ],
+    "documentIssuingPartyName": [
+     "s",
+     70
+    ],
+    "documentIssuingPartyNameAddress1": [
+     "s",
+     70
+    ],
+    "documentIssuingPartyNameAddress2": [
+     "s",
+     50
+    ],
+    "documentIssuingPartyNameCity": [
+     "s",
+     35
+    ],
+    "documentIssuingPartyNamePin": [
+     "s",
+     10
+    ],
+    "documentReferenceNo": [
+     "s",
+     35
+    ],
+    "placeOfIssue": [
+     "s",
+     35
+    ],
+    "documentIssueDate": [
+     "d",
+     0
+    ],
+    "documentExpiryDate": [
+     "d",
+     0
+    ],
+    "documentBeneficiaryPartyCode": [
+     "s",
+     35
+    ],
+    "documentBeneficiaryPartyName": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyNameAddress1": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyNameAddress2": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyNameCity": [
+     "s",
+     35
+    ],
+    "documentBeneficiaryPartyPin": [
+     "s",
+     10
+    ],
+    "fileType": [
+     "s",
+     5
+    ]
+   }
+  },
+  "keyOrder": {
+   "headerField": [
+    "senderID",
+    "receiverID",
+    "indicator",
+    "messageID",
+    "sequenceOrControlNumber",
+    "jobNumber",
+    "jobDate",
+    "messageType"
+   ],
+   "master": {
+    "beModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "beType",
+     "iecCode",
+     "branchSrNo",
+     "nameOfImporter",
+     "address1",
+     "address2",
+     "city",
+     "state",
+     "pin",
+     "beClass",
+     "modeOfTransport",
+     "importerType",
+     "kachchaBE",
+     "highSeaSaleFlag",
+     "portOfOrigin",
+     "chaCode",
+     "countryOfOrigin",
+     "countryOfConsignment",
+     "portOfShipment",
+     "greenChannelRequested",
+     "section48Requested",
+     "whetherPriorBE",
+     "authorizedEconomicDealerCode",
+     "firstCheckRequested",
+     "warehouseCode",
+     "warehouseCustomSiteId",
+     "warehouseBENo",
+     "warehouseBEDate",
+     "noOfPackagesReleased",
+     "packageCode",
+     "grossWeight",
+     "unitOfMeasurement",
+     "additionalChargesifanyPurchaseonHighseas",
+     "miscellaneousLoad",
+     "uniqueConsignmentReferenceNo",
+     "ucrType",
+     "paymentMethodCode"
+    ],
+    "exchangeModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "currencyCode",
+     "standardCurrency",
+     "unitInRs",
+     "rate",
+     "effectiveDate",
+     "banknamefornonstandardcurrency",
+     "certificateNumber",
+     "certificateDate"
+    ],
+    "permissionModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "permissionCode",
+     "reasonsForRequest"
+    ],
+    "invoiceModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "invoiceDate",
+     "purchaseOrderNumber",
+     "purchaseOrderDate",
+     "contractNumber",
+     "contractDate",
+     "lcNumber",
+     "lcDate",
+     "svbReferenceNumber",
+     "svbReferenceDate",
+     "svbLoadAssessableValue",
+     "svbLoadOnDuty",
+     "svbFlag",
+     "whetherloadProvisionalOnAssValue",
+     "whetherProvisionalOnDuty",
+     "customHouseCodeWhichHasImposedLoad",
+     "supplierName",
+     "supplierAddress1",
+     "supplierAddress2",
+     "supplierAddress3",
+     "supplierCountryName",
+     "supplierPin",
+     "sellerName",
+     "sellerAddress1",
+     "sellerAddress2",
+     "sellerAddress3",
+     "sellerCountryName",
+     "sellerPin",
+     "brokerName",
+     "brokerAddress1",
+     "brokerAddress2",
+     "brokerAddress3",
+     "brokerCountry",
+     "brokerPin",
+     "invoiceValue",
+     "termsOfInvoice",
+     "invoiceCurrency",
+     "natureOfDiscount",
+     "discountRate",
+     "discountAmount",
+     "hssLoadRate",
+     "hssLoadAmount",
+     "freightValue",
+     "freightRate",
+     "whetherFreightActual",
+     "freightCurrency",
+     "insuranceRate",
+     "insuranceValue",
+     "insuranceCurrency",
+     "miscCharges",
+     "miscCurrency",
+     "miscChargesRate",
+     "landingRate",
+     "loadingCharges",
+     "loadingCurrency",
+     "loadRate",
+     "agencyCommission",
+     "agencyCommissionCurrency",
+     "agencyCommissionRate",
+     "natureOfTransaction",
+     "paymentTerms",
+     "conditionsAttachedWithSale1",
+     "conditionsAttachedWithSale2",
+     "conditionsAttachedWithSale3",
+     "conditionsAttachedWithSale4",
+     "conditionsAttachedWithSale5",
+     "valuationMethodApplicable",
+     "actualInvoiceNumber",
+     "otherRelevantInform",
+     "termsPlace",
+     "thirdPartyName",
+     "thirdPartyAddress1",
+     "thirdPartyAddress2",
+     "thirdPartyCity",
+     "thirdPartyCntrySubDvsn",
+     "thirdPartyCountryCode",
+     "thirdPartyPin",
+     "authorizedEconomicOperatorCode",
+     "authorizedEconomicOperatorCountry",
+     "authorizedEconomicOperatorRole",
+     "whetherBuyerAndSellerAreRelated"
+    ],
+    "misc_chModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "miscChargesCode",
+     "miscChargesDscrptn",
+     "miscCharges",
+     "miscRate"
+    ],
+    "itemsModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "quantity",
+     "unitQuantityCode",
+     "ritcCode",
+     "itemDescription1",
+     "itemDescription2",
+     "itemCategory",
+     "genericDescriptionOfTheItem",
+     "accessoriesForTheItem",
+     "manufacturerName",
+     "brandName",
+     "model",
+     "endUseOfItem",
+     "countryOfOrigin",
+     "cth",
+     "preferentialStandard",
+     "ceth",
+     "bcdNotification",
+     "bcdNotificationSrNo",
+     "cvdNotification",
+     "cvdNotificationSrNo",
+     "additionalNotification1",
+     "additionalNotification1SrNo",
+     "additionalNotification2",
+     "additionalNotification2SrNo",
+     "otherNotification",
+     "otherNotificationSrNo",
+     "cusEducessNotfnNumber",
+     "cusEducessNotfnSrNo",
+     "socialWelfareNotn",
+     "socialWelfareNotnSlno",
+     "ncdNotn",
+     "ncdNotnSrNo",
+     "antiDumpingDutyNotification",
+     "antiDumpingDutySerialNumber",
+     "cthSerialNumber",
+     "supplierSerialNumber",
+     "quantityAsPerAntiDumpingNotn",
+     "tariffValueNotn",
+     "tariffValueItemSerialNumber",
+     "quantityAsPerTariffValueNotn",
+     "saptaNotn",
+     "saptaSerialNumber",
+     "healthNotn",
+     "healthSrNo",
+     "additionalCvdNotn",
+     "additionalCvdSrNo",
+     "aggregateDutyNotn",
+     "aggregateDutyNotnSrNo",
+     "safeguardDutyNotn",
+     "safeguardDutyNotnSrNo",
+     "unitPriceInvoiced",
+     "discountRate",
+     "discountAmount",
+     "quantityAsPerCth",
+     "cthQty",
+     "svbReferenceNumber",
+     "svbReferenceDate",
+     "svbLoadAssessableValue",
+     "svbLoadOnDuty",
+     "svbFlag",
+     "whetherLoadProvisionalOnAssessableValue",
+     "whetherLoadProvisionalOnDuty",
+     "customHouseCodeWhichHasImposedLoad",
+     "policyParaNo",
+     "policyYear",
+     "rspApplicability",
+     "whetherReimport",
+     "previousBeNo",
+     "previousBeDate",
+     "prevUnitPriceInvoiced",
+     "prevCurrencyCode",
+     "prevCustomSite",
+     "customsFlag",
+     "itemManufacturerType",
+     "itemManufacturerCode",
+     "itemManufacturerAddress1",
+     "itemManufacturerAddress2",
+     "itemManufacturerCity",
+     "itemManufacturerSubdivision",
+     "itemManufacturerPin",
+     "itemManufacturerCntry",
+     "sourceCountry",
+     "transitCountry",
+     "accessoryStatus"
+    ],
+    "licenseModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "itemSrNoLicense",
+     "debitValue",
+     "debitQuantity",
+     "debitUnitOfMeasurement",
+     "licenseRegistrationNumber",
+     "licenseRegistrationDate",
+     "licenseCode",
+     "licenseRegnPort"
+    ],
+    "rspModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "itemSrNoRsp",
+     "rsp",
+     "quantity",
+     "descItem",
+     "rspNotification",
+     "rspNotificationSrNo"
+    ],
+    "depbModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "whetherExemption",
+     "bcdNotification",
+     "bcdNotificationSrNo"
+    ],
+    "bondModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "bondNumber",
+     "bondCode",
+     "bondPort"
+    ],
+    "certModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "certificateNumber",
+     "certificationDate",
+     "certificationType"
+    ],
+    "hssModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "iec",
+     "branchSrNo",
+     "importerName",
+     "importerAddress1",
+     "importerAddress2",
+     "importerCity",
+     "importerPin",
+     "precedingLevel"
+    ],
+    "reimportModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "shippingBillNo",
+     "shippingBillDate",
+     "portOfExport",
+     "invoiceNoSb",
+     "itemNoSb",
+     "notificationNo",
+     "notificationSrNo",
+     "exportFreight",
+     "exportInsurance",
+     "customsDuty",
+     "exciseDuty"
+    ],
+    "sbedutyModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "notificationNo",
+     "notificationSrNo",
+     "dutyType",
+     "addlDutyFlag",
+     "exmpNotificationNo",
+     "exmpNotificationSrNo",
+     "customsNotnExemptingIgstFlag",
+     "itemSlNo",
+     "supplierSlNo",
+     "nou"
+    ],
+    "igmsModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "igmNumber",
+     "igmDate",
+     "inwardDate",
+     "gatewayIgmNo",
+     "gatewayIgmDate",
+     "gatewayPortCode",
+     "mawbNo",
+     "mawbDate",
+     "hawbNo",
+     "hawbDate",
+     "totalNoOfPackages",
+     "grossWeight",
+     "unitQuantityCode",
+     "packageCode",
+     "marksAndNumbers1",
+     "marksAndNumbers2",
+     "marksAndNumbers3"
+    ],
+    "containerModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "igmNumber",
+     "igmDate",
+     "lclfcl",
+     "contNumber",
+     "sealNumber",
+     "truckNumber"
+    ],
+    "ctxModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "stateCode",
+     "commercialTaxType",
+     "commercialTaxRegistrationNo"
+    ],
+    "amendModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate"
+    ],
+    "infoTypeModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "infoType",
+     "infoQualifier",
+     "infoCode",
+     "infoText",
+     "infoMsr",
+     "infoUqc"
+    ],
+    "sw_ConstModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "constituentSrNo",
+     "constituentElementName",
+     "constituentElementCode",
+     "constituentPercentage",
+     "constituentYieldPercentage",
+     "activeIngredientFlag"
+    ],
+    "sw_ProdModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "productionBatchIdentifier",
+     "productionBatchQuantity",
+     "unitQuantityCode",
+     "dateOfManufacturing",
+     "dateOfExpiry",
+     "bestBefore"
+    ],
+    "ctrlModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "controlTypeCode",
+     "controlLocation",
+     "controlStartDate",
+     "controlEndDate",
+     "controlResultCode",
+     "controlResultText",
+     "controlMsr",
+     "controlUqc",
+     "controlSlNo"
+    ],
+    "statementModel": [
+     "messageType",
+     "customHouseCode",
+     "declarationtype",
+     "declarationNo",
+     "declarationDate",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "statementType",
+     "statementCode",
+     "statementText"
+    ],
+    "supportingDocsModel": [
+     "messageType",
+     "customHouseCode",
+     "beNumber",
+     "beDate",
+     "declarationType",
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "chaLicenseNumber",
+     "iec",
+     "icegateUserId",
+     "imageReferenceNo",
+     "documentTypeCode",
+     "documentIssuingPartyCode",
+     "documentIssuingPartyName",
+     "documentIssuingPartyNameAddress1",
+     "documentIssuingPartyNameAddress2",
+     "documentIssuingPartyNameCity",
+     "documentIssuingPartyNamePin",
+     "documentReferenceNo",
+     "placeOfIssue",
+     "documentIssueDate",
+     "documentExpiryDate",
+     "documentBeneficiaryPartyCode",
+     "documentBeneficiaryPartyName",
+     "documentBeneficiaryPartyNameAddress1",
+     "documentBeneficiaryPartyNameAddress2",
+     "documentBeneficiaryPartyNameCity",
+     "documentBeneficiaryPartyPin",
+     "fileType"
+    ]
+   }
+  },
+  "_note": "keyOrder = field order seen in production BE JSON (Icaffe, 5 files, Oct-2026) + schema v1.2 fields"
+ },
+ "SB": {
+  "headerField": {
+   "senderID": [
+    "s",
+    25
+   ],
+   "receiverID": [
+    "s",
+    25
+   ],
+   "indicator": [
+    "s",
+    1
+   ],
+   "messageID": [
+    "s",
+    7
+   ],
+   "sequenceOrControlNumber": [
+    "n",
+    0
+   ],
+   "jobNumber": [
+    "n",
+    0
+   ],
+   "jobDate": [
+    "s",
+    0
+   ],
+   "messageType": [
+    "s",
+    1
+   ]
+  },
+  "master": {
+   "ar4Model": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "ar4Number": [
+     "s",
+     17
+    ],
+    "ar4Date": [
+     "s",
+     8
+    ],
+    "commissionerate": [
+     "s",
+     20
+    ],
+    "division": [
+     "s",
+     20
+    ],
+    "range": [
+     "s",
+     20
+    ],
+    "remarks": [
+     "s",
+     250
+    ]
+   },
+   "cessModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "srno": [
+     "n",
+     0
+    ],
+    "cessActCode": [
+     "s",
+     10
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "itemCessValue": [
+     "s",
+     1
+    ]
+   },
+   "constituentFinal": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "constituentSerialNo": [
+     "n",
+     0
+    ],
+    "constituentElementName": [
+     "s",
+     256
+    ],
+    "constituentElementCode": [
+     "s",
+     17
+    ],
+    "constituentPercentage": [
+     "n",
+     0
+    ],
+    "constituentYieldPercentage": [
+     "n",
+     0
+    ],
+    "activeIngredient": [
+     "s",
+     1
+    ]
+   },
+   "containerModel": {
+    "containerNumber": [
+     "s",
+     15
+    ],
+    "containerSize": [
+     "s",
+     4
+    ],
+    "exciseSealNo": [
+     "s",
+     35
+    ],
+    "sealDate": [
+     "s",
+     8
+    ],
+    "sealTypeIndicator": [
+     "s",
+     5
+    ],
+    "sealDeviceID": [
+     "s",
+     35
+    ],
+    "movementDocumentType": [
+     "s",
+     5
+    ],
+    "movementDocumentNumber": [
+     "s",
+     35
+    ],
+    "eqmntType": [
+     "s",
+     3
+    ],
+    "eqmntQty": [
+     "n",
+     0
+    ],
+    "eqmntQtyCode": [
+     "s",
+     3
+    ]
+   },
+   "controlType": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "controlSerialNo": [
+     "n",
+     0
+    ],
+    "controlTypeCode": [
+     "s",
+     17
+    ],
+    "controlLocation": [
+     "s",
+     17
+    ],
+    "controlStartDate": [
+     "s",
+     8
+    ],
+    "controlEndDate": [
+     "s",
+     8
+    ],
+    "controlResultCode": [
+     "s",
+     17
+    ],
+    "controlResultRemarks": [
+     "s",
+     4000
+    ]
+   },
+   "dbkModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "dbkScheduleNumber": [
+     "s",
+     15
+    ],
+    "drawbackQuantity": [
+     "n",
+     0
+    ],
+    "drawbackAvailable": [
+     "s",
+     1
+    ]
+   },
+   "depbModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "groupCode": [
+     "s",
+     2
+    ],
+    "itemCode": [
+     "s",
+     10
+    ],
+    "quantity": [
+     "n",
+     0
+    ]
+   },
+   "depbParentModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "srNo": [
+     "n",
+     0
+    ],
+    "groupCode": [
+     "s",
+     2
+    ],
+    "itemCode": [
+     "s",
+     10
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "unitQuantityCode": [
+     "s",
+     3
+    ],
+    "quantityPercentage": [
+     "n",
+     0
+    ]
+   },
+   "dfiaModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "srno": [
+     "n",
+     0
+    ],
+    "sionGroupCode": [
+     "s",
+     3
+    ],
+    "sionSerialNumber": [
+     "s",
+     8
+    ],
+    "sionIoNormSerialNo": [
+     "s",
+     8
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "unitOfMeasurement": [
+     "s",
+     3
+    ],
+    "itemDescription": [
+     "s",
+     120
+    ],
+    "technicalCharacteristics": [
+     "s",
+     250
+    ],
+    "fileNumber": [
+     "s",
+     25
+    ],
+    "licenseNumber": [
+     "s",
+     10
+    ]
+   },
+   "eouModel": {
+    "ieCodeOfTheEOU": [
+     "s",
+     10
+    ],
+    "branchSrNumberOfIE": [
+     "n",
+     0
+    ],
+    "examinationDate": [
+     "s",
+     8
+    ],
+    "examiningOfficerName": [
+     "s",
+     30
+    ],
+    "examiningOfficerDesignation": [
+     "s",
+     30
+    ],
+    "supervisingOfficerName": [
+     "s",
+     30
+    ],
+    "supervisingOfficerDesignation": [
+     "s",
+     30
+    ],
+    "commissionerate": [
+     "s",
+     20
+    ],
+    "division": [
+     "s",
+     20
+    ],
+    "range": [
+     "s",
+     20
+    ],
+    "sealNo": [
+     "s",
+     100
+    ],
+    "itemValuesVerifiedByExaminingOfficer": [
+     "s",
+     1
+    ],
+    "sampleForwarded": [
+     "s",
+     1
+    ]
+   },
+   "exchangeModel": {
+    "invoiceCurrencyCode": [
+     "s",
+     3
+    ],
+    "currencyName": [
+     "s",
+     20
+    ],
+    "unitInRs": [
+     "n",
+     0
+    ],
+    "rate": [
+     "n",
+     0
+    ],
+    "effectiveDate": [
+     "s",
+     8
+    ],
+    "whetherStandardCurrency": [
+     "s",
+     1
+    ]
+   },
+   "infoType": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "infoSrNo": [
+     "n",
+     0
+    ],
+    "infoType": [
+     "s",
+     3
+    ],
+    "infoQualifier": [
+     "s",
+     100
+    ],
+    "infoCode": [
+     "s",
+     100
+    ],
+    "infoText": [
+     "s",
+     100
+    ],
+    "infoMeasure": [
+     "s",
+     10
+    ],
+    "infouqc": [
+     "s",
+     100
+    ]
+   },
+   "invoiceModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "actualInvoiceNo": [
+     "s",
+     17
+    ],
+    "invoiceDate": [
+     "s",
+     8
+    ],
+    "invoiceCurrency": [
+     "s",
+     3
+    ],
+    "natureOfContract": [
+     "s",
+     3
+    ],
+    "buyerName": [
+     "s",
+     35
+    ],
+    "buyerAddress1": [
+     "s",
+     35
+    ],
+    "buyerAddress2": [
+     "s",
+     35
+    ],
+    "buyerAddress3": [
+     "s",
+     35
+    ],
+    "buyerAddress4": [
+     "s",
+     35
+    ],
+    "freightCurrency": [
+     "s",
+     3
+    ],
+    "freightAmount": [
+     "n",
+     0
+    ],
+    "insuranceRate": [
+     "n",
+     0
+    ],
+    "insuranceCurrency": [
+     "s",
+     3
+    ],
+    "insuranceAmount": [
+     "n",
+     0
+    ],
+    "commissionRate": [
+     "n",
+     0
+    ],
+    "commissionCurrency": [
+     "s",
+     3
+    ],
+    "commissionAmount": [
+     "n",
+     0
+    ],
+    "discountOnFOB": [
+     "n",
+     0
+    ],
+    "discountCurrency": [
+     "s",
+     3
+    ],
+    "discountAmount": [
+     "n",
+     0
+    ],
+    "otherDeductions": [
+     "n",
+     0
+    ],
+    "otherDeductionsCurrency": [
+     "s",
+     3
+    ],
+    "otherDeductionsAmount": [
+     "n",
+     0
+    ],
+    "addFreight": [
+     "s",
+     1
+    ],
+    "packingCharges": [
+     "n",
+     0
+    ],
+    "exporterContractNumber": [
+     "s",
+     30
+    ],
+    "natureOfPayment": [
+     "s",
+     2
+    ],
+    "periodOfPayment": [
+     "s",
+     3
+    ],
+    "thirdPartyName": [
+     "s",
+     70
+    ],
+    "thirdPartyAddress1": [
+     "s",
+     70
+    ],
+    "thirdPartyAddress2": [
+     "s",
+     70
+    ],
+    "thirdPartyCity": [
+     "s",
+     35
+    ],
+    "thirdPartyCountrySubdivision": [
+     "s",
+     35
+    ],
+    "thirdPartCountryCode": [
+     "s",
+     2
+    ],
+    "thirdPartyPin": [
+     "s",
+     10
+    ],
+    "authorizedEconomicOperatorCode": [
+     "s",
+     17
+    ],
+    "authorizedEconomicOperatorCountry": [
+     "s",
+     2
+    ],
+    "authorizedEconomicOperatorRole": [
+     "s",
+     3
+    ],
+    "termsPlace": [
+     "s",
+     35
+    ]
+   },
+   "itemAccessModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "descriptionOfAccessories": [
+     "s",
+     500
+    ],
+    "itemAccessoriesValue": [
+     "s",
+     1
+    ]
+   },
+   "itemModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "schemeCode": [
+     "s",
+     2
+    ],
+    "ritcCode": [
+     "s",
+     8
+    ],
+    "descOfGoods1": [
+     "s",
+     40
+    ],
+    "descOfGoods2": [
+     "s",
+     40
+    ],
+    "descOfGoods3": [
+     "s",
+     40
+    ],
+    "unitOfMeasurement": [
+     "s",
+     3
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "unitPrice": [
+     "n",
+     0
+    ],
+    "unitOfRate": [
+     "s",
+     3
+    ],
+    "noOfUnit": [
+     "n",
+     0
+    ],
+    "presentMarketValue": [
+     "n",
+     0
+    ],
+    "jobWorkNotificationNo": [
+     "s",
+     10
+    ],
+    "thirdParty": [
+     "s",
+     1
+    ],
+    "rewardItem": [
+     "s",
+     1
+    ],
+    "itemManufacturerProducerCodeType": [
+     "s",
+     1
+    ],
+    "itemManufacturerProducerGrowerCode": [
+     "s",
+     17
+    ],
+    "itemManufacturerProducerGrowerAddress1": [
+     "s",
+     70
+    ],
+    "itemManufacturerProducerGrowerAddress2": [
+     "s",
+     35
+    ],
+    "itemManufacturerProducerGrowerCity": [
+     "s",
+     35
+    ],
+    "itemManufacturerProducerGrowerCountrySubdivision": [
+     "s",
+     35
+    ],
+    "itemManufacturerProducerGrowerPin": [
+     "s",
+     10
+    ],
+    "itemManufacturerCountry": [
+     "s",
+     2
+    ],
+    "sourceState": [
+     "s",
+     35
+    ],
+    "transitCountry": [
+     "s",
+     2
+    ],
+    "accessoryStatus": [
+     "s",
+     2
+    ],
+    "endUseOfItem": [
+     "s",
+     20
+    ],
+    "hawbNo": [
+     "s",
+     15
+    ],
+    "totalPackage": [
+     "n",
+     0
+    ],
+    "igstPaymentStatus": [
+     "s",
+     3
+    ],
+    "taxableValue": [
+     "n",
+     0
+    ],
+    "igstAmount": [
+     "n",
+     0
+    ]
+   },
+   "itemRawMaterialModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "rawMaterialCode": [
+     "n",
+     0
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "rawMaterialDetails": [
+     "s",
+     1
+    ]
+   },
+   "jobWorkModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "srno": [
+     "n",
+     0
+    ],
+    "beNumber": [
+     "n",
+     0
+    ],
+    "beDate": [
+     "s",
+     8
+    ],
+    "beInvoiceSerialNo": [
+     "n",
+     0
+    ],
+    "beInvoiceNumber": [
+     "s",
+     16
+    ],
+    "beItemNumber": [
+     "n",
+     0
+    ],
+    "bePortCode": [
+     "s",
+     6
+    ],
+    "beQtyUsed": [
+     "n",
+     0
+    ],
+    "qtyUnits": [
+     "s",
+     3
+    ]
+   },
+   "licenceModel": {
+    "invoiceSerialNumber": [
+     "n",
+     99
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "srno": [
+     "n",
+     0
+    ],
+    "registrationNo": [
+     "s",
+     25
+    ],
+    "registrationDate": [
+     "s",
+     0
+    ],
+    "itemSerialNoInPartE": [
+     "s",
+     10
+    ],
+    "itemSerialNoInPartC": [
+     "s",
+     10
+    ],
+    "quantity": [
+     "n",
+     0
+    ],
+    "exportQuantity": [
+     "n",
+     0
+    ],
+    "whetherIndigenousImported": [
+     "s",
+     1
+    ]
+   },
+   "packingListModel": {
+    "packingNumberFrom": [
+     "n",
+     0
+    ],
+    "packingNumberTo": [
+     "n",
+     0
+    ],
+    "packingCode": [
+     "s",
+     3
+    ]
+   },
+   "production": {
+    "invoiceSerialNumber": [
+     "n",
+     99999
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "productionSerialNo": [
+     "n",
+     0
+    ],
+    "productionBatchIdentifier": [
+     "s",
+     17
+    ],
+    "productionBatchQuantity": [
+     "n",
+     0
+    ],
+    "unitQuantityCode": [
+     "s",
+     3
+    ],
+    "dateOfManufacturing": [
+     "s",
+     8
+    ],
+    "dateOfExpiry": [
+     "s",
+     8
+    ],
+    "bestBefore": [
+     "s",
+     8
+    ]
+   },
+   "reexport": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "serialNo": [
+     "n",
+     0
+    ],
+    "beSite": [
+     "s",
+     6
+    ],
+    "beNo": [
+     "n",
+     0
+    ],
+    "beDate": [
+     "s",
+     8
+    ],
+    "beInvoiceNo": [
+     "n",
+     99999
+    ],
+    "beItem": [
+     "n",
+     0
+    ],
+    "manualBe": [
+     "s",
+     1
+    ],
+    "beQuantityUtilised": [
+     "n",
+     0
+    ],
+    "beItemDescription": [
+     "s",
+     120
+    ],
+    "beQty": [
+     "n",
+     0
+    ],
+    "beUqc": [
+     "s",
+     3
+    ],
+    "beAssessedValue": [
+     "n",
+     0
+    ],
+    "beDutyPaid": [
+     "n",
+     0
+    ],
+    "beDutyPaymentDate": [
+     "s",
+     8
+    ],
+    "beOtherIdentifiableParameter": [
+     "s",
+     120
+    ],
+    "beAssessableValueClaimed": [
+     "n",
+     0
+    ],
+    "beItemUsed": [
+     "s",
+     1
+    ],
+    "commisionerPermission": [
+     "s",
+     1
+    ],
+    "inputCredit": [
+     "s",
+     1
+    ],
+    "personalUse": [
+     "s",
+     1
+    ],
+    "modvaAvailed": [
+     "s",
+     1
+    ],
+    "modvatRepaid": [
+     "s",
+     1
+    ]
+   },
+   "rotationModel": {
+    "rotationDate": [
+     "s",
+     8
+    ],
+    "rotationNumber": [
+     "n",
+     0
+    ]
+   },
+   "sbModel": {
+    "chaLicenseNumber": [
+     "s",
+     15
+    ],
+    "importerExporterCode": [
+     "s",
+     10
+    ],
+    "branchSrNoOfExporter": [
+     "n",
+     0
+    ],
+    "impExpName": [
+     "s",
+     50
+    ],
+    "impExpAddress1": [
+     "s",
+     35
+    ],
+    "impExpAddress2": [
+     "s",
+     35
+    ],
+    "impExpCity": [
+     "s",
+     35
+    ],
+    "impExpState": [
+     "s",
+     25
+    ],
+    "impExpPin": [
+     "n",
+     0
+    ],
+    "typeOfExporter": [
+     "s",
+     1
+    ],
+    "exporterClass": [
+     "s",
+     1
+    ],
+    "stateOfOriginExporter": [
+     "s",
+     2
+    ],
+    "authorizedDealerCode": [
+     "s",
+     10
+    ],
+    "epzCode": [
+     "s",
+     1
+    ],
+    "consigneeName": [
+     "s",
+     35
+    ],
+    "consigneeAddress1": [
+     "s",
+     35
+    ],
+    "consigneeAddress2": [
+     "s",
+     35
+    ],
+    "consigneeAddress3": [
+     "s",
+     35
+    ],
+    "consigneeAddress4": [
+     "s",
+     50
+    ],
+    "consigneeCountry": [
+     "s",
+     2
+    ],
+    "categoryForNEFISB": [
+     "s",
+     2
+    ],
+    "rbiWaiverNo": [
+     "s",
+     20
+    ],
+    "rbiWaiverDate": [
+     "s",
+     8
+    ],
+    "portOfLoading": [
+     "s",
+     6
+    ],
+    "portOfFinalDestination": [
+     "s",
+     6
+    ],
+    "countryOfFinalDestination": [
+     "s",
+     2
+    ],
+    "countryOfDischarge": [
+     "s",
+     2
+    ],
+    "portOfDischarge": [
+     "s",
+     6
+    ],
+    "sealType": [
+     "s",
+     1
+    ],
+    "natureOfCargo": [
+     "s",
+     2
+    ],
+    "grossWeight": [
+     "n",
+     0
+    ],
+    "netWeight": [
+     "n",
+     0
+    ],
+    "unitOfMeasurement": [
+     "s",
+     3
+    ],
+    "totalNumberOfPackages": [
+     "n",
+     0
+    ],
+    "marksNumbers": [
+     "s",
+     300
+    ],
+    "numberOfLoosePackets": [
+     "n",
+     0
+    ],
+    "numberOfContainers": [
+     "n",
+     0
+    ],
+    "mawbnumber": [
+     "s",
+     15
+    ],
+    "hawbnumber": [
+     "s",
+     15
+    ],
+    "gstnType": [
+     "s",
+     3
+    ],
+    "gstnId": [
+     "s",
+     20
+    ]
+   },
+   "servTaxRefund": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemNo": [
+     "n",
+     0
+    ],
+    "srNo": [
+     "n",
+     0
+    ],
+    "itemCode": [
+     "s",
+     8
+    ]
+   },
+   "statement": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "statementSerialNo": [
+     "n",
+     0
+    ],
+    "statementType": [
+     "s",
+     3
+    ],
+    "statementCode": [
+     "s",
+     7
+    ],
+    "statementText": [
+     "s",
+     4000
+    ]
+   },
+   "stuffModel": {
+    "factoryStuffed": [
+     "s",
+     1
+    ],
+    "sampleAccompanied": [
+     "s",
+     1
+    ]
+   },
+   "supportingDocs": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumber": [
+     "n",
+     0
+    ],
+    "serialNo": [
+     "n",
+     0
+    ],
+    "imageReferenceNumber": [
+     "s",
+     16
+    ],
+    "documentTypeCode": [
+     "s",
+     6
+    ],
+    "documentIssuingPartyCode": [
+     "s",
+     35
+    ],
+    "documentIssuingPartyNameAddress1": [
+     "s",
+     70
+    ],
+    "documentIssuingPartyNameAddress2": [
+     "s",
+     70
+    ],
+    "documentIssuingPartyNameCity": [
+     "s",
+     35
+    ],
+    "documentIssuingPartyNamePin": [
+     "s",
+     10
+    ],
+    "documentReferenceNo": [
+     "s",
+     17
+    ],
+    "placeOfIssue": [
+     "s",
+     35
+    ],
+    "documentIssueDate": [
+     "s",
+     8
+    ],
+    "documentExpiryDate": [
+     "s",
+     8
+    ],
+    "documentBeneficiaryPartyCode": [
+     "s",
+     35
+    ],
+    "documentBeneficiaryPartyNameAddress1": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyNameAddress2": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyNameCity": [
+     "s",
+     35
+    ],
+    "documentBeneficiaryPartyNamePin": [
+     "s",
+     10
+    ],
+    "fileType": [
+     "s",
+     5
+    ],
+    "documentIssuingPartyName": [
+     "s",
+     70
+    ],
+    "documentBeneficiaryPartyName": [
+     "s",
+     70
+    ],
+    "icegateId": [
+     "s",
+     35
+    ]
+   },
+   "thirdPartyModel": {
+    "invoiceSerialNumber": [
+     "n",
+     0
+    ],
+    "itemSerialNumberInvoice": [
+     "n",
+     0
+    ],
+    "iec": [
+     "s",
+     10
+    ],
+    "branchSerialNo": [
+     "n",
+     0
+    ],
+    "exporterName": [
+     "s",
+     50
+    ],
+    "exporterAddress1": [
+     "s",
+     50
+    ],
+    "exporterAddress2": [
+     "s",
+     35
+    ],
+    "city": [
+     "s",
+     35
+    ],
+    "pin": [
+     "n",
+     0
+    ],
+    "gstnType": [
+     "s",
+     3
+    ],
+    "gstnId": [
+     "s",
+     20
+    ],
+    "itemThirdPartyValue": [
+     "s",
+     1
+    ]
+   },
+   "amendHistory": {
+    "sbNumber": [
+     "n",
+     0
+    ],
+    "sbDate": [
+     "s",
+     8
+    ],
+    "requestDate": [
+     "s",
+     8
+    ],
+    "requestLetterNumber": [
+     "s",
+     10
+    ],
+    "remarks": [
+     "s",
+     15
+    ],
+    "amendmentStatus": [
+     "s",
+     1
+    ],
+    "amendmentReason": [
+     "s",
+     2000
+    ],
+    "amendmentNumber": [
+     "n",
+     0
+    ],
+    "amendmentDate": [
+     "s",
+     8
+    ]
+   }
+  },
+  "keyOrder": {
+   "headerField": [
+    "senderID",
+    "receiverID",
+    "indicator",
+    "messageID",
+    "sequenceOrControlNumber",
+    "jobNumber",
+    "jobDate",
+    "messageType"
+   ],
+   "master": {
+    "sbModel": [
+     "chaLicenseNumber",
+     "importerExporterCode",
+     "branchSrNoOfExporter",
+     "impExpName",
+     "impExpAddress1",
+     "impExpAddress2",
+     "impExpCity",
+     "impExpState",
+     "impExpPin",
+     "typeOfExporter",
+     "exporterClass",
+     "stateOfOriginExporter",
+     "authorizedDealerCode",
+     "epzCode",
+     "consigneeName",
+     "consigneeAddress1",
+     "consigneeAddress2",
+     "consigneeAddress3",
+     "consigneeAddress4",
+     "consigneeCountry",
+     "categoryForNEFISB",
+     "rbiWaiverNo",
+     "rbiWaiverDate",
+     "portOfLoading",
+     "portOfFinalDestination",
+     "countryOfFinalDestination",
+     "countryOfDischarge",
+     "portOfDischarge",
+     "sealType",
+     "natureOfCargo",
+     "grossWeight",
+     "netWeight",
+     "unitOfMeasurement",
+     "totalNumberOfPackages",
+     "marksNumbers",
+     "numberOfLoosePackets",
+     "numberOfContainers",
+     "mawbnumber",
+     "hawbnumber",
+     "gstnType",
+     "gstnId"
+    ],
+    "exchangeModel": [
+     "invoiceCurrencyCode",
+     "currencyName",
+     "unitInRs",
+     "rate",
+     "effectiveDate",
+     "whetherStandardCurrency"
+    ],
+    "invoiceModel": [
+     "invoiceSerialNumber",
+     "actualInvoiceNo",
+     "invoiceDate",
+     "invoiceCurrency",
+     "natureOfContract",
+     "buyerName",
+     "buyerAddress1",
+     "buyerAddress2",
+     "buyerAddress3",
+     "buyerAddress4",
+     "freightCurrency",
+     "freightAmount",
+     "insuranceRate",
+     "insuranceCurrency",
+     "insuranceAmount",
+     "commissionRate",
+     "commissionCurrency",
+     "commissionAmount",
+     "discountOnFOB",
+     "discountCurrency",
+     "discountAmount",
+     "otherDeductions",
+     "otherDeductionsCurrency",
+     "otherDeductionsAmount",
+     "addFreight",
+     "packingCharges",
+     "exporterContractNumber",
+     "natureOfPayment",
+     "periodOfPayment",
+     "thirdPartyName",
+     "thirdPartyAddress1",
+     "thirdPartyAddress2",
+     "thirdPartyCity",
+     "thirdPartyCountrySubdivision",
+     "thirdPartCountryCode",
+     "thirdPartyPin",
+     "authorizedEconomicOperatorCode",
+     "authorizedEconomicOperatorCountry",
+     "authorizedEconomicOperatorRole",
+     "termsPlace"
+    ],
+    "itemModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "schemeCode",
+     "ritcCode",
+     "descOfGoods1",
+     "descOfGoods2",
+     "descOfGoods3",
+     "unitOfMeasurement",
+     "quantity",
+     "unitPrice",
+     "unitOfRate",
+     "noOfUnit",
+     "presentMarketValue",
+     "jobWorkNotificationNo",
+     "thirdParty",
+     "rewardItem",
+     "itemManufacturerProducerCodeType",
+     "itemManufacturerProducerGrowerCode",
+     "itemManufacturerProducerGrowerAddress1",
+     "itemManufacturerProducerGrowerAddress2",
+     "itemManufacturerProducerGrowerCity",
+     "itemManufacturerProducerGrowerCountrySubdivision",
+     "itemManufacturerProducerGrowerPin",
+     "itemManufacturerCountry",
+     "sourceState",
+     "transitCountry",
+     "accessoryStatus",
+     "endUseOfItem",
+     "hawbNo",
+     "totalPackage",
+     "igstPaymentStatus",
+     "taxableValue",
+     "igstAmount"
+    ],
+    "itemAccessModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "descriptionOfAccessories",
+     "itemAccessoriesValue"
+    ],
+    "itemRawMaterialModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "rawMaterialCode",
+     "quantity",
+     "rawMaterialDetails"
+    ],
+    "ar4Model": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "ar4Number",
+     "ar4Date",
+     "commissionerate",
+     "division",
+     "range",
+     "remarks"
+    ],
+    "cessModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "srno",
+     "cessActCode",
+     "quantity",
+     "itemCessValue"
+    ],
+    "constituentFinal": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "constituentSerialNo",
+     "constituentElementName",
+     "constituentElementCode",
+     "constituentPercentage",
+     "constituentYieldPercentage",
+     "activeIngredient"
+    ],
+    "containerModel": [
+     "containerNumber",
+     "containerSize",
+     "exciseSealNo",
+     "sealDate",
+     "sealTypeIndicator",
+     "sealDeviceID",
+     "movementDocumentType",
+     "movementDocumentNumber",
+     "eqmntType",
+     "eqmntQty",
+     "eqmntQtyCode"
+    ],
+    "controlType": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "controlSerialNo",
+     "controlTypeCode",
+     "controlLocation",
+     "controlStartDate",
+     "controlEndDate",
+     "controlResultCode",
+     "controlResultRemarks"
+    ],
+    "dbkModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "dbkScheduleNumber",
+     "drawbackQuantity",
+     "drawbackAvailable"
+    ],
+    "depbModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "groupCode",
+     "itemCode",
+     "quantity"
+    ],
+    "depbParentModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "srNo",
+     "groupCode",
+     "itemCode",
+     "quantity",
+     "unitQuantityCode",
+     "quantityPercentage"
+    ],
+    "dfiaModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "srno",
+     "sionGroupCode",
+     "sionSerialNumber",
+     "sionIoNormSerialNo",
+     "quantity",
+     "unitOfMeasurement",
+     "itemDescription",
+     "technicalCharacteristics",
+     "fileNumber",
+     "licenseNumber"
+    ],
+    "eouModel": [
+     "ieCodeOfTheEOU",
+     "branchSrNumberOfIE",
+     "examinationDate",
+     "examiningOfficerName",
+     "examiningOfficerDesignation",
+     "supervisingOfficerName",
+     "supervisingOfficerDesignation",
+     "commissionerate",
+     "division",
+     "range",
+     "sealNo",
+     "itemValuesVerifiedByExaminingOfficer",
+     "sampleForwarded"
+    ],
+    "infoType": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "infoSrNo",
+     "infoType",
+     "infoQualifier",
+     "infoCode",
+     "infoText",
+     "infoMeasure",
+     "infouqc"
+    ],
+    "jobWorkModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "srno",
+     "beNumber",
+     "beDate",
+     "beInvoiceSerialNo",
+     "beInvoiceNumber",
+     "beItemNumber",
+     "bePortCode",
+     "beQtyUsed",
+     "qtyUnits"
+    ],
+    "licenceModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "srno",
+     "registrationNo",
+     "registrationDate",
+     "itemSerialNoInPartE",
+     "itemSerialNoInPartC",
+     "quantity",
+     "exportQuantity",
+     "whetherIndigenousImported"
+    ],
+    "packingListModel": [
+     "packingNumberFrom",
+     "packingNumberTo",
+     "packingCode"
+    ],
+    "production": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "productionSerialNo",
+     "productionBatchIdentifier",
+     "productionBatchQuantity",
+     "unitQuantityCode",
+     "dateOfManufacturing",
+     "dateOfExpiry",
+     "bestBefore"
+    ],
+    "reexport": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "serialNo",
+     "beSite",
+     "beNo",
+     "beDate",
+     "beInvoiceNo",
+     "beItem",
+     "manualBe",
+     "beQuantityUtilised",
+     "beItemDescription",
+     "beQty",
+     "beUqc",
+     "beAssessedValue",
+     "beDutyPaid",
+     "beDutyPaymentDate",
+     "beOtherIdentifiableParameter",
+     "beAssessableValueClaimed",
+     "beItemUsed",
+     "commisionerPermission",
+     "inputCredit",
+     "personalUse",
+     "modvaAvailed",
+     "modvatRepaid"
+    ],
+    "rotationModel": [
+     "rotationDate",
+     "rotationNumber"
+    ],
+    "servTaxRefund": [
+     "invoiceSerialNumber",
+     "itemNo",
+     "srNo",
+     "itemCode"
+    ],
+    "statement": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "statementSerialNo",
+     "statementType",
+     "statementCode",
+     "statementText"
+    ],
+    "stuffModel": [
+     "factoryStuffed",
+     "sampleAccompanied"
+    ],
+    "supportingDocs": [
+     "invoiceSerialNumber",
+     "itemSerialNumber",
+     "serialNo",
+     "chaLicenseNumber",
+     "iec",
+     "icegateId",
+     "imageReferenceNumber",
+     "documentTypeCode",
+     "documentIssuingPartyCode",
+     "documentIssuingPartyName",
+     "documentIssuingPartyNameAddress1",
+     "documentIssuingPartyNameAddress2",
+     "documentIssuingPartyNameCity",
+     "documentIssuingPartyNamePin",
+     "documentReferenceNo",
+     "placeOfIssue",
+     "documentIssueDate",
+     "documentExpiryDate",
+     "documentBeneficiaryPartyCode",
+     "documentBeneficiaryPartyName",
+     "documentBeneficiaryPartyNameAddress1",
+     "documentBeneficiaryPartyNameAddress2",
+     "documentBeneficiaryPartyNameCity",
+     "documentBeneficiaryPartyNamePin",
+     "fileType"
+    ],
+    "thirdPartyModel": [
+     "invoiceSerialNumber",
+     "itemSerialNumberInvoice",
+     "iec",
+     "branchSerialNo",
+     "exporterName",
+     "exporterAddress1",
+     "exporterAddress2",
+     "city",
+     "pin",
+     "gstnType",
+     "gstnId",
+     "itemThirdPartyValue"
+    ],
+    "amendHistory": [
+     "sbNumber",
+     "sbDate",
+     "requestDate",
+     "requestLetterNumber",
+     "remarks",
+     "amendmentStatus",
+     "amendmentReason",
+     "amendmentNumber",
+     "amendmentDate"
+    ]
+   },
+   "_source": "production SB CACHE01 files (5, Oct-2026); models not in them: schema v1.2 order"
+  }
+ }
+}

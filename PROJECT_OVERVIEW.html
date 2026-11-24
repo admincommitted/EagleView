@@ -1,0 +1,355 @@
+<title>EagleView EDI Project Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column with a sticky section bar; diagrams and tables scroll inside their own boxes. */
+:root {
+  --bg: #f6f8f9;
+  --surface: #ffffff;
+  --fg: #16232b;
+  --muted: #56666f;
+  --line: #d9e1e5;
+  --accent: #0b6e82;
+  --accent-soft: #e2f1f4;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dd;
+  --font-head: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171b; --surface: #162228; --fg: #e3ebee; --muted: #9aabb3; --line: #2a3a42;
+    --accent: #5cc3d6; --accent-soft: #143038; --warn: #f0b45a; --warn-soft: #33270f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171b; --surface: #162228; --fg: #e3ebee; --muted: #9aabb3; --line: #2a3a42;
+  --accent: #5cc3d6; --accent-soft: #143038; --warn: #f0b45a; --warn-soft: #33270f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 980px; margin: 0 auto; }
+header.top { padding-block: 36px 20px; display: grid; gap: 10px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-head); font-size: clamp(26px, 4vw, 36px); line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 22px; margin: 0 0 6px; text-wrap: balance; }
+h3 { font-family: var(--font-head); font-size: 16px; margin: 18px 0 6px; }
+p { margin: 0 0 10px; max-width: 70ch; }
+.lead { color: var(--muted); font-size: 16px; max-width: 72ch; }
+code, .mono { font-family: var(--font-mono); font-size: .88em; }
+code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+nav.toc {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px;
+}
+nav.toc a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); outline: none; text-decoration: underline; }
+section { padding-block: 34px 6px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+section > * { min-width: 0; }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; overflow-x: auto; }
+.diagram pre.mermaid { margin: 0; background: transparent; }
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; background: var(--accent-soft); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.grid2 > div { min-width: 0; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.box h3 { margin-top: 0; }
+.box ul { margin: 0; padding-left: 18px; }
+.box li { margin-block: 3px; }
+.note { background: var(--warn-soft); border-left: 3px solid var(--warn); padding: 10px 14px; border-radius: 0 6px 6px 0; }
+.note strong { color: var(--warn); }
+ol.steps { margin: 0; padding-left: 22px; max-width: 75ch; }
+ol.steps li { margin-block: 6px; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+footer { color: var(--muted); font-size: 13px; padding-block: 24px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">D:\Commited\EDI_AUTOMATION · read on 23-Nov-2026</div>
+  <h1>EagleView EDI: how the project fits together</h1>
+  <p class="lead">A map of the two folders you will work in (<code>frontend</code> and <code>node-backend</code>), the database behind them, how login and rights work, what the masters are, and where to look when something breaks. Row counts are from your live <code>database.sqlite</code>.</p>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <a href="#big-picture">Big picture</a>
+  <a href="#folders">Folders</a>
+  <a href="#login">Login &amp; rights</a>
+  <a href="#users">User tables</a>
+  <a href="#branch-fy">Branch &amp; FY</a>
+  <a href="#masters">Masters</a>
+  <a href="#modules">Jobs &amp; accounts</a>
+  <a href="#links">How tables link</a>
+  <a href="#debug">Debug cheat sheet</a>
+</nav>
+
+<section id="big-picture">
+  <h2>Big picture</h2>
+  <p>There are three programs running. The <b>frontend</b> is a React app (Vite) that runs in the browser on port 5173. Every screen talks to the <b>backend</b>, an Express server on port 5001, by calling URLs that start with <code>/api/…</code>. The backend reads and writes one SQLite file, <code>node-backend/database.sqlite</code>, through <b>Sequelize</b> (the ORM). A separate <b>DSC Signer</b> on port 5050 signs files with the USB token before they go to ICEGATE.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  B["Browser<br/>React screens<br/>localhost:5173"] -- "/api/... (Vite proxy)" --> S["node-backend<br/>Express server.js<br/>port 5001"]
+  S -- "Sequelize models" --> D[("database.sqlite<br/>202 tables · 2 GB")]
+  S --> U["uploads/ folder<br/>PDFs, KYC, docs"]
+  S -- "BE / SB JSON, e-Sanchit" --> I["ICEGATE / DGFT / ULIP"]
+  B -- "sign PDF / JSON" --> G["DSC Signer<br/>port 5050"]
+  S --> W["E-mail, WhatsApp"]
+  H["hrms-backend<br/>port 5100 (separate app)"]
+</pre>
+  </div>
+  <p>The HR module was moved out into <code>hrms-backend</code> / <code>hrms-frontend</code>. The HR links in the EDI menu just send you there.</p>
+</section>
+
+<section id="folders">
+  <h2>Folders you will work in</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>frontend/src</h3>
+      <ul>
+        <li><code>main.jsx</code>: starts the app. It also adds the login token and the branch / FY headers to every <code>/api</code> call, and sends you to <code>/login</code> on a 401.</li>
+        <li><code>App.jsx</code>: the URL → screen list (about 75 routes).</li>
+        <li><code>GlobalContext.jsx</code>: the selected branch and financial year from the top bar.</li>
+        <li><code>layouts/MainLayout.jsx</code>: the menu, top bar and page frame.</li>
+        <li><code>pages/</code> (102 files): full screens like Dashboard, Accounts, Reports.</li>
+        <li><code>components/JobEntry</code> (69): Import / Bill of Entry screens.</li>
+        <li><code>components/ExportEntry</code> (53): Export / Shipping Bill screens.</li>
+        <li><code>components/FreightForwarding</code> (104): AWB, MAWB, HAWB, shipments.</li>
+        <li><code>components/MDMForms</code> (54): all master forms.</li>
+        <li><code>components/Settings</code> (28): settings screens.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>node-backend</h3>
+      <ul>
+        <li><code>server.js</code>: starts Express, loads all models, links tables (associations), and mounts every route under <code>/api/…</code>.</li>
+        <li><code>db.js</code>: opens SQLite (or MS SQL when <code>DB_DIALECT=mssql</code>).</li>
+        <li><code>.env</code>: secrets and settings (JWT secret, SMTP, ICEGATE, DB).</li>
+        <li><code>models/</code> (138 files): one file per table definition.</li>
+        <li><code>routes/</code> (66 files): the API code each screen calls.</li>
+        <li><code>middleware/auth.js</code>: checks the login token.</li>
+        <li><code>middleware/permissions.js</code>: checks the user's module rights.</li>
+        <li><code>utils/</code> (64): shared logic (numbering, branch scope, ICEGATE, columns).</li>
+        <li><code>uploads/</code>: saved files. You need to be logged in to open them.</li>
+        <li><code>fix_*.js</code>, <code>load_*.js</code>, <code>seed_*.cjs</code>: one-off data scripts. They change the database.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="login">
+  <h2>Login &amp; rights: what happens on every request</h2>
+  <p>The login screen sends the User ID and password. The backend finds the user in <code>Users</code> (the User ID is case-insensitive, and the e-mail also works), checks the bcrypt password hash and returns a <b>JWT token</b>. The browser keeps that token in <code>localStorage</code> and sends it with every call after that.</p>
+  <div class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  participant L as Login screen
+  participant A as routes/auth.js
+  participant DB as Users table
+  L->>A: POST /api/auth/login {username, password}
+  A->>DB: find user (lower(username) or email)
+  A->>A: status active? bcrypt.compare(password)
+  alt login from outside the office and OTP is on
+    A-->>L: e-mail OTP, then POST /api/auth/login/otp
+  end
+  A-->>L: token (id, username, role) + module rights
+  Note over L: saved in localStorage "token"<br/>also cookie edi_token for /uploads
+  L->>A: any /api call with "Authorization: Bearer token"<br/>+ X-Branch + X-FY headers
+</pre>
+  </div>
+  <h3>The checks every /api call passes through (in server.js order)</h3>
+  <ol class="steps">
+    <li><b>Open routes</b>: <code>/api/auth/*</code> (login, forgot / reset password) and <code>/api/field-tracking</code> need no token. Signed PO and KYC links from e-mail also work without one.</li>
+    <li><b>middleware/auth.js</b> checks the token is valid and not logged out, and that the user still exists and is not <i>inactive</i> or <i>locked</i>. If any of that fails, the call gets a 401 and the screen goes to the login page.</li>
+    <li><b>middleware/permissions.js</b> checks module rights:
+      <ul>
+        <li>The role <span class="pill">admin</span> is allowed everything.</li>
+        <li>A user with <b>no</b> rows in <code>UserPermissions</code> is also allowed everything, except changing System Settings and User Management.</li>
+        <li>Otherwise the URL is mapped to a module, and the HTTP method decides which right is needed: GET → <code>canView</code>, POST → <code>canCreate</code>, PUT → <code>canEdit</code>, DELETE → <code>canDelete</code>.</li>
+      </ul>
+    </li>
+    <li><b>utils/branchScope.js</b> (accounts, vouchers, invoices, reports, credit control only) limits the data to the branch picked in the top bar.</li>
+    <li>Then the <b>route file</b> does the real work through the models.</li>
+  </ol>
+  <p>The token lasts 1 day (10 hours from outside the office). Logout cancels it on the server at once.</p>
+</section>
+
+<section id="users">
+  <h2>User tables</h2>
+  <div class="diagram">
+<pre class="mermaid">
+erDiagram
+  Users ||--o{ UserPermissions : "userId"
+  Users ||--o| UserProfiles : "userId"
+  Users ||--o| UserSettings : "userId"
+  Users ||--o{ UserPreferences : "userId"
+  Users {
+    int id PK
+    string username "User ID for login"
+    string email
+    string password "bcrypt hash"
+    string role "admin / operator / director ..."
+    string branch
+    string status "active / inactive / locked"
+  }
+  UserPermissions {
+    int userId FK
+    string moduleName
+    bool canView
+    bool canCreate
+    bool canEdit
+    bool canDelete
+  }
+</pre>
+  </div>
+  <p>There is <b>1 user</b> in your database: role <code>admin</code>, status <code>active</code>. You add more users from the User Management screen (<code>/api/users</code>, <code>routes/userManagement.js</code>).</p>
+  <p class="note"><strong>Found while reading:</strong> <code>UserPermissions</code> has 30 rows, but every one has an empty <code>userId</code>. They belong to no user, so they have no effect. They are probably left over from a user that was deleted or never saved properly. This is harmless, but it is worth cleaning up later.</p>
+</section>
+
+<section id="branch-fy">
+  <h2>Branch and financial year</h2>
+  <p>The top bar picks a branch and a financial year. The frontend sends them as the <code>X-Branch</code> and <code>X-FY</code> headers, and the backend uses them to number jobs and vouchers and to filter accounts data.</p>
+  <div class="grid2">
+    <div class="tablebox"><table>
+      <thead><tr><th>CompanyBranches</th><th>Name</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">DEL</td><td>Delhi (default)</td><td>Active</td></tr>
+        <tr><td class="mono">MUM</td><td>Mumbai</td><td>Active</td></tr>
+        <tr><td class="mono">LDH</td><td>Ludhiana</td><td>Active</td></tr>
+        <tr><td class="mono">JPR</td><td>Jaipur</td><td>Active</td></tr>
+        <tr><td class="mono">JAI</td><td>Jaipur (old duplicate)</td><td>Inactive</td></tr>
+      </tbody>
+    </table></div>
+    <div class="tablebox"><table>
+      <thead><tr><th>FinancialYears</th><th>Period</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">22-23</td><td>Apr 2022 – Mar 2023</td></tr>
+        <tr><td class="mono">23-24</td><td>Apr 2023 – Mar 2024</td></tr>
+        <tr><td class="mono">24-25</td><td>Apr 2024 – Mar 2025</td></tr>
+        <tr><td class="mono">25-26</td><td>Apr 2025 – Mar 2026</td></tr>
+        <tr><td class="mono">26-27</td><td>Apr 2026 – Mar 2027</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="masters">
+  <h2>Masters: the lookup data every job uses</h2>
+  <p>A master is reference data you pick from in a form: party, port, currency, HS code and so on. You manage them on the <code>/master/*</code> screens (<code>components/MDMForms</code>). Most go through <code>/api/masters</code> (<code>routes/masters.js</code>); some have their own route (<code>/api/locations</code>, <code>/api/tariff</code>, <code>/api/tact</code>, <code>/api/masters/ports</code>). A lot of this data was imported from the old software (iCAFFE / Logisys) with the <code>load_*.js</code> scripts.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Group</th><th>Tables (rows)</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><b>Parties</b></td><td><code>Parties</code> 148,908 → <code>PartyBranches</code> 166,055, <code>PartyADCodes</code> 16,023, <code>PartyDocuments</code> (KYC), <code>PartyDrawbackAccounts</code>. Also <code>IcaffeParties</code> 154,683 (raw directory imported from iCAFFE).</td><td>Importer, exporter, consignee, shipper, sub-agent, shipping line. <code>partyType</code>: CONSIGNEE 120,999 · SHIPPER 26,348 · SUBAGENT 999 · AGENT 436 · SHIPLINE 116.</td></tr>
+      <tr><td><b>Location</b></td><td><code>Countries</code> 249 → <code>States</code> 5,212 → <code>Cities</code> 150,156. <code>Ports</code> 645, <code>ForeignPorts</code> 49,474, <code>Airports</code>, <code>Warehouses</code> 3,263.</td><td>Addresses, port of loading / discharge, customs sites.</td></tr>
+      <tr><td><b>Customs tariff</b></td><td><code>TariffHeaders</code> 15,366 → <code>TariffComponents</code> 25,007. <code>DutyNotifHeaders</code> 718 → <code>DutyNotifDetails</code> 363,283. <code>AddDutyRates</code>, <code>CvdDutyRates</code>, <code>RspAbatements</code>.</td><td>HS / CTH codes and duty calculation on the BE.</td></tr>
+      <tr><td><b>Export incentives</b></td><td><code>Drawbacks</code> 3,277, <code>Rodteps</code> 13,775, <code>Rosctls</code> 1,535, <code>ExportPolicies</code> 12,621, <code>ExportCessRates</code>, <code>SchemeCodes</code>.</td><td>Drawback / RoDTEP / RoSCTL on Shipping Bills.</td></tr>
+      <tr><td><b>Air freight</b></td><td><code>Airlines</code> 231, <code>TactRateSectors</code> → <code>TactRateDetails</code> 961, TACT rules and surcharges, <code>IataAgents</code>, <code>SpecialHandlingCodes</code>, <code>IataDgrMasters</code>, <code>AwbStocks</code>.</td><td>Air waybill rates and AWB number stock.</td></tr>
+      <tr><td><b>Other</b></td><td><code>Currencies</code> 153 + <code>CurrencyRateHistories</code>, <code>Uqcs</code>, <code>ESanchits</code> 379, <code>Vessels</code> 301, <code>ShippingLines</code> 124, <code>StatusMasters</code>, <code>DocumentSeries</code>.</td><td>Exchange rates, units, document codes, vessels.</td></tr>
+    </tbody>
+  </table></div>
+  <p>There is also a generic <code>MasterData</code> table (category / code / name), but it holds only 7 rows. The real masters are the tables above.</p>
+</section>
+
+<section id="modules">
+  <h2>Jobs and accounts: where the daily work is saved</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>Import (Bill of Entry)</h3>
+      <p>Screens <code>/job-entry/*</code> → API <code>/api/import-jobs</code> (<code>routes/importJobs.js</code>).</p>
+      <p><code>ImportJobs</code> 4,148 → <code>ImportInvoices</code> 6,299 → <code>ImportItems</code> 78,477. Also <code>ImportContainers</code>. A job points to its parties with <code>importerPartyId</code>, <code>supplierPartyId</code>, <code>notifyPartyId</code> and <code>buyerPartyId</code>.</p>
+      <p>From here it goes to ICEGATE: the BE JSON is built, signed by the DSC Signer and uploaded (<code>routes/icegate.js</code>). The documents go through e-Sanchit.</p>
+    </div>
+    <div class="box">
+      <h3>Export (Shipping Bill)</h3>
+      <p>Screens <code>/export-entry/*</code> → API <code>/api/export-jobs</code>.</p>
+      <p><code>ExportJobs</code> → <code>ExportInvoices</code> → <code>ExportItems</code>. Also containers, documents, drawback lines and licences. A job points to <code>shipperId</code>, <code>consigneeId</code>, <code>branchId</code> and <code>financialYearId</code>.</p>
+    </div>
+    <div class="box">
+      <h3>Freight forwarding</h3>
+      <p>Screens <code>/freight/*</code> → <code>/api/awb</code> and <code>/api/shipments</code>.</p>
+      <p><code>Airwaybills</code> / <code>MasterAWBs</code> / <code>HouseAWBs</code> share child tables (dimensions, rate lines, other charges, SHC, OCI). Each child row stores <code>awbId</code> plus <code>awbType</code> (AWB / MAWB / HAWB), so it is not a normal foreign key. <code>Shipments</code> has 12,130 rows.</p>
+    </div>
+    <div class="box">
+      <h3>Accounts</h3>
+      <p>Screens <code>/accounts-hub</code>, <code>/voucher-entry</code>, reports → <code>/api/accounts-hub</code>, <code>/api/vouchers</code>, <code>/api/invoices</code>.</p>
+      <p><code>AccountGroups</code> 180 (a tree) → <code>AccountLedgers</code> 7,663. <code>Vouchers</code> 326,163 → <code>VoucherDetails</code> 4,248,442 (one debit / credit line per ledger). <code>VoucherTypes</code> lists Sales, Purchase, Payment, Receipt, Journal and so on. Sales bills are in <code>AccSalesInvoices</code> (116,605).</p>
+    </div>
+  </div>
+  <p>Smaller modules: Sales / CRM (<code>Leads</code> → <code>Quotations</code> → <code>QuotationCharges</code>), Purchase (<code>Vendors</code> → <code>PurchaseOrders</code> → <code>POItems</code>), Fleet (<code>LorryReceipts</code>), Field tracking (<code>FieldAgents</code>, locations), Contracts.</p>
+</section>
+
+<section id="links">
+  <h2>How the main tables link</h2>
+  <div class="diagram">
+<pre class="mermaid">
+erDiagram
+  CompanyBranches ||--o{ ImportJobs : "branchCode"
+  FinancialYears ||--o{ ExportJobs : "financialYearId"
+  Parties ||--o{ PartyBranches : "partyId"
+  Parties ||--o{ ImportJobs : "importerPartyId etc."
+  Parties ||--o{ ExportJobs : "shipperId / consigneeId"
+  ImportJobs ||--o{ ImportInvoices : "importJobId"
+  ImportInvoices ||--o{ ImportItems : "importInvoiceId"
+  ImportJobs ||--o{ ImportContainers : "importJobId"
+  ExportJobs ||--o{ ExportInvoices : "exportJobId"
+  ExportInvoices ||--o{ ExportItems : "exportInvoiceId"
+  AccountGroups ||--o{ AccountLedgers : "groupId"
+  Parties ||--o| AccountLedgers : "partyId"
+  VoucherTypes ||--o{ Vouchers : "voucherTypeId"
+  Vouchers ||--o{ VoucherDetails : "voucherId"
+  AccountLedgers ||--o{ VoucherDetails : "ledgerId"
+  Vouchers ||--o| AccSalesInvoices : "voucherId"
+  ImportJobs ||..o{ Vouchers : "jobNo (text match)"
+  Countries ||--o{ States : "countryId"
+  States ||--o{ Cities : "stateId"
+</pre>
+  </div>
+  <p>Solid lines are links by id. The dotted line is a link by matching text: a voucher or sales invoice knows its job only through the <code>jobNo</code> string, and its branch through <code>branchCode</code>. So if a job number is changed, its bills no longer find it.</p>
+  <p class="note"><strong>Two things that surprise people:</strong> (1) Only about 138 of the 202 tables have a model file. The others (most <code>Acc*</code> and <code>Icaffe*</code> tables) are created by plain SQL inside the route files, so search <code>routes/</code> for <code>CREATE TABLE</code> to find them. (2) Columns are added automatically at start-up (<code>utils/ensureColumns.js</code>, <code>utils/dynamicColumns.js</code>), which is why <code>ImportJobs</code> has 247 columns and <code>ExportJobs</code> has 193. Extra form fields that have no column yet are kept as JSON in <code>extendedData</code>.</p>
+</section>
+
+<section id="debug">
+  <h2>Debug cheat sheet: from a screen to the code</h2>
+  <ol class="steps">
+    <li>On the broken screen, press <b>F12 → Network</b> and repeat the action. Find the red or failing <code>/api/…</code> call and read its <b>Response</b>.</li>
+    <li>Take the first part of the URL (for example <code>/api/import-jobs</code>) and find it in <code>node-backend/server.js</code> (the <code>app.use('/api/…', require('./routes/…'))</code> lines). That tells you the route file.</li>
+    <li>In the route file, search for the rest of the path (<code>router.get('/:id'</code>…). That is the code that ran.</li>
+    <li>Look at the <b>backend window</b>. Server errors are printed there with a reference like <code>[API LX3K9]</code>, and the screen shows the same reference.</li>
+    <li>Check the data in <b>DB Browser</b> (open it Read Only while the backend runs): the table name is the model name plus "s", for example <code>ImportJob</code> → <code>ImportJobs</code>.</li>
+  </ol>
+  <div class="tablebox"><table>
+    <thead><tr><th>Screen URL</th><th>API prefix</th><th>Route file</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">/login</td><td class="mono">/api/auth</td><td class="mono">routes/auth.js</td></tr>
+      <tr><td class="mono">/job-entry/*</td><td class="mono">/api/import-jobs</td><td class="mono">routes/importJobs.js</td></tr>
+      <tr><td class="mono">/export-entry/*</td><td class="mono">/api/export-jobs</td><td class="mono">routes/exportJobs.js</td></tr>
+      <tr><td class="mono">/be-amendments</td><td class="mono">/api/be-amendments</td><td class="mono">routes/beAmendments.js</td></tr>
+      <tr><td class="mono">/master/*</td><td class="mono">/api/masters</td><td class="mono">routes/masters.js</td></tr>
+      <tr><td class="mono">/freight/create-awb …</td><td class="mono">/api/awb</td><td class="mono">routes/awb.js</td></tr>
+      <tr><td class="mono">/freight/shipment/:div</td><td class="mono">/api/shipments</td><td class="mono">routes/shipments.js</td></tr>
+      <tr><td class="mono">/accounts-hub</td><td class="mono">/api/accounts-hub</td><td class="mono">routes/accountsHub.js</td></tr>
+      <tr><td class="mono">/voucher-entry</td><td class="mono">/api/vouchers</td><td class="mono">routes/vouchers.js</td></tr>
+      <tr><td class="mono">/reports</td><td class="mono">/api/reports</td><td class="mono">routes/reports.js</td></tr>
+      <tr><td class="mono">/settings/*</td><td class="mono">/api/settings</td><td class="mono">routes/settings.js</td></tr>
+      <tr><td class="mono">User Management</td><td class="mono">/api/users</td><td class="mono">routes/userManagement.js</td></tr>
+      <tr><td class="mono">ICEGATE upload / status</td><td class="mono">/api/icegate</td><td class="mono">routes/icegate.js</td></tr>
+      <tr><td class="mono">/dashboard</td><td class="mono">/api/dashboard</td><td class="mono">routes/importDashboard.js</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>Built from the code and a read-only look at database.sqlite on 23-Nov-2026. Row counts change as you work.</footer>
+</div>

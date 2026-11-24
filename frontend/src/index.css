@@ -1,0 +1,1873 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ── Global Font Override ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', sans-serif !important;
+}
+
+:root {
+
+  --bg-main: #f4f7f9;
+  --primary-color: #0369a1;      /* Deep Ocean Blue */
+  --primary-hover: #0284c7;
+  --secondary-color: #0ea5e9;    /* Lighter Blue */
+  
+  --bg-panel: linear-gradient(145deg, #ffffff 0%, var(--bg-main, #f4f7f9) 100%); /* Translucent white panels */
+  --bg-input: #ffffff;
+  --bg-theme-light: var(--bg-app, #f8fafc);
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  
+  --text-main: #0f172a;          /* Slate 900 for high contrast */
+  --text-muted: #64748b;         /* Slate 500 for secondary text */
+  
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-highlight: rgba(0, 0, 0, 0.15);
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+  --glow-primary: 0 4px 14px rgba(37, 99, 235, 0.3);
+  
+  --glass-blur: blur(16px);
+  --transition-fast: 0.15s ease-in-out;
+  --transition-normal: 0.3s ease-in-out;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  background-color: var(--bg-app);
+  background-attachment: fixed;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+label {
+  white-space: nowrap;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: var(--text-main);
+}
+h1 { font-size: 1.5rem; }
+h3 { font-size: 1.1rem; }
+
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  border-radius: 12px;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.glass-panel:hover {
+  /* 22-Nov-2026: no border / shadow change under the mouse */
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+@keyframes blinkEyes {
+  0%, 96%, 98%, 100% { transform: scaleY(1); }
+  97%, 99% { transform: scaleY(0.1); }
+}
+
+.btn-primary, .btn-success, .btn-danger, .btn-warning, .btn-info {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after, .btn-success::after, .btn-danger::after, .btn-warning::after, .btn-info::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-25deg);
+  
+}
+
+/* Offsetting shine timings so they don't flash together */
+
+
+
+
+
+.btn-primary {
+  background: linear-gradient(to right, #0ea5e9, #d946ef, #0ea5e9);
+  background-size: 200% 200%;
+  
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Contextual Buttons (Situation based) */
+.btn-success {
+  background: linear-gradient(to right, #10b981, #059669) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.btn-danger {
+  background: linear-gradient(to right, #ef4444, #dc2626) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.btn-warning {
+  background: linear-gradient(to right, #0ea5e9, #0284c7) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.btn-info {
+  background: linear-gradient(to right, #3b82f6, #2563eb) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.btn-primary:hover, .btn-secondary:hover, .btn-success:hover, .btn-danger:hover, .btn-warning:hover, .btn-info:hover {
+  /* transform removed to prevent flicker */
+  box-shadow: var(--shadow-md) !important;
+  opacity: 0.95;
+}
+
+/* Form Inputs (High Density) */
+.input-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--input-text, #000000) !important;
+  background-color: var(--bg-input, #ffffff);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 500;
+}
+.input-field:hover {
+  background-color: var(--bg-input, #ffffff); /* 22-Nov-2026: the border no longer changes under the mouse */
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  background-color: var(--bg-input, #ffffff);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+}
+.grid-input:focus {
+  background: #ffffff;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.2);
+}
+
+
+.input-field::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* Premium input — used across AWB, MAWB, HAWB forms */
+.premium-input {
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.premium-input::placeholder {
+  color: #b0bec5 !important;
+  font-style: italic;
+  font-weight: 400;
+  opacity: 1;
+}
+
+/* Universal fallback — any input placeholder should be clearly grey */
+input::placeholder,
+select::placeholder,
+textarea::placeholder {
+  color: #b0bec5;
+  font-style: italic;
+  opacity: 1;
+}
+
+/* Grid Inline Editing */
+.grid-input {
+  width: 100%;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid #94a3b8 !important;
+  background: #ffffff;
+  font-size: 10px;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+  border-radius: 2px;
+  transition: all 0.1s;
+  
+}
+.grid-input:hover {
+  border-color: rgba(0,0,0,0.1);
+}
+
+/* Mandatory Field Highlight */
+.input-mandatory {
+  border-left: 3px solid #ef4444 !important;
+  background-color: #fef2f2 !important;
+}
+.input-mandatory:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Section Headers */
+.section-header {
+  font-size: 12px !important;
+  color: #0275a8 !important; /* Dark blue text */
+  background: #e1f0fa; /* Slightly darker light blue */
+  padding: 0.35rem 0.75rem;
+  border-radius: 2px;
+  border: 1px solid #bce0fd; 
+  margin-bottom: 1rem;
+  
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+/* Make all labels globally bold and dark (High Density) */
+label {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  margin-bottom: 2px !important;
+  
+}
+
+/* Global Table Header Styling (High Density) */
+table {
+  border-collapse: collapse;
+}
+table thead {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #94a3b8 !important;
+}
+table th {
+    white-space: nowrap;
+    position: relative;
+    color: #334155 !important;
+    font-weight: 700 !important;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 11px !important;
+    text-align: left;
+}
+table td {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 11px !important;
+}
+
+.data-grid th, .data-grid td {
+  font-size: 10px !important;
+  padding: 0.2rem 0.3rem !important;
+}
+
+.dense-form-table th, .dense-form-table td {
+  padding: 1px 2px !important;
+}
+
+/* 21-Nov-2026: grid-line view for every data grid on the screen (a table that has a header row), like the Logi-Sys
+   lists: a line round every cell, a header band in the theme colour, light alternate rows, a clear hover row and
+   tighter rows. Layout tables (no <thead>) and the document previews / print areas (class "printable...", id "...print...") are not touched;
+   class "no-grid" on a table switches it off. Row colours set by a screen (status, selected row) still win. */
+:root {
+  /* the colour picked in Settings > Theme arrives as --primary-color-end (App.jsx); --primary-color is only the default */
+  --theme-base: var(--primary-color-end, var(--primary-color, #0369a1));
+  --grid-line: color-mix(in srgb, var(--theme-base) 22%, #d5dbe3);
+  --grid-vline: color-mix(in srgb, var(--grid-line) 50%, var(--bg-panel, #ffffff));
+  --grid-head-bg: var(--theme-base);
+  --grid-head-fg: #ffffff;
+  --grid-head-line: color-mix(in srgb, var(--theme-base) 55%, #ffffff);
+  --grid-zebra: color-mix(in srgb, var(--theme-base) 5%, var(--bg-panel, #ffffff));
+  --grid-hover: color-mix(in srgb, var(--theme-base) 4%, var(--bg-panel, #ffffff)); /* 22-Nov-2026: 13% -> 8% -> 4%, a lighter hover row */
+}
+@media screen {
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) {
+    border: 1px solid var(--grid-line);
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > thead {
+    background: var(--grid-head-bg) !important;
+    border-bottom: 1px solid var(--grid-head-line) !important;
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > thead > tr > th {
+    background-color: var(--grid-head-bg) !important;
+    color: var(--grid-head-fg) !important;
+    border: 1px solid var(--grid-head-line);
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr {
+    border-bottom: 1px solid var(--grid-line);
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr > td {
+    border: 1px solid var(--grid-line);
+    border-left-color: var(--grid-vline);
+    border-right-color: var(--grid-vline);
+  }
+  /* a cell laid out as a flex box is not a real table cell: its own border would be a box inside the row,
+     so its lines come from the row and from the cells beside it */
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr > td[style*="flex"] {
+    border-color: transparent;
+  }
+  /* tighter rows; the dense grids keep their own (smaller) spacing */
+  table:has(> thead):not(.no-grid):not(.data-grid):not(.dense-form-table):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > thead > tr > th {
+    padding: 0.28rem 0.45rem !important;
+  }
+  table:has(> thead):not(.no-grid):not(.data-grid):not(.dense-form-table):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr > td {
+    padding: 0.22rem 0.45rem !important;
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr:nth-child(even) {
+    background-color: var(--grid-zebra);
+  }
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)) > tbody > tr:hover {
+    background-color: var(--grid-hover);
+  }
+  /* a list whose rows carry a status colour (job lists): no alternate tint there, so only white and the status
+     colours show; the status rows get a soft tint, a colour bar at the left and normal dark text */
+  table:has(> thead):not(.no-grid):not(:is([class*="printable"], [class*="printable"] *, [id*="print"] *)):has(> tbody > tr.hover-row) > tbody > tr:nth-child(even):not([style*="background-color"]):not(:hover) {
+    background-color: transparent;
+  }
+  tr.hover-row[style*="background-color: rgb(240, 253, 244)"] { background-color: color-mix(in srgb, #22c55e 7%, var(--bg-panel, #ffffff)) !important; color: var(--text-main, #0f172a) !important; }
+  tr.hover-row[style*="background-color: rgb(240, 253, 244)"] > td:first-child { box-shadow: inset 3px 0 0 #22a45a; }
+  tr.hover-row[style*="background-color: rgb(254, 226, 226)"] { background-color: color-mix(in srgb, #ef4444 8%, var(--bg-panel, #ffffff)) !important; }
+  tr.hover-row[style*="background-color: rgb(254, 226, 226)"] > td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+  tr.hover-row[style*="background-color: rgb(255, 237, 213)"] { background-color: color-mix(in srgb, #f59e0b 9%, var(--bg-panel, #ffffff)) !important; }
+  tr.hover-row[style*="background-color: rgb(255, 237, 213)"] > td:first-child { box-shadow: inset 3px 0 0 #ea580c; }
+}
+
+/* 21-Nov-2026: plainer look for the import / export entry forms (class "entry-lg" on the tab panel and "entry-lg-body"
+   on the tab content, set in JobEntryLayout and ExportEntryLayout), a little like the Logi-Sys forms: labels in
+   normal letters, plain boxes 22px high, section headings as a coloured line of text instead of a band, flat tabs,
+   less space between rows. The place and width of every field is unchanged. All colours come from the theme
+   (--theme-base = the colour picked in Settings > Theme); the grids stay white (the panel colour). A mandatory field keeps a red box and gets an italic red label. */
+:root {
+  --lg-page: color-mix(in srgb, var(--theme-base) 11%, var(--bg-panel, #ffffff));
+  --lg-panel: color-mix(in srgb, var(--theme-base) 3%, var(--bg-panel, #ffffff));
+  --lg-line: color-mix(in srgb, var(--theme-base) 38%, var(--bg-panel, #ffffff));
+  --lg-head: color-mix(in srgb, var(--theme-base) 68%, var(--text-main, #000000));
+  --lg-box-line: color-mix(in srgb, var(--theme-base) 28%, #98a2ae);
+  --lg-req: color-mix(in srgb, #c62828 62%, var(--text-main, #000000));
+  --lg-req-line: #e08a8a;
+}
+.entry-lg { background: var(--lg-page) !important; }
+.entry-lg > div:has(> .tab-container) { background: transparent !important; }
+.entry-lg .tab-container { gap: 1px !important; }
+.entry-lg .tab-container .custom-tab {
+  background: color-mix(in srgb, var(--theme-base) 7%, var(--bg-panel, #ffffff)) !important;
+  color: var(--text-main, #111) !important;
+  border: 1px solid var(--lg-line) !important;
+  border-bottom: 0 !important;
+  border-radius: 5px 5px 0 0 !important;
+  font-weight: 400 !important;
+  text-transform: none !important;
+  font-size: 12px !important;
+  box-shadow: none !important;
+}
+.entry-lg .tab-container .custom-tab.active { background: var(--bg-panel, #ffffff) !important; font-weight: 700 !important; color: var(--lg-head) !important; }
+.entry-lg-body { background: var(--lg-panel); border-top: 1px solid var(--lg-line); padding: 6px 10px !important; }
+.entry-lg-body table { background: var(--bg-panel, #ffffff); }
+/* section: no box, heading as a line of text */
+.entry-lg-body [style*="border: 1px solid var(--primary-border)"]:has(> [style*="background: var(--primary-bg-light)"][style*="font-weight: bold"]) {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.entry-lg-body [style*="background: var(--primary-bg-light)"][style*="font-weight: bold"],
+.entry-lg-body .ivd-band, .entry-lg-body .itd-band {
+  background: transparent !important;
+  color: var(--lg-head) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--lg-line) !important;
+  border-radius: 0 !important;
+  padding: 1px 2px !important;
+}
+/* labels */
+.entry-lg-body label:not(:is([id*="print"] *, [class*="printable"] *)),
+.entry-lg-body .ivd-lbl, .entry-lg-body .itd-lbl {
+  text-transform: none !important;
+  font-weight: 400 !important;
+  color: var(--text-main, #111) !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+  margin-bottom: 0 !important;
+}
+.entry-lg-body div:has(> label):has(> .input-field:is([style*="248, 113, 113"], [style*="239, 68, 68"], .mandatory-field), > div > .input-field:is([style*="248, 113, 113"], [style*="239, 68, 68"], .mandatory-field)) > label {
+  font-style: italic;
+  color: var(--lg-req) !important;
+}
+/* boxes */
+.entry-lg-body input.input-field, .entry-lg-body select.input-field {
+  height: 22px !important;
+  min-height: 22px !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  border-radius: 2px !important;
+  box-shadow: none;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  border-color: var(--lg-box-line);
+}
+.entry-lg-body textarea.input-field { border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; border-color: var(--lg-box-line); }
+.entry-lg-body .input-field:is([style*="248, 113, 113"], [style*="239, 68, 68"], .mandatory-field) { border-color: var(--lg-req-line) !important; }
+/* less space between rows */
+.entry-lg-body [style*="padding: 8px"][style*="flex-direction: column"] { padding: 4px 8px !important; row-gap: 3px !important; }
+.entry-lg-body form [style*="gap: 8px"], .entry-lg-body [style*="gap: 8px 16px"] { row-gap: 3px !important; }
+/* one background for every form area (any theme); only grids stay white */
+.entry-lg-body :is(div, form, section):is(.ivd-box, .glass-panel, [style*="background: var(--bg-panel"], [style*="background: var(--bg-app"], [style*="background: var(--bg-input"]):not([style*="position: fixed"], [style*="position: absolute"], :is([id*="print"], [class*="printable"]), :is([id*="print"], [class*="printable"]) *) {
+  background: var(--lg-panel) !important;
+}
+/* button / total strips: one light shade of the theme */
+.entry-lg-body .ivd-btns,
+.entry-lg-body div[style*="background: var(--primary-bg-light"]:not([style*="background: var(--primary-bg-light)"][style*="font-weight: bold"], [style*="position: fixed"], [style*="position: absolute"]) {
+  background: var(--lg-page) !important;
+}
+/* 21-Nov-2026 (22:00): the rest of the entry screens in the same plain look.
+   Buttons: flat, one size; the colour of the class shows only in the text (green = save / modify, red = delete,
+   amber = warning); a btn-primary is the one filled button, in the theme colour (also the open sub-tab). */
+.entry-lg-body .btn { height: 24px !important; min-height: 0 !important; padding: 0 10px !important; border-radius: 2px !important; font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0 !important; white-space: nowrap; box-shadow: none !important; animation: none !important; transform: none !important;
+  background: var(--bg-panel, #ffffff) !important; color: var(--lg-head) !important; border: 1px solid var(--lg-box-line) !important; }
+.entry-lg-body label.btn:not(:is([id*="print"] *, [class*="printable"] *)) { text-transform: uppercase !important; font-size: 11px !important; font-weight: 600 !important; color: var(--lg-head) !important; font-style: normal !important; }
+.entry-lg-body .btn::after { display: none !important; }
+.entry-lg-body td .btn { padding: 0 5px !important; height: 22px !important; }
+.entry-lg-body .btn svg { color: currentColor !important; }
+.entry-lg-body .btn:hover:not(:disabled) { background: var(--lg-page) !important; }
+.entry-lg-body .btn.btn-success:not(.qry-bar .btn) { color: color-mix(in srgb, #15803d 85%, var(--text-main, #000000)) !important; }
+.entry-lg-body .btn.btn-danger:not(.qry-bar .btn) { color: color-mix(in srgb, #c62828 85%, var(--text-main, #000000)) !important; border-color: color-mix(in srgb, #c62828 40%, var(--lg-box-line)) !important; }
+.entry-lg-body .btn.btn-warning:not(.qry-bar .btn) { color: color-mix(in srgb, #b45309 85%, var(--text-main, #000000)) !important; }
+.entry-lg-body .btn.btn-primary { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; }
+.entry-lg-body .btn.btn-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-base) 86%, #000000) !important; }
+.entry-lg-body .btn:disabled { opacity: 0.55; }
+.entry-lg-body :is(.ivd-seg, .itd-seg) > button.on { background: var(--theme-base) !important; border-color: var(--theme-base) !important; color: #ffffff !important; }
+/* "Create new job" beside the title: theme colour on import and export alike */
+div.job-strip-wrap > div:first-child > button { background: var(--theme-base) !important; color: #ffffff !important; border-radius: 2px !important; font-size: 11px !important; padding: 2px 9px !important; }
+/* legend under the job lists: same colours as the rows (received = green), small flat chips with a colour bar */
+.entry-lg-body span[style*="border-radius: 999px"][style*="padding: 6px 14px"] { border-radius: 2px !important; padding: 2px 10px 2px 11px !important; box-shadow: inset 3px 0 0 currentColor !important; }
+.entry-lg-body span[style*="border-radius: 999px"][style*="background: rgb(254, 226, 226)"] { background: color-mix(in srgb, #ef4444 8%, var(--bg-panel, #ffffff)) !important; }
+.entry-lg-body span[style*="border-radius: 999px"][style*="background: rgb(255, 237, 213)"] { background: color-mix(in srgb, #f59e0b 9%, var(--bg-panel, #ffffff)) !important; }
+.entry-lg-body span[style*="border-radius: 999px"][style*="background: rgb(254, 240, 138)"] { background: color-mix(in srgb, #22c55e 9%, var(--bg-panel, #ffffff)) !important; color: #15803d !important; }
+/* heading of the job lists */
+.entry-lg-body h3[style*="color: var(--primary-color)"] { color: var(--lg-head) !important; font-size: 13px !important; font-weight: 600 !important; }
+.entry-lg-body h3[style*="color: var(--primary-color)"] > span:first-of-type { color: var(--lg-head) !important; background: var(--lg-page) !important; border-radius: 2px !important; }
+/* Job Header: the first box (Shipment Mode / BE Type) without its frame; labels that were cut */
+.entry-lg-body div[style*="border: 1px solid var(--primary-border)"][style*="background: transparent"] { border-color: transparent !important; border-bottom-color: var(--lg-line) !important; }
+.entry-lg-body label[style*="width: 80px"] { width: auto !important; min-width: 80px; white-space: nowrap; }
+.entry-lg-body div:has(> input[name="ucrType"]) { grid-column: span 2; }
+/* Reports tab: report names and group headings like the rest of the form */
+.entry-lg-body .report-row > div > div { text-transform: none; }
+.entry-lg-body .report-row > div > div:first-child { font-size: 12px !important; font-weight: 500 !important; color: var(--text-main, #0f172a) !important; }
+.entry-lg-body .report-row[aria-selected="true"] > div > div:first-child { font-weight: 600 !important; color: var(--lg-head) !important; }
+.entry-lg-body .report-row[aria-selected="true"] { border-left-color: var(--theme-base) !important; background: var(--lg-page) !important; }
+.entry-lg-body div[style*="font-size: 10.5px"][style*="font-weight: 800"] { font-size: 12px !important; font-weight: 600 !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--lg-head) !important; }
+/* Reports tab: the report list is as tall as the space it has (it was taller, so its Paper / Print row was cut off
+   at the bottom); closer rows */
+.entry-lg-body div[style*="overflow-y: auto"]:has(> div > div[style*="position: sticky"] > .no-print [role="listbox"]) { container-type: size; padding: 8px !important; }
+.entry-lg-body div[style*="position: sticky"]:has(> .no-print [role="listbox"]) { height: 100cqh !important; min-height: 230px !important; }
+.entry-lg-body .report-row { padding: 3px 8px 3px 10px !important; }
+.entry-lg-body .no-print:has(> [role="listbox"]) { border-radius: 2px !important; border-color: var(--lg-line) !important; }
+.entry-lg-body .no-print:has(> [role="listbox"]) > div:first-child { padding: 6px 10px !important; }
+.entry-lg-body .no-print:has(> [role="listbox"]) > div:last-of-type { padding: 6px 10px !important; gap: 5px !important; }
+/* Scheme / DBK: total row in the theme tint */
+.entry-lg-body tr[style*="background: rgb(241, 245, 249)"] { background: var(--lg-page) !important; }
+/* the helper robot: smaller and in the corner, so it covers less of the form */
+div[style*="position: fixed"][style*="bottom: 35px"][style*="right: 35px"][style*="z-index: 9999"] { zoom: 0.7; bottom: 34px !important; right: 10px !important; }
+/* 21-Nov-2026 (22:40): date boxes changed to the DD-MM-YYYY picker keep the width of the box they replace */
+.react-datepicker-wrapper:has(input[style*="flex: 1"]) { flex: 1 1 0%; min-width: 0; }
+.entry-lg-body div:has(> label):has(> .react-datepicker-wrapper .input-field:is([style*="248, 113, 113"], [style*="239, 68, 68"], .mandatory-field)) > label { font-style: italic; color: var(--lg-req) !important; }
+.react-datepicker-wrapper:has(input[style*="flex: 1"]) input, .react-datepicker-wrapper:has(input[style*="width: 100%"]) input { width: 100% !important; }
+.react-datepicker-wrapper:has(input[style*="width: 100%"]) { display: block; width: 100%; }
+/* dark background themes: pages/EFreightAWBForm.css paints every box near-white (with !important, on every screen),
+   so a dark theme showed its white letters on a white box. A box of the app (.input-field) takes the theme's box
+   colour and letter colour; a read-only box a light tint of the theme. With a light theme this looks as before. */
+.main-content :is(input, select, textarea).input-field { background-color: var(--bg-input, #ffffff) !important; color: var(--input-text, var(--text-main, #0f172a)) !important; }
+.main-content input.input-field[readonly] { background-color: color-mix(in srgb, var(--theme-base) 7%, var(--bg-input, #ffffff)) !important; color: color-mix(in srgb, var(--theme-base) 45%, var(--input-text, #000000)) !important; border-color: var(--lg-box-line) !important; }
+/* the calendar of a date box opens above any window it is in */
+.react-datepicker-popper { z-index: 100000 !important; }
+/* "Excel" beside the heading of the export job list: flat like the other buttons */
+.entry-lg-body h3 > button[title="Download the listed jobs as Excel"] { height: 22px !important; border-radius: 2px !important; background: var(--bg-panel, #ffffff) !important; color: var(--text-main, #0f172a) !important; border: 1px solid var(--lg-box-line) !important; font-weight: 400 !important; font-size: 12px !important; text-transform: none !important; }
+.entry-lg-body h3 > button[title="Download the listed jobs as Excel"] svg { color: var(--theme-base); }
+/* the Back button: a small round arrow at the left edge (the word shows in its tooltip), faint until the mouse is on
+   it, so it no longer covers the bottom of a form */
+button[title^="Back to the previous screen"] { left: 3px !important; bottom: 30px !important; width: 24px; height: 24px; padding: 0 !important; justify-content: center; font-size: 0 !important; gap: 0 !important; box-shadow: 0 1px 3px rgba(15,23,42,.18) !important; opacity: 0.6; }
+button[title^="Back to the previous screen"]:hover { opacity: 1; }
+button[title^="Back to the previous screen"] > span { font-size: 15px !important; }
+/* Dashboard tab of import / export: white tiles with the status colour as a bar at the left (the colour set by the
+   screen shows under a clear left border), dark text; the notice strips in the theme tint */
+.entry-lg-body div[style*="min-height: 85px"][style*="cursor: pointer"] { background-image: linear-gradient(var(--bg-panel, #ffffff), var(--bg-panel, #ffffff)), linear-gradient(transparent, transparent) !important; background-clip: padding-box, border-box !important; background-origin: border-box !important;
+  border: 1px solid var(--lg-box-line) !important; border-left: 5px solid transparent !important; border-radius: 2px !important; box-shadow: none !important; min-height: 62px !important; padding: 8px 12px !important; }
+.entry-lg-body div[style*="min-height: 85px"][style*="cursor: pointer"] * { color: var(--text-main, #0f172a) !important; }
+.entry-lg-body div[style*="min-height: 85px"][style*="cursor: pointer"] svg { opacity: 0.35; }
+.entry-lg-body div[style*="background: rgb(224, 231, 255)"] { background: var(--lg-page) !important; color: var(--lg-head) !important; border-radius: 2px !important; }
+.entry-lg-body div[style*="linear-gradient(135deg, rgb(254, 242, 242)"] { background: var(--lg-panel) !important; border: 1px solid var(--lg-line) !important; border-radius: 2px !important; box-shadow: none !important; }
+/* the other modules (masters, accounts, freight ...): the same plain labels, boxes and buttons as the entry screens */
+.main-content label:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { text-transform: none !important; font-weight: 400 !important; font-size: 12px !important; letter-spacing: 0 !important; color: var(--text-main, #111) !important; }
+.main-content input.input-field:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)), .main-content select.input-field:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { height: 22px !important; min-height: 22px !important; padding-top: 1px !important; padding-bottom: 1px !important; border-radius: 2px !important; box-shadow: none; font-size: 12px !important; font-weight: 400 !important; border-color: var(--lg-box-line); }
+.main-content textarea.input-field:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; border-color: var(--lg-box-line); }
+.main-content .btn:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { min-height: 0 !important; height: 24px !important; padding: 0 10px !important; border-radius: 2px !important; font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0 !important; white-space: nowrap; box-shadow: none !important; animation: none !important; transform: none !important;
+  background: var(--bg-panel, #ffffff) !important; color: var(--lg-head) !important; border: 1px solid var(--lg-box-line) !important; }
+.main-content .btn:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *))::after { display: none !important; }
+.main-content .btn:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) svg { color: currentColor !important; }
+.main-content .btn:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)):hover:not(:disabled):not(.btn-primary) { background: var(--lg-page) !important; }
+.main-content .btn.btn-success:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { color: color-mix(in srgb, #15803d 85%, var(--text-main, #000000)) !important; }
+.main-content .btn.btn-danger:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { color: color-mix(in srgb, #c62828 85%, var(--text-main, #000000)) !important; border-color: color-mix(in srgb, #c62828 40%, var(--lg-box-line)) !important; }
+.main-content .btn.btn-warning:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { color: color-mix(in srgb, #b45309 85%, var(--text-main, #000000)) !important; }
+.main-content .btn.btn-primary:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; }
+.main-content label.btn:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *)) { text-transform: uppercase !important; font-size: 11px !important; font-weight: 600 !important; color: var(--lg-head) !important; }
+/* 21-Nov-2026 (01:00): the rest of the screens (everything in the main area that is not an import / export entry
+   screen): boxes that are not .input-field get the same plain shape (24px, square), cards and panels lose their round
+   corners and heavy shadow, and a green or blue filled button takes the theme colour. Sizes of buttons, tiles and
+   round things (dots, avatars, switches) are not touched. */
+.main-content :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], .input-field), select:not(.input-field)):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)) { height: 24px !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; box-shadow: none !important; }
+.main-content textarea:not(.input-field):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; box-shadow: none !important; }
+.main-content :is(div, section, form, table, button, a, span)[style*="border-radius"]:is([style*="border-radius: 6px"], [style*="border-radius: 8px"], [style*="border-radius: 10px"], [style*="border-radius: 12px"], [style*="border-radius: 14px"], [style*="border-radius: 16px"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-radius: 3px !important; }
+.main-content .glass-panel:not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-radius: 3px !important; }
+.main-content button:not(.btn, [style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], [title^="Back to the previous screen"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)) { box-shadow: none !important; }
+.main-content button:not(.btn, [style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], [title^="Back to the previous screen"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *)):is([style*="background: rgb(22, 163, 74)"], [style*="background: rgb(34, 197, 94)"], [style*="background: rgb(16, 185, 129)"], [style*="background: rgb(5, 150, 105)"], [style*="background: rgb(2, 132, 199)"], [style*="background: rgb(14, 165, 233)"], [style*="background: rgb(37, 99, 235)"], [style*="background: rgb(59, 130, 246)"], [style*="background: rgb(79, 70, 229)"], [style*="background: rgb(3, 105, 161)"], [style*="background: linear-gradient(135deg, rgb(59, 130, 246)"], [style*="background: linear-gradient(135deg, rgb(14, 165, 233)"], [style*="background: linear-gradient(135deg, rgb(2, 132, 199)"], [style*="background: linear-gradient(135deg, rgb(37, 99, 235)"]):not(:disabled) { background: var(--theme-base) !important; border-color: var(--theme-base) !important; color: #ffffff !important; }
+/* 22-Nov-2026: screens that paint a fixed blue (written in the code as a colour, not as a theme variable) follow the
+   theme: strong blue -> the theme colour, dark blue -> the heading colour, light blue fills -> the light theme tints,
+   light blue lines -> the theme line. With the blue theme they look as before. Print areas are left alone. */
+.main-content [style*=" color: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { color: var(--theme-base) !important; }
+.main-content [style*=" color: rgb(7, 89, 133)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(7, 89, 133)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(12, 74, 110)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(12, 74, 110)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(30, 64, 175)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(30, 64, 175)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*=" color: rgb(30, 58, 138)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style^="color: rgb(30, 58, 138)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { color: var(--lg-head) !important; }
+.main-content [style*="background: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { background: var(--theme-base) !important; }
+.main-content [style*="background: rgb(224, 242, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(224, 242, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(219, 234, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(219, 234, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(186, 230, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(186, 230, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { background: var(--lg-page) !important; }
+.main-content [style*="background: rgb(240, 249, 255)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(240, 249, 255)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background: rgb(239, 246, 255)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="background-color: rgb(239, 246, 255)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { background: var(--lg-panel) !important; }
+.main-content [style*="solid rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-color: var(--theme-base) !important; }
+.main-content [style*="solid rgb(186, 230, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(186, 230, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(186, 230, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(125, 211, 252)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(125, 211, 252)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(125, 211, 252)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(191, 219, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(191, 219, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(191, 219, 254)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="solid rgb(147, 197, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="dashed rgb(147, 197, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: rgb(147, 197, 253)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-color: var(--lg-line) !important; }
+.main-content svg[stroke="#0284c7" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#0369a1" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#0ea5e9" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#1d4ed8" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#2563eb" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#38bdf8" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content svg[stroke="#3b82f6" i]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { stroke: var(--theme-base) !important; }
+/* a grid heading keeps its white letters (a dark blue written on the heading cell would be dark on the theme band) */
+@media screen { .main-content table:has(> thead):not(.no-grid) > thead > tr > th[style][style]:not(:is([class*="printable"] *, [id*="print"] *)) { color: var(--grid-head-fg) !important; } }
+/* 22-Nov-2026: Shipment Registration (freight) in the look of the entry screens: small title, section headings in
+   the theme heading colour with a thin line and no box round a section; grids keep their frame */
+.ship-reg { padding: 6px 10px !important; gap: 5px !important; }
+.ship-reg h2 { font-size: 14px !important; font-weight: 600 !important; }
+.ship-reg div[style*="overflow: hidden"]:has(> div:first-child[style*="font-weight: 800"][style*="border-bottom"]) { background: transparent !important; border: none !important; border-radius: 0 !important; overflow: visible !important; }
+.ship-reg div[style*="overflow: hidden"]:has(> div:first-child[style*="font-weight: 800"][style*="border-bottom"]) > div:first-child { background: transparent !important; border-bottom: 1px solid var(--lg-line) !important; padding: 1px 0 2px 0 !important; color: var(--lg-head) !important; font-size: 13px !important; font-weight: 600 !important; text-transform: none; }
+.ship-reg div[style*="overflow: hidden"]:has(> div:first-child[style*="font-weight: 800"][style*="border-bottom"]) > div:first-child + div { padding-left: 0 !important; padding-right: 0 !important; }
+.ship-reg div[style*="overflow: hidden"]:has(> div:first-child[style*="font-weight: 800"][style*="border-bottom"]) > div:first-child + div[style*="padding: 8px"] { padding: 4px 0 2px 0 !important; }
+.ship-reg button[style*="width: 22px"][style*="height: 25px"] { height: 24px !important; border-radius: 2px !important; background: var(--bg-panel, #ffffff) !important; border-color: var(--lg-box-line) !important; }
+/* 22-Nov-2026: top menus - every entry the same weight and colour (one was fixed blue and bold, some 600, some
+   500), on one line (the menu grows to fit), hover in the theme colour */
+.navbar .dropdown-menu .dropdown-item, nav .dropdown-menu .dropdown-item { font-weight: 500 !important; color: var(--text-main, #0f172a) !important; white-space: nowrap; }
+.navbar .dropdown-menu .dropdown-item:hover, nav .dropdown-menu .dropdown-item:hover { background: var(--lg-page) !important; color: var(--lg-head) !important; }
+/* 22-Nov-2026: tabs that mark the open tab with a fixed blue line under it (the border is written with "border: none"
+   beside it, which the browser keeps as border-color: currentcolor currentcolor <blue>) - the line follows the theme;
+   such a tab strip is also made the size of the other tabs */
+.main-content [style*="border-color: currentcolor currentcolor rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-color: currentcolor currentcolor rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(2, 132, 199)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(3, 105, 161)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(14, 165, 233)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(37, 99, 235)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(59, 130, 246)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(29, 78, 216)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)),
+.main-content [style*="border-bottom-color: rgb(56, 189, 248)"]:not(:is([id*="print"] *, [class*="printable"] *, .react-datepicker *)) { border-bottom-color: var(--theme-base) !important; }
+.main-content button[style*="border-style: none none solid"][style*="padding: 16px 24px"] { padding: 6px 14px !important; font-size: 12px !important; font-weight: 600 !important; border-bottom-width: 2px !important; }
+.main-content button[style*="border-style: none none solid"][style*="padding: 16px 24px"] svg { width: 14px; height: 14px; }
+/* 22-Nov-2026: Admin Dashboard in the look of the other screens: small title, white tiles with their colour as a bar
+   at the left and dark text (like the import / export Dashboard tab), plain panels, smaller headings */
+.admin-dash { padding: 8px 12px !important; background: transparent !important; min-height: 0 !important; }
+.admin-dash > div:first-child { margin-bottom: 8px !important; }
+.admin-dash > div:first-child h2 { font-size: 14px !important; font-weight: 600 !important; }
+.admin-dash > div:first-child span[style*="border-radius"], .admin-dash > div:first-child > div > div:not(:has(button)) { font-size: 11px !important; padding: 2px 9px !important; border-radius: 2px !important; }
+.admin-dash > div:first-child button { height: 24px !important; padding: 0 10px !important; font-size: 11px !important; border-radius: 2px !important; background: var(--theme-base) !important; box-shadow: none !important; }
+.admin-dash div[style*="margin-bottom: 24px"] { margin-bottom: 8px !important; }
+.admin-dash div[style*="gap: 24px"] { gap: 8px !important; }
+.admin-dash div[style*="background: rgb(255, 251, 235)"] { padding: 6px 12px !important; box-shadow: none !important; border-radius: 2px !important; }
+.admin-dash div[style*="background: rgb(255, 251, 235)"] h2 { font-size: 13px !important; font-weight: 600 !important; padding-bottom: 4px !important; margin-bottom: 4px !important; }
+.admin-dash div[style*="background: rgb(255, 251, 235)"] h2 svg { width: 14px; height: 14px; }
+.admin-dash div[style*="linear-gradient(135deg"] { background-clip: padding-box, border-box !important; background-origin: border-box !important; border: 1px solid var(--lg-box-line) !important; border-left: 5px solid transparent !important; border-radius: 2px !important; box-shadow: none !important; padding: 8px 12px !important; gap: 10px !important; color: var(--text-main, #0f172a) !important; }
+.admin-dash div[style*="linear-gradient(135deg"][style*="rgb(59, 130, 246)"] { background-image: linear-gradient(var(--bg-panel, #fff), var(--bg-panel, #fff)), linear-gradient(var(--theme-base), var(--theme-base)) !important; }
+.admin-dash div[style*="linear-gradient(135deg"][style*="rgb(16, 185, 129)"] { background-image: linear-gradient(var(--bg-panel, #fff), var(--bg-panel, #fff)), linear-gradient(#10b981, #10b981) !important; }
+.admin-dash div[style*="linear-gradient(135deg"][style*="rgb(245, 158, 11)"] { background-image: linear-gradient(var(--bg-panel, #fff), var(--bg-panel, #fff)), linear-gradient(#f59e0b, #f59e0b) !important; }
+.admin-dash div[style*="linear-gradient(135deg"] > div:first-child { background: var(--lg-page) !important; padding: 6px !important; color: var(--lg-head) !important; }
+.admin-dash div[style*="linear-gradient(135deg"] > div:first-child svg { width: 16px; height: 16px; }
+.admin-dash div[style*="linear-gradient(135deg"] p { color: var(--text-muted, #64748b) !important; font-size: 11px !important; margin: 0 !important; }
+.admin-dash div[style*="linear-gradient(135deg"] h3 { color: var(--text-main, #0f172a) !important; font-size: 18px !important; font-weight: 600 !important; }
+.admin-dash div[style*="linear-gradient(135deg"] span { color: var(--text-muted, #64748b) !important; }
+.admin-dash div[style*="padding: 24px"][style*="border-radius: 12px"]:not([style*="linear-gradient"]) { padding: 8px 12px !important; border-radius: 2px !important; box-shadow: none !important; border-color: var(--lg-line) !important; }
+.admin-dash div[style*="padding: 24px"] > div:first-child:has(> h3) { margin-bottom: 6px !important; padding-bottom: 3px; border-bottom: 1px solid var(--lg-line); }
+.admin-dash div[style*="padding: 24px"] h3 { font-size: 13px !important; font-weight: 600 !important; color: var(--lg-head) !important; }
+.admin-dash div[style*="padding: 24px"] > div:first-child:has(> h3) svg { width: 14px; height: 14px; stroke: var(--theme-base); }
+/* 22-Nov-2026: page furniture of the screens that draw their own (Purchase, Asset & Stock, Fleet / TMS, Field
+   tracking and others like them): small page title and sub-title, small icon box beside the title, panel headings in
+   the theme heading colour, flat panels with less padding, big buttons brought to the size of the others */
+.main-content :is(h1, h2):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { font-size: 14px !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+.main-content :is(h1, h2):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) + p, .main-content :is(h1, h2):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) + div > p { font-size: 11px !important; margin: 0 !important; }
+.main-content h3:is(:not([style*="font-size"]), [style*="font-size: 16px"], [style*="font-size: 18px"], [style*="font-size: 20px"], [style*="font-size: 1.1rem"], [style*="font-size: 1.125rem"], [style*="font-size: 1.25rem"]):not([style*="color: white"], [style*="color: rgb(255, 255, 255)"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { font-size: 13px !important; font-weight: 600 !important; color: var(--lg-head) !important; }
+.main-content div:has(> svg:only-child):has(+ div > :is(h1, h2)):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { padding: 5px !important; border-radius: 3px !important; box-shadow: none !important; display: inline-flex; }
+.main-content div:has(> svg:only-child):has(+ div > :is(h1, h2)):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) > svg { width: 16px; height: 16px; }
+.main-content div[style*="min-height: 100vh"]:is([style*="padding: 20px"], [style*="padding: 24px"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { padding: 8px 12px !important; background: transparent !important; min-height: 0 !important; }
+.main-content div:is([style*="margin-bottom: 20px"], [style*="margin-bottom: 24px"]):has(> :is(h1, h2), > div > :is(h1, h2), > div > div > :is(h1, h2)):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { margin-bottom: 8px !important; }
+.main-content div[style*="box-shadow"]:is([style*="padding: 20px"], [style*="padding: 24px"]):not([style*="linear-gradient"], [style*="position: fixed"], div[style*="position: fixed"] > *):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { padding: 8px 12px !important; box-shadow: none !important; border: 1px solid var(--lg-line) !important; }
+.main-content button:not(.btn):is([style*="padding: 10px 20px"], [style*="padding: 10px 24px"], [style*="padding: 12px 24px"], [style*="padding: 10px 16px"], [style*="padding: 8px 16px"], [style*="padding: 8px 20px"]):not(:is(.entry-lg-body *, [id*="print"] *, [class*="printable"] *, .react-datepicker *, .leaflet-container *)) { padding: 0 12px !important; height: 26px !important; font-size: 11px !important; font-weight: 600 !important; }
+/* 22-Nov-2026: AWB screens (e-AWB, MAWB, HAWB - the screens with .premium-input) in the look of the other screens:
+   thin top strip, the chosen AWB type filled in the theme colour, section headings in the theme heading colour with a
+   thin line and no box round a section or a party, softer red on the boxes that must be filled */
+.main-content div[style*="height: 36px"][style*="border-radius: 6px 6px 0px 0px"] { height: 26px !important; padding: 0 12px !important; font-size: 11px !important; font-weight: 600 !important; border-radius: 2px 2px 0 0 !important; }
+.main-content.has-premium div[style*="padding: 12px 20px"][style*="justify-content: space-between"][style*="border-radius"] { padding: 3px 8px !important; background: transparent !important; box-shadow: none !important; border: none !important; border-bottom: 1px solid var(--lg-line) !important; border-radius: 0 !important; }
+.main-content.has-premium label:has(> input[type="radio"][name="awbType"][style*="display: none"]) { padding: 2px 10px !important; font-size: 11px !important; font-weight: 600 !important; border-radius: 2px !important; box-shadow: none !important; border: 1px solid var(--lg-box-line); background: var(--bg-panel, #ffffff) !important; color: var(--lg-head) !important; }
+.main-content.has-premium label:has(> input[type="radio"][name="awbType"][style*="display: none"]:checked) { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base); }
+.main-content.has-premium div.awb-sec[style*="border: 1px solid rgb(148, 163, 184)"][style*="overflow: hidden"] { border: none !important; box-shadow: none !important; background: transparent !important; border-radius: 0 !important; overflow: visible !important; }
+.main-content.has-premium div.awb-sec[style*="border: 1px solid rgb(148, 163, 184)"][style*="overflow: hidden"] > div:first-child { background: transparent !important; border-left: none !important; border-bottom: 1px solid var(--lg-line) !important; padding: 1px 0 2px 0 !important; color: var(--lg-head) !important; font-size: 13px !important; font-weight: 600 !important; }
+.main-content.has-premium div.awb-sec[style*="border: 1px solid rgb(148, 163, 184)"][style*="overflow: hidden"] div[style*="background-color: rgb(248, 250, 252)"] { background: transparent !important; }
+.main-content.has-premium div.awb-sec[style*="border: 1px solid rgb(148, 163, 184)"][style*="overflow: hidden"] div[style*="padding: 14px 16px"] { padding: 6px 0 !important; gap: 6px 16px !important; border-bottom: none !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] { border: 1px solid var(--lg-line) !important; box-shadow: none !important; background: var(--bg-panel, #ffffff) !important; border-radius: 3px !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:first-child { padding: 1px 8px 2px 8px !important; min-height: 0 !important; border-bottom: 1px solid var(--lg-line) !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:first-child > span:first-child { color: var(--lg-head) !important; font-size: 12px !important; font-weight: 600 !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:first-child button[style*="background: none"] { color: var(--theme-base) !important; font-size: 11px !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:not(:first-child) { padding-left: 8px !important; padding-right: 8px !important; }
+/* party heading rows all the same height (the "Self" pill made one taller), and the address cards of a row the same
+   height, so Shipper and Consignee start and end on the same lines */
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:first-child { height: 26px !important; flex-wrap: nowrap !important; overflow: hidden; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div:first-child label { padding: 0 8px !important; height: 20px !important; font-size: 11px !important; border-radius: 2px !important; box-sizing: border-box; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div[style*="padding: 10px 12px"] { padding: 4px 8px 4px 8px !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div[style*="padding: 10px 12px"] > div[style*="background: rgb(247, 250, 255)"] { flex: 1 1 auto; border: none !important; background: transparent !important; padding: 0 !important; }
+.main-content.has-premium div[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="flex-direction: column"] > div[style*="padding: 10px 12px"] > div[style*="margin-top: auto"] { margin-top: 0 !important; padding-top: 3px !important; }
+.main-content.has-premium :is(input, select, textarea):is([style*="solid rgb(239, 68, 68)"], .mandatory-field, .mandatory-border) { border-color: var(--lg-req-line) !important; }
+.main-content.has-premium span[style*="background: rgb(254, 242, 242)"][style*="font-size: 10px"] { background: transparent !important; font-style: italic; font-weight: 400 !important; color: var(--lg-req) !important; padding: 0 !important; }
+.main-content.has-premium .awb-card:hover { transform: none !important; box-shadow: none !important; }
+.main-content.has-premium div[style*="border-left: 4px solid"][style*="font-weight: 800"] { background: transparent !important; border-left: none !important; border-bottom: 1px solid var(--lg-line) !important; padding: 1px 0 2px 0 !important; color: var(--lg-head) !important; font-size: 13px !important; font-weight: 600 !important; }
+.main-content.has-premium div:has(> div:first-child[style*="border-left: 4px solid"][style*="font-weight: 800"]) { border: none !important; box-shadow: none !important; background: transparent !important; border-radius: 0 !important; }
+.main-content.has-premium div.awb-agent[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="overflow: hidden"] { border: 1px solid var(--lg-line) !important; box-shadow: none !important; background: var(--bg-panel, #ffffff) !important; border-radius: 3px !important; }
+.main-content.has-premium div.awb-agent[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="overflow: hidden"] > div:first-child { padding: 1px 8px 2px 8px !important; min-height: 0 !important; border-bottom: 1px solid var(--lg-line) !important; }
+.main-content.has-premium div.awb-agent[style*="border: 1px solid rgb(148, 163, 184)"][style*="border-radius: 6px"][style*="overflow: hidden"] > div:first-child > span:first-child { color: var(--lg-head) !important; font-size: 12px !important; font-weight: 600 !important; }
+/* the action bar under an AWB: flat buttons of one size; Save filled in the theme colour, Void in red text */
+.main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] button { height: 24px !important; padding: 0 12px !important; border-radius: 2px !important; font-size: 11px !important; font-weight: 600 !important; background: var(--bg-panel, #ffffff) !important; color: var(--lg-head) !important; border: 1px solid var(--lg-box-line) !important; box-shadow: none !important; }
+.main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] button:first-child { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; }
+.main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] button:is([style*="background-color: rgb(220, 38, 38)"], [style*="background-color: rgb(239, 68, 68)"], [style*="background-color: rgb(225, 29, 72)"]) { color: #b91c1c !important; border-color: #e3a3a3 !important; }
+.main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] button:disabled { opacity: 0.6; }
+/* 21-Nov-2026 (00:30): windows that open over a screen (a dark sheet over the whole page with a box on it): the same
+   plain look as the entry screens. Words in normal letters (boxes, buttons and grid headings stay in capitals), boxes
+   22px high, square corners, buttons one size; a green or blue filled button becomes the theme colour (so a switch
+   that shows its chosen side by a fill still shows it), other button colours are left as the window set them. */
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) { text-transform: none; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) th { text-transform: uppercase; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select) { height: 22px !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; box-shadow: none !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) textarea { border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) label, div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) span[style*="font-weight: 600"][style*="white-space: nowrap"][style*="font-size: 11px"] { text-transform: none !important; font-weight: 400 !important; font-size: 12px !important; letter-spacing: 0 !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) div[style*="border-radius"]:not([style*="999"], [style*="50%"]) { border-radius: 2px !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *) { height: 24px !important; min-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; border-radius: 2px !important; font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0 !important; white-space: nowrap; box-shadow: none !important; animation: none !important; transform: none !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *)::after { display: none !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *):is(.btn-success, .btn-primary, [style*="background: rgb(22, 163, 74)"], [style*="background: rgb(34, 197, 94)"], [style*="background: rgb(92, 184, 92)"], [style*="background: rgb(16, 185, 129)"], [style*="background: rgb(2, 132, 199)"], [style*="background: rgb(14, 165, 233)"], [style*="background: rgb(37, 99, 235)"], [style*="background: rgb(59, 130, 246)"], [style*="background: rgb(79, 70, 229)"]):not(:disabled) { background: var(--theme-base) !important; color: #ffffff !important; border: 1px solid var(--theme-base) !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *):is(.btn-secondary, .btn-info, .btn-warning, .btn-danger, [style*="background: rgb(255, 255, 255)"], [style*="background: rgb(241, 245, 249)"]) { background: #ffffff !important; color: color-mix(in srgb, var(--theme-base) 68%, #000000) !important; border: 1px solid var(--lg-box-line) !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *).btn-danger { color: #b91c1c !important; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *):disabled { opacity: 0.6; }
+div[style*="position: fixed"][style*="rgba("]:is([style*="inset: 0"], [style*="top: 0px"][style*="left: 0px"]) button:not([style*="background: none"], [style*="background: transparent"], [style*="border-radius: 999"], [style*="border-radius: 50%"], [role="switch"], .react-datepicker *) svg { color: currentColor; }
+/* 22-Nov-2026: message boxes (Information / Error / Confirm deletion: a round mark and a title, the message, the
+   buttons): small and plain like the confirm window - a white title line with a thin rule, the message in normal
+   letters, the main button in the theme colour (a red "delete" button stays red). */
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child { padding: 8px 14px !important; gap: 9px !important; background: var(--bg-panel, #ffffff) !important; border-bottom: 1px solid var(--lg-line) !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child > div[style*="border-radius: 50%"] { width: 22px !important; height: 22px !important; font-size: 13px !important; flex: 0 0 auto; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child > :is(h2, h3) { font-size: 14px !important; font-weight: 600 !important; letter-spacing: 0 !important; text-transform: none !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child ~ div:not(:last-child) { padding: 14px 16px !important; font-size: 13px !important; font-weight: 400 !important; line-height: 1.5 !important; text-align: left !important; text-transform: none !important; color: var(--text-main, #0f172a) !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child ~ div:last-child { padding: 8px 14px !important; gap: 8px !important; background: var(--bg-panel, #ffffff) !important; border-top: 1px solid var(--lg-line) !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child ~ div:last-child > button { height: 24px !important; padding: 0 14px !important; border-radius: 2px !important; font-size: 11px !important; font-weight: 600 !important; box-shadow: none !important; background: #ffffff !important; color: color-mix(in srgb, var(--theme-base) 68%, #000000) !important; border: 1px solid var(--lg-box-line) !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child ~ div:last-child > button:last-child { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box > div.msg-head:first-child ~ div:last-child > button:is([style*="background-color: rgb(225, 29, 72)"], [style*="background-color: rgb(220, 38, 38)"], [style*="background-color: rgb(239, 68, 68)"]) { background: #c62828 !important; color: #ffffff !important; border-color: #c62828 !important; }
+div[style*="position: fixed"][style*="rgba("] > div.msg-box { max-width: 460px; border-radius: 3px !important; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28) !important; }
+/* search / filter bar of the job lists (class qry-bar): plain like the form - normal-case labels, small boxes, flat buttons */
+.qry-bar { padding: 5px 8px !important; gap: 5px !important; border: 1px solid var(--lg-line) !important; border-radius: 2px !important; box-shadow: none !important; }
+.qry-bar > div + div { border-top: 1px solid var(--lg-line); padding-top: 5px; }
+.qry-bar span[style*="text-transform: uppercase"] { text-transform: none !important; font-size: 12px !important; font-weight: 400 !important; letter-spacing: 0 !important; color: var(--text-main) !important; }
+.qry-bar select, .qry-bar input { font-size: 12px !important; font-weight: 400 !important; border-radius: 2px !important; }
+.qry-bar select.input-field, .qry-bar input.input-field, .qry-bar > div > select { height: 22px !important; min-height: 22px !important; border-color: var(--lg-box-line) !important; background-color: var(--bg-input, #ffffff); }
+.qry-bar div[style*="background: rgb(248, 250, 252)"] { height: 22px !important; padding: 0 !important; border-radius: 2px !important; border-color: var(--lg-box-line) !important; background: var(--bg-input, #ffffff) !important; }
+.qry-bar div[style*="background: rgb(241, 245, 249)"] { border-radius: 2px !important; padding: 1px !important; border-color: var(--lg-box-line) !important; }
+.qry-bar div[style*="background: rgb(241, 245, 249)"] > button { border-radius: 2px !important; padding: 2px 10px !important; font-weight: 400 !important; font-size: 12px !important; text-transform: none !important; }
+.qry-bar .btn { height: 22px !important; padding: 0 9px !important; border-radius: 2px !important; font-size: 12px !important; font-weight: 400 !important; text-transform: none !important; letter-spacing: 0 !important; box-shadow: none !important; animation: none !important;
+  background: var(--bg-panel, #ffffff) !important; color: var(--text-main) !important; border: 1px solid var(--lg-box-line) !important; }
+.qry-bar select:not(.input-field) { min-width: 108px; }
+.qry-bar .btn::after { display: none !important; }
+.qry-bar .btn svg { color: var(--theme-base); }
+.qry-bar .btn:hover { background: var(--lg-page) !important; transform: none !important; }
+.qry-bar .btn.btn-primary { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; }
+.qry-bar .btn.btn-primary svg { color: #ffffff; }
+/* the job line above the tabs (class job-strip): each piece stays on one line and the line wraps as a whole */
+.job-strip { flex-wrap: wrap; row-gap: 4px !important; column-gap: 0.6rem !important; font-size: 11px !important; letter-spacing: 0 !important; }
+.job-strip > * { white-space: nowrap; flex-shrink: 0; max-width: 100%; }
+.job-strip > span[style*="margin-left: 6px"], .job-strip > button[style*="margin-left: 6px"] { margin-left: 0 !important; font-size: 11px !important; padding: 2px 8px !important; border-radius: 3px !important; }
+.job-strip > span > button { font-size: 11px !important; padding: 0 7px !important; }
+div.job-strip-wrap { min-width: 0; flex: 1 1 auto; }
+div.job-strip-wrap ~ * { flex-shrink: 0; white-space: nowrap; }
+div.job-strip-wrap ~ * button { white-space: nowrap; }
+/* the box that holds a grid stays white */
+.entry-lg-body div:has(> table > thead):not(:is([id*="print"], [class*="printable"]) *) { background: var(--bg-panel, #ffffff) !important; }
+
+/* Layout */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Header (Topbar + Navbar combined) */
+.global-header {
+  background: linear-gradient(135deg, var(--primary-color-start, #0284c7), var(--primary-color-end, #075985));
+  border-bottom: none;
+  z-index: 100;
+  box-shadow: 0 4px 15px var(--primary-shadow, rgba(37, 99, 235, 0.2));
+}
+
+.topbar {
+  height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    position: relative;
+  }
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+}
+
+.navbar {
+  height: auto;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 0.25rem 1rem;
+  gap: 0.25rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.5rem;
+  color: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+  transition: all var(--transition-fast);
+  border-radius: 6px;
+  position: relative;
+}
+
+.nav-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+}
+
+.nav-item.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+  font-weight: 700;
+}
+
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: #ffffff;
+  border-radius: 3px 3px 0 0;
+  box-shadow: 0 -2px 5px rgba(255,255,255,0.5);
+}
+
+.main-content {
+  flex: 1;
+  min-height: 0;
+  padding: 0.75rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+.main-content::-webkit-scrollbar {
+  width: 8px;
+}
+.main-content::-webkit-scrollbar-thumb {
+  background-color: #94a3b8;
+  border-radius: 4px;
+}
+
+/* ── HR Module Layout ─────────────────────────────────────────────────── */
+:root { --header-h: 110px; --footer-h: 24px; }
+
+.main-content.hr-module-page {
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: calc(100vh - var(--header-h) - var(--footer-h));
+}
+
+/* HRModule root fills the entire .hr-module-page height */
+.hr-module-root {
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Sidebar — does NOT scroll with page, has its own vertical scroll */
+.hr-sidebar {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+}
+
+/* Right content area — independently scrollable */
+.hr-main-content {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--primary-bg-light, #e8f4fd);
+}
+
+/* HR Module — no outer padding/scroll, it manages its own */
+
+
+
+/* Context Switcher */
+.context-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f1f5f9;
+  padding: 0.35rem 0.5rem;
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+}
+.context-badge {
+  padding: 0.35rem 1rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.context-badge:hover:not(.active) {
+  color: var(--text-main);
+}
+.context-badge.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid #e2e8f0;
+}
+
+/* Search Bar */
+.search-container {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 0.5rem 1rem;
+  border-radius: 24px;
+  width: 350px;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+.search-container:focus-within {
+  border-color: var(--primary-color);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Dropdown Menu */
+.dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  min-width: 220px;
+  display: none;
+  flex-direction: column;
+  padding: 0.5rem 0;
+  z-index: 1000;
+}
+
+.dropdown:hover .dropdown-menu {
+  display: flex;
+}
+
+.dropdown-item {
+  padding: 0.4rem 1rem;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dropdown-item:hover {
+  background: #eef7fa;
+  color: var(--primary-color);
+}
+
+/* Folder-style Small Tabs */
+.tab-container {
+  display: flex;
+  align-items: flex-end;
+  background: transparent;
+  padding: 0 0.2rem;
+  border-bottom: 1px solid #94a3b8;
+  gap: 4px;
+  width: 100%;
+}
+
+.custom-tab {
+  padding: 0.35rem 0.75rem;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(to bottom, #f8fafc, #e2e8f0);
+  color: #475569;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-bottom: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.custom-tab:hover {
+  background: linear-gradient(to bottom, #e2e8f0, #94a3b8);
+  color: #334155;
+}
+
+.custom-tab.active {
+  background: linear-gradient(to right, var(--primary-color-start, #0ea5e9), var(--primary-color-end, #2563eb));
+  color: #ffffff;
+  font-weight: 700;
+  border: 1px solid var(--primary-border, #0284c7);
+  border-bottom: 2px solid var(--primary-color-end, #1e40af);
+  margin-bottom: -1px;
+  padding-bottom: 0.5rem;
+  box-shadow: 0 -2px 10px var(--primary-shadow, rgba(14, 165, 233, 0.3));
+}
+
+.custom-tab.active::before {
+  display: none;
+}
+
+/* Printable Checklist Specific Overrides */
+.printable-checklist table th,
+.printable-checklist table td {
+  font-size: 8px !important;
+  color: #000 !important;
+  padding: 1px 2px !important;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Prevent rows and tables from splitting across pages naturally */
+.printable-checklist tr, 
+.printable-checklist table,
+.printable-checklist .parties-section,
+.printable-checklist .section-avoid-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+@media screen {
+  .print-only-header {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 5mm;
+  }
+}
+
+.input-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--input-text, #000000) !important;
+  background-color: var(--bg-input, #ffffff);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 500;
+}
+.input-field:hover {
+  background-color: var(--bg-input, #ffffff); /* 22-Nov-2026: the border no longer changes under the mouse */
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  background-color: var(--bg-input, #ffffff);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.header-form-grid { display: grid; grid-template-columns: 120px 1fr 120px 1fr 120px 1fr 120px 1fr; gap: 8px 16px; align-items: center; }
+.header-form-grid > label { text-align: right; margin-bottom: 0 !important; color: #1e293b; font-weight: 600; font-size: 11px; }
+.col-span-3 { grid-column: span 3; }
+.col-span-5 { grid-column: span 5; }
+.col-span-7 { grid-column: span 7; }
+
+.form-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.form-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.form-field label {
+  width: 120px !important;
+  min-width: 120px !important;
+  text-align: right;
+  margin: 0 !important;
+  font-size: 11px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.form-field .input-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--input-text, #000000) !important;
+  background-color: var(--bg-input, #ffffff);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 500;
+}
+.input-field:hover {
+  background-color: var(--bg-input, #ffffff); /* 22-Nov-2026: the border no longer changes under the mouse */
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  background-color: var(--bg-input, #ffffff);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.form-field > .form-field {
+  width: auto;
+  flex: 1;
+}
+\n.input-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--input-text, #000000) !important;
+  background-color: var(--bg-input, #ffffff);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 500;
+}
+.input-field:hover {
+  background-color: var(--bg-input, #ffffff); /* 22-Nov-2026: the border no longer changes under the mouse */
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  background-color: var(--bg-input, #ffffff);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}\n
+.form-field:has(> .form-field) { display: contents !important; }
+
+.form-row > .form-row { flex: 1; min-width: 0; display: contents !important; }
+
+.form-row { display: grid !important; grid-template-columns: repeat(10, 1fr) !important; gap: 4px 16px !important; width: 100% !important; margin-bottom: 4px !important; }
+.form-field { display: flex !important; align-items: center !important; gap: 8px !important; width: 100% !important; min-width: 0 !important; }
+.col-span-2 { grid-column: span 2 !important; }
+
+/* --- JOB HEADER TRUE GRID --- */
+.job-grid { display: grid; width: 100%; grid-template-columns: repeat(10, 1fr); gap: 4px 6px; padding: 8px; background: #eef7fa; border: 1px solid #bae6fd; }
+.job-section-title { padding: 4px 8px; background: #d6eaf8; color: #31708f; font-weight: 600; font-size: 13px; border-bottom: 1px solid #bae6fd; border-left: 1px solid #bae6fd; border-right: 1px solid #bae6fd; border-top: 1px solid #bae6fd; margin-top: 8px; }
+.form-group { display: flex; align-items: center; gap: 8px; width: 100%; }
+.form-group label { width: 85px; min-width: 85px; font-weight: 500; color: #000; font-size: 11px; text-align: left; margin: 0; white-space: nowrap; text-transform: none; }
+.form-group .input-field {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--input-text, #000000) !important;
+  background-color: var(--bg-input, #ffffff);
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 500;
+}
+.input-field:hover {
+  background-color: var(--bg-input, #ffffff); /* 22-Nov-2026: the border no longer changes under the mouse */
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  background-color: var(--bg-input, #ffffff);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.input-field:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+.form-group .input-field:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 1px #bfdbfe; }
+.col-span-1 { grid-column: span 1; }
+.col-span-2 { grid-column: span 2; }
+.col-span-3 { grid-column: span 3; }
+.col-span-4 { grid-column: span 4; }
+
+.col-span-1 { grid-column: span 1 !important; }
+.col-span-2 { grid-column: span 2 !important; }
+.col-span-3 { grid-column: span 3 !important; }
+.col-span-4 { grid-column: span 4 !important; }
+.col-span-5 { grid-column: span 5 !important; }
+.col-span-6 { grid-column: span 6 !important; }
+
+/* Modern Mandatory Field Highlight */
+.modern-input-mandatory {
+  background-color: #ffe4e6 !important;
+  border-color: #fecdd3 !important;
+}
+.modern-input-mandatory:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px #ef4444 !important;
+}
+
+
+/* Custom Tooltip Container */
+.tooltip-container {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Tooltip Text */
+.tooltip-container .tooltip-text {
+  visibility: hidden;
+  background-color: #222;
+  color: #fff;
+  text-align: center;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  
+  /* Position the tooltip */
+  position: absolute;
+  z-index: 100;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  
+  /* Prevent wrapping if possible */
+  white-space: nowrap;
+  
+  /* Fade in */
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+/* Tooltip Arrow */
+.tooltip-container .tooltip-text::after {
+  content: "";
+  position: absolute;
+  bottom: 100%; /* At the top of the tooltip */
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent transparent #222 transparent;
+}
+
+/* Show tooltip on focus or hover of the container */
+.tooltip-container:hover .tooltip-text,
+.tooltip-container:focus-within .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
+
+
+/* Enforce uppercase globally for all inputs and form elements */
+input, textarea, select, button, .input-field, .modern-input {
+  
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.btn:hover {
+  /* transform removed to prevent flicker */
+  filter: brightness(1.1);
+}
+.btn:active {
+  
+}
+.glass-panel {
+  transition: all 0.3s ease;
+}
+.glass-panel:hover {
+  /* 22-Nov-2026: no shadow change under the mouse */
+}
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+
+/* Hide textarea resize handles */
+textarea {
+  resize: none !important;
+}
+
+/* Hide resize handles on print and in printable reports */
+@media print {
+  table th {
+    resize: none !important;
+  }
+}
+
+.printable-checklist th {
+  resize: none !important;
+}
+
+/* ============================================================
+   MODAL ANIMATIONS
+   ============================================================ */
+
+/* Backdrop — smooth dark overlay fade in */
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Modal box — slide up + scale in */
+@keyframes modalSlideIn {
+  from {
+    opacity: 0; transform: translateY(24px);
+  }
+  to {
+    opacity: 1; transform: translateY(0);
+  }
+}
+
+/* Modal box — slide down + scale out (for closing) */
+@keyframes modalSlideOut {
+  from {
+    opacity: 1; transform: translateY(0);
+  }
+  to {
+    opacity: 0; transform: translateY(24px);
+  }
+}
+
+/* Apply to modal backdrop wrapper */
+.modal-backdrop {
+  animation: modalBackdropIn 0.2s ease-out forwards;
+}
+
+/* Apply to modal content box */
+.modal-box {
+  animation: modalSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Closing state — add this class via JS when closing */
+.modal-box.closing {
+  animation: modalSlideOut 0.2s ease-in forwards;
+}
+
+/* ============================================================
+   FORM UX — REQUIRED FIELD MARKER
+   ============================================================ */
+
+/* Add class="required-label" to <label> for required fields */
+.required-label::after {
+  content: ' *';
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* ============================================================
+   FORM UX — INLINE VALIDATION STATES
+   ============================================================ */
+
+/* Error state input */
+.input-error {
+  border-color: #ef4444 !important;
+  background-color: #fff5f5 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+}
+.input-error:focus {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Success state input */
+.input-success {
+  border-color: #10b981 !important;
+  background-color: #f0fdf4 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.12) !important;
+}
+
+/* Inline error message below input */
+.field-error-msg {
+  display: block;
+  color: #ef4444;
+  font-size: 10px;
+  font-weight: 600;
+  margin-top: 3px;
+  letter-spacing: 0.2px;
+  animation: fadeInUp 0.2s ease-out forwards;
+}
+
+/* ============================================================
+   FORM UX — FOCUS LABEL HIGHLIGHT
+   ============================================================ */
+
+/* When any input inside .form-group is focused, label gets highlighted */
+.form-group:focus-within > label,
+.form-field:focus-within > label {
+  color: #0369a1 !important;
+  transition: color 0.15s ease;
+}
+
+/* Input focus — stronger ring */
+.form-group:focus-within .input-field,
+.form-field:focus-within .input-field {
+  border-color: #3b82f6 !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+}
+
+/* ============================================================
+   FORM UX — UPLOAD ZONE (e.g. KYC Vault drag area)
+   ============================================================ */
+
+.upload-zone {
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  background-color: var(--bg-input, #ffffff);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  flex: 2;
+}
+
+.upload-zone:hover {
+  border-color: #3b82f6 !important;
+  background-color: #eff6ff;
+  
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+}
+
+.upload-zone.uploading {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+  cursor: wait;
+}
+
+.upload-zone-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.upload-zone-subtitle {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Spinner for uploading state */
+.upload-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #10b981;
+  border-top-color: transparent;
+  border-radius: 50%;
+  
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+/* ============================================================
+   FORM UX — SELECT DROPDOWN BETTER STYLING
+   ============================================================ */
+
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px !important;
+  cursor: pointer;
+}
+
+select.input-field:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ============================================================
+   FORM UX — STATUS BADGES (used in KYC, docs tables etc.)
+   ============================================================ */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.status-badge.approved {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.status-badge.rejected {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.status-badge.pending {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+
+/* Premium Hero Text Reveal */
+@keyframes blurReveal {
+  0% {
+    opacity: 0;
+
+    filter: blur(12px);
+  }
+  100% {
+    opacity: 1;
+
+    filter: blur(0);
+  }
+}
+
+
+
+
+
+.table-row-hover { transition: background-color 0.2s ease; }
+.table-row-hover:hover td { background-color: #f1f5f9 !important; cursor: pointer; }
+
+
+/* --- ENTERPRISE UX ENHANCEMENTS --- */
+
+/* 1. Global Input Focus Glow (Theme Aware) */
+input:focus, select:focus, textarea:focus, .premium-input:focus {
+    border-color: var(--primary-color-start, #3b82f6) !important;
+    box-shadow: 0 0 0 3px var(--primary-shadow, rgba(59, 130, 246, 0.2)) !important;
+    outline: none;
+}
+
+/* 2. Page Switch Fade-in Animation Removed */
+
+
+
+/* 3. Button Tactile Hover and Click Effects */
+button {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+button:hover:not(:disabled) {
+    filter: brightness(1.1);
+    
+    box-shadow: 0 4px 6px -1px var(--primary-shadow, rgba(0,0,0,0.1)), 0 2px 4px -1px var(--primary-shadow, rgba(0,0,0,0.06));
+}
+
+button:active:not(:disabled) {
+    
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* 4. Action Tabs hover */
+.action-tab-hover:hover {
+    background-color: var(--primary-bg-light, #f0fdf4) !important;
+}
+
+
+
+
+.mandatory-missing {
+  border: 1px solid #ef4444 !important;
+}
+
+.input-field.mandatory-field { border: 1px solid #f87171 !important; }
+
+
+/* Helper class to remove borders forced by .input-field */
+.input-field-borderless { border: none !important; box-shadow: none !important; outline: none !important; }
+
+.action-btn {
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  padding: 4px;
+}
+.action-btn.edit-btn:hover {
+  background-color: #e0f2fe;
+  
+}
+.action-btn.duplicate-btn:hover {
+  background-color: #f3e8ff;
+  
+}
+.action-btn.delete-btn:hover {
+  background-color: #fee2e2;
+  
+}
+
+.doc-btn {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+.doc-btn:hover {
+  
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.doc-inactive {
+  background: #f8fafc;
+  color: #cbd5e1;
+  border: 1px solid #e2e8f0;
+}
+.doc-inactive:hover {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #cbd5e1;
+}
+
+.hover-row:hover td { background-color: var(--grid-hover, #f0f9ff) !important; cursor: pointer !important; transition: background-color 0.1s ease-in-out; }
+
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.modal-table th {
+  background: var(--bg-input, #f1f5f9);
+  color: var(--text-main, #334155);
+  font-weight: 600;
+  font-size: 11px;
+  
+  border: 1px solid var(--border-color, #cbd5e1);
+  padding: 6px 8px;
+  text-align: left;
+}
+.modal-table td {
+  border: 1px solid var(--border-color, #cbd5e1);
+  padding: 4px;
+}
+.modal-table .grid-input {
+  width: 100%;
+  border: 1px solid transparent !important;
+  background: transparent;
+  padding: 4px;
+  outline: none;
+}
+.modal-table .grid-input:focus {
+  background: #fff;
+  border: 1px solid #3b82f6 !important;
+}
+
+.hr-table-row:hover { background-color: #f8fafc !important; transition: all 0.2s ease; cursor: pointer; }
+
+
+.nested-dropdown { position: relative; width: 100%; }
+.nested-dropdown-menu { position: absolute; top: 0; left: 100%; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); min-width: 220px; display: none; flex-direction: column; padding: 0.5rem 0; z-index: 1001; }
+.nested-dropdown:hover .nested-dropdown-menu { display: flex; }
+
+/* ============================================================
+   COMPANY REQUIREMENT: ALL CAPS UI
+   ============================================================ */
+body {
+    text-transform: uppercase; /* Force entire UI to be uppercase */
+}
+input, textarea, select, button, .input-field, .modern-input {
+    text-transform: uppercase !important;
+}
+
+/* 22-Nov-2026: the inside of a box that can be typed in is white (the theme input colour) on every screen;
+   EFreightAWBForm.css gave all boxes a faint tint. Read-only boxes keep their tint. */
+.main-content :is(input, select, textarea):not([readonly]):not(:disabled):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]) { background-color: var(--bg-input, #ffffff) !important; }
+
+/* 22-Nov-2026 (AWB screens): SSR / OSI boxes are one line high and grow with the text; the "to fill" line; date boxes */
+.main-content.has-premium textarea[style*="min-height: 60px"] { min-height: 26px !important; height: auto; max-height: 90px; field-sizing: content; resize: none; }
+@supports not (field-sizing: content) { .main-content.has-premium textarea[style*="min-height: 60px"]:focus { min-height: 60px !important; } }
+.main-content.has-premium .awb-missing button, .main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] .awb-missing button { height: auto !important; padding: 0 !important; background: none !important; border: none !important; box-shadow: none !important; color: #b91c1c !important; font-size: 11px !important; font-weight: 600 !important; }
+.main-content.has-premium .awb-missing button:last-child, .main-content.has-premium div[style*="border-top: 1px solid rgb(148, 163, 184)"][style*="margin-top: 10px"] .awb-missing button:last-child { color: var(--theme-base) !important; }
+.main-content.has-premium .flt-row .react-datepicker-wrapper { display: block; width: 100%; }
+.main-content.has-premium div[style*="grid-template-columns: 80px 100px 100px 100px"] { background: transparent !important; padding-top: 2px !important; }
+.main-content.has-premium .rl-total input { background: transparent !important; border: none !important; box-shadow: none !important; font-weight: 700 !important; color: var(--text-main, #0f172a) !important; padding-left: 3px !important; text-align: left !important; }
+.main-content.has-premium .rl-head > div { color: var(--grid-head-fg, #0f172a) !important; }
+/* 22-Nov-2026 (AWB charges): amounts right-aligned in narrow boxes; the worked-out totals as bold figures */
+.main-content.has-premium div[style*="grid-template-columns: 150px 130px 130px"] input { text-align: right !important; }
+.main-content.has-premium div[style*="grid-template-columns: 150px 130px 130px"] input[readonly] { border: none !important; background: transparent !important; font-weight: 700 !important; color: var(--text-main, #0f172a) !important; box-shadow: none !important; cursor: default; }
+.main-content.has-premium button.oc-del { background: none !important; border: none !important; color: #dc2626 !important; height: 20px !important; padding: 0 !important; }
+/* 22-Nov-2026: quieter mouse-over. Panels do not lift or change their border; a hovered grid row changes colour at once
+   (no fade). The two .glass-panel:hover rules and the .input-field:hover border change above are switched off in place. */
+.hover-row:hover td, .table-row-hover, .table-row-hover:hover td, .hr-table-row:hover { transition: none !important; }
+.table-row-hover:hover td, .hr-table-row:hover { background-color: var(--grid-hover, #f8fafc) !important; }
+/* 22-Nov-2026: the entry tabs and the job-list bar had become too plain. Tabs: the open tab is filled in the theme
+   colour, the others are a soft tint that deepens under the mouse, and a theme line runs under the strip. Bar: a soft
+   tinted band, labels in the heading colour, 24px buttons with a tinted face and a coloured icon by kind. */
+.entry-lg .tab-container { gap: 3px !important; border-bottom: 2px solid var(--theme-base) !important; }
+.entry-lg .tab-container .custom-tab { background: color-mix(in srgb, var(--theme-base) 9%, var(--bg-panel, #ffffff)) !important; border: 1px solid color-mix(in srgb, var(--theme-base) 22%, var(--bg-panel, #ffffff)) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; font-weight: 500 !important; color: var(--lg-head) !important; padding-left: 14px !important; padding-right: 14px !important; margin-bottom: 0 !important; }
+.entry-lg .tab-container .custom-tab:hover:not(.active) { background: color-mix(in srgb, var(--theme-base) 18%, var(--bg-panel, #ffffff)) !important; color: var(--lg-head) !important; }
+.entry-lg .tab-container .custom-tab.active { background: var(--theme-base) !important; border-color: var(--theme-base) !important; color: #ffffff !important; font-weight: 600 !important; }
+.entry-lg .tab-container .custom-tab.active svg { color: #ffffff !important; stroke: #ffffff !important; }
+.entry-lg-body { border-top: 0 !important; }
+.qry-bar { background: color-mix(in srgb, var(--theme-base) 5%, var(--bg-panel, #ffffff)) !important; border-color: color-mix(in srgb, var(--theme-base) 25%, var(--bg-panel, #ffffff)) !important; border-radius: 3px !important; padding: 6px 9px !important; }
+.qry-bar span[style*="text-transform: uppercase"] { font-weight: 600 !important; color: var(--lg-head) !important; }
+.qry-bar select.input-field, .qry-bar input.input-field, .qry-bar > div > select { height: 24px !important; min-height: 24px !important; }
+.qry-bar div[style*="background: rgb(248, 250, 252)"] { height: 24px !important; }
+.qry-bar .btn { height: 24px !important; padding: 0 11px !important; border-radius: 3px !important; font-weight: 500 !important; background: var(--bg-panel, #ffffff) !important; border-color: color-mix(in srgb, var(--theme-base) 35%, var(--bg-panel, #ffffff)) !important; color: var(--lg-head) !important; }
+.qry-bar .btn:hover { background: color-mix(in srgb, var(--theme-base) 10%, var(--bg-panel, #ffffff)) !important; }
+.qry-bar .btn.btn-success { background: color-mix(in srgb, #16a34a 7%, var(--bg-panel, #ffffff)) !important; border-color: color-mix(in srgb, #16a34a 38%, var(--bg-panel, #ffffff)) !important; color: color-mix(in srgb, #166534 88%, var(--text-main, #000000)) !important; }
+.qry-bar .btn.btn-success svg { color: #16a34a; }
+.qry-bar .btn.btn-success:hover { background: color-mix(in srgb, #16a34a 15%, var(--bg-panel, #ffffff)) !important; }
+.qry-bar .btn.btn-warning { background: color-mix(in srgb, #f59e0b 9%, var(--bg-panel, #ffffff)) !important; border-color: color-mix(in srgb, #f59e0b 45%, var(--bg-panel, #ffffff)) !important; color: color-mix(in srgb, #92400e 88%, var(--text-main, #000000)) !important; }
+.qry-bar .btn.btn-warning svg { color: #d97706; }
+.qry-bar .btn.btn-warning:hover { background: color-mix(in srgb, #f59e0b 18%, var(--bg-panel, #ffffff)) !important; }
+.qry-bar .btn.btn-primary { background: var(--theme-base) !important; color: #ffffff !important; border-color: var(--theme-base) !important; font-weight: 600 !important; padding: 0 14px !important; }
+.qry-bar .btn.btn-primary:hover { background: color-mix(in srgb, var(--theme-base) 86%, #000000) !important; }
+.qry-bar .btn.btn-primary svg { color: #ffffff; }
+.qry-bar div[style*="background: rgb(241, 245, 249)"] { background: color-mix(in srgb, var(--theme-base) 10%, var(--bg-panel, #ffffff)) !important; border-color: color-mix(in srgb, var(--theme-base) 35%, var(--bg-panel, #ffffff)) !important; border-radius: 3px !important; }
+.qry-bar div[style*="background: rgb(241, 245, 249)"] > button { font-weight: 500 !important; height: 20px; }
