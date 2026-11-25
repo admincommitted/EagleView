@@ -1,24 +1,34 @@
-// BE amendment (iCAFFE way) - 10-Nov-2026. Calls to /api/be-amendments.
-// fetch carries the login token (main.jsx patches window.fetch).
-export async function api(path, opts = {}) {
-  const o = { ...opts };
-  if (o.body && typeof o.body !== 'string') { o.body = JSON.stringify(o.body); o.headers = { 'Content-Type': 'application/json', ...(o.headers || {}) }; }
-  const res = await fetch('/api/be-amendments' + path, o);
-  let d = {};
-  try { d = await res.json(); } catch (e) { d = { success: false, error: 'Server answered ' + res.status }; }
-  if (!res.ok || d.success === false) throw new Error(d.error || ('Server answered ' + res.status));
-  return d;
+// BE amendment (iCAFFE way): calls to /be-amendments.
+import axiosInstance from '@/services/axiosInstance';
+import { blobErrorMessage, downloadBlob } from '@/lib/download';
+
+// resolves the server's answer; throws an Error with the server's message on an error status or { success: false }
+export async function api(path, { method = 'GET', body, headers } = {}) {
+  let response;
+  try {
+    response = await axiosInstance.request({ url: '/be-amendments' + path, method, data: body, headers });
+  } catch (error) {
+    if (!error.response) throw error;
+    throw new Error(error.response.data?.error || 'Server answered ' + error.response.status);
+  }
+  const answer = response.data;
+  if (answer?.success === false) throw new Error(answer.error || 'Server answered ' + response.status);
+  return answer;
 }
 
 // kind: 'unsigned' | 'signed'
 export async function downloadFile(id, kind) {
-  const res = await fetch(`/api/be-amendments/${id}/file?kind=${kind === 'signed' ? 'signed' : 'unsigned'}`);
-  if (!res.ok) { let m = 'Could not download'; try { m = (await res.json()).error || m; } catch (e) { /* binary */ } throw new Error(m); }
-  const cd = res.headers.get('Content-Disposition') || '';
-  const name = (/filename="([^"]+)"/.exec(cd) || [])[1] || 'amendment.be';
-  const blob = await res.blob();
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  let response;
+  try {
+    response = await axiosInstance.get(`/be-amendments/${id}/file`, { params: { kind: kind === 'signed' ? 'signed' : 'unsigned' }, responseType: 'blob' });
+  } catch (error) {
+    if (!error.response) throw error;
+    const message = await blobErrorMessage(error);
+    throw new Error(message === error.message ? 'Could not download' : message);
+  }
+  const disposition = response.headers['content-disposition'] || '';
+  const name = (/filename="([^"]+)"/.exec(disposition) || [])[1] || 'amendment.be';
+  downloadBlob(response.data, name);
   return name;
 }
 
@@ -31,6 +41,31 @@ export const STATUS_STYLE = {
   Void: { bg: '#f8fafc', fg: '#94a3b8', bd: '#e2e8f0' },
 };
 
-export const dmy = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : (v || ''); };
-export const ymd = (v) => { const s = String(v || '').trim(); const m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(s); if (m) return `${m[1]}-${m[2]}-${m[3]}`; const d = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(s); return d ? `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}` : ''; };
+export const dmy = (value) => {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+  return parts ? `${parts[3]}-${parts[2]}-${parts[1]}` : (value || '');
+};
+export const ymd = (value) => {
+  const text = String(value || '').trim();
+  const isoParts = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(text);
+  if (isoParts) return `${isoParts[1]}-${isoParts[2]}-${isoParts[3]}`;
+  const dayFirst = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(text);
+  return dayFirst ? `${dayFirst[3]}-${dayFirst[2].padStart(2, '0')}-${dayFirst[1].padStart(2, '0')}` : '';
+};
 export const MODE_LABEL = { MAIL: 'Sent to ICEGATE by mail', DOWNLOAD: 'Signed file uploaded on ICEGATE', DOWNLOAD_UNSIGNED: 'Unsigned file uploaded on ICEGATE' };
+
+export const beAmendApi = {
+  list: (filters) => api('/?' + new URLSearchParams(filters).toString()),
+  settings: () => api('/settings'),
+  saveMailTo: (mailTo) => api('/settings', { method: 'PUT', body: { mailTo } }),
+  codes: () => api('/codes'),
+  amendment: (id) => api(`/${id}`),
+  changes: (id) => api(`/${id}/changes`),
+  save: (id, form) => api(`/${id}`, { method: 'PUT', body: form }),
+  makeFile: (id, icegateProfileId) => api(`/${id}/file`, { method: 'POST', body: { icegateProfileId } }),
+  sign: (id, pin) => api(`/${id}/sign`, { method: 'POST', body: { pin } }),
+  send: (id) => api(`/${id}/send`, { method: 'POST' }),
+  markSubmitted: (id, mode) => api(`/${id}/submitted`, { method: 'POST', body: { mode } }),
+  saveReply: (id, status, text) => api(`/${id}/reply`, { method: 'POST', body: { status, text } }),
+  voidAmendment: (id, reason) => api(`/${id}/void`, { method: 'POST', body: { reason } }),
+};

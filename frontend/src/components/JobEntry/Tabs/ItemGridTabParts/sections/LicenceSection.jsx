@@ -1,78 +1,58 @@
-// Screen section: Licence debit of the item (BE licenseModel). Added 28-Oct-2026 - the "Licence" flag had no popup.
-import { CheckSquare, Edit, Plus, Trash2, X } from 'lucide-react';
-import React from 'react';
+import { Pencil, Plus } from 'lucide-react';
+import { Button, DataTable, DateInput, Field, Input, Modal, NumberInput } from '@/components/ui';
+import { editColumn, removeColumn } from '../../JobHeaderTabParts/sections/rowActionColumns';
 
-const FIELDS = [
-  ['licenceNo', 'Licence / Regn No', '10 digits'],
-  ['licenceDate', 'Regn Date', '', 'date'],
-  ['licenceCode', 'Licence Code', 'e.g. AA'],
-  ['regnPort', 'Regn Port', 'INDEL4'],
-  ['itemSrNoLicence', 'Item Sr No in Licence', '1'],
-  ['debitValue', 'Debit Value (INR)', ''],
-  ['debitQty', 'Debit Quantity', ''],
-  ['debitUqc', 'Debit UQC', 'NOS'],
-  // duty exemption claimed under this licence / scrip -> BE DEPB row (filed RoDTEP-scrip BE: RODTEP / 1). 29-Oct-2026
-  ['exemptionNotn', 'Exemption Notn (DEPB)', 'e.g. RODTEP'],
-  ['exemptionSrNo', 'Exemption Sr No', '1'],
+// Licence debit of the item (BE licenseModel)
+const LICENCE_FIELDS = [
+  { key: 'licenceNo', label: 'Licence / Regn No', placeholder: '10 digits', required: true },
+  { key: 'licenceDate', label: 'Regn Date', kind: 'date' },
+  { key: 'licenceCode', label: 'Licence Code', placeholder: 'e.g. AA', upper: true },
+  { key: 'regnPort', label: 'Regn Port', placeholder: 'INDEL4', upper: true },
+  { key: 'itemSrNoLicence', label: 'Item Sr No in Licence', placeholder: '1' },
+  { key: 'debitValue', label: 'Debit Value (INR)', kind: 'number' },
+  { key: 'debitQty', label: 'Debit Quantity', kind: 'number' },
+  { key: 'debitUqc', label: 'Debit UQC', placeholder: 'NOS', upper: true },
+  // duty exemption claimed under this licence / scrip -> BE DEPB row (a RoDTEP-scrip BE files RODTEP / 1)
+  { key: 'exemptionNotn', label: 'Exemption Notn (DEPB)', placeholder: 'e.g. RODTEP', upper: true },
+  { key: 'exemptionSrNo', label: 'Exemption Sr No', placeholder: '1' },
 ];
+
+function LicenceControl({ id, field, value, onChange, onEnter }) {
+  const addOnEnter = (event) => {
+    if (event.key === 'Enter') { event.preventDefault(); onEnter(); }
+  };
+  if (field.kind === 'date') return <DateInput id={id} value={value} onValueChange={onChange} />;
+  if (field.kind === 'number') return <NumberInput id={id} value={value} onValueChange={onChange} onKeyDown={addOnEnter} />;
+  return (
+    <Input id={id} value={value} required={field.required} placeholder={field.placeholder} onKeyDown={addOnEnter}
+      onChange={(event) => onChange(field.upper ? event.target.value.toUpperCase() : event.target.value)} />
+  );
+}
 
 export default function LicenceSection({ ctx }) {
   const { showLicenceModal, setShowLicenceModal, tempLicenceData, licenceForm, setLicenceForm, licenceEditId, addLicenceRow, editLicenceRow, removeLicenceRow, saveLicenceModal } = ctx;
-  if (!showLicenceModal) return null;
+  const columns = [
+    { ...editColumn((index, row) => editLicenceRow(row)), align: 'center' },
+    { ...removeColumn((index, row) => removeLicenceRow(row.id)), align: 'center' },
+    ...LICENCE_FIELDS.map((field) => ({ key: field.key, header: field.label })),
+  ];
+
   return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-      <div style={{ background: 'var(--bg-panel, #fff)', borderRadius: '4px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 15px', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', color: 'var(--text-main, #334155)', fontWeight: 'normal' }}>Licence Details (debit)</h3>
-          <X size={18} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setShowLicenceModal(false)} />
-        </div>
-        <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
-            {FIELDS.map(([key, label, ph, type]) => (
-              <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px', color: 'var(--text-main, #0f172a)' }}>{label}
-                <input type={type || 'text'} className="input-field" placeholder={ph} value={licenceForm[key] || ''}
-                  onChange={(e) => setLicenceForm({ ...licenceForm, [key]: key === 'licenceCode' || key === 'regnPort' || key === 'debitUqc' || key === 'exemptionNotn' ? e.target.value.toUpperCase() : e.target.value })}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLicenceRow(); } }}
-                  style={{ border: key === 'licenceNo' ? '1px solid #ef4444' : '1px solid #cbd5e1' }} />
-              </label>
-            ))}
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="button" onClick={addLicenceRow} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--primary-color-start)', border: 'none', padding: '6px 12px', color: '#fff', fontSize: '12px', borderRadius: '4px', cursor: 'pointer' }}>
-                {licenceEditId !== null ? <><Edit size={12} /> Update</> : <><Plus size={12} /> Add</>}
-              </button>
-            </div>
-          </div>
-          <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', overflowX: 'auto' }}>
-            <table className="data-grid" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left' }}>
-              <thead style={{ background: 'var(--primary-bg-light)' }}>
-                <tr>
-                  <th style={{ padding: '6px', textAlign: 'center' }}>Edit</th>
-                  <th style={{ padding: '6px', textAlign: 'center' }}>Remove</th>
-                  {FIELDS.map(([key, label]) => <th key={key} style={{ padding: '6px' }}>{label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {tempLicenceData.length === 0 && <tr><td colSpan={FIELDS.length + 2} style={{ padding: '14px', textAlign: 'center', color: '#64748b' }}>No licence rows.</td></tr>}
-                {tempLicenceData.map((row) => (
-                  <tr key={row.id} style={{ background: licenceEditId === row.id ? 'var(--primary-bg-light)' : undefined }}>
-                    <td style={{ padding: '6px', textAlign: 'center' }}><Edit size={14} color="var(--primary-color-start)" style={{ cursor: 'pointer' }} onClick={() => editLicenceRow(row)} /></td>
-                    <td style={{ padding: '6px', textAlign: 'center' }}><Trash2 size={14} color="#ef4444" style={{ cursor: 'pointer' }} onClick={() => removeLicenceRow(row.id)} /></td>
-                    {FIELDS.map(([key]) => <td key={key} style={{ padding: '6px' }}>{row[key]}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div style={{ padding: '10px 15px', display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-color, #cbd5e1)' }}>
-          <button type="button" className="btn btn-success" onClick={saveLicenceModal} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#22c55e', color: '#fff', padding: '6px 16px', borderRadius: '4px', border: 'none', fontSize: '12px', cursor: 'pointer' }}>
-            <CheckSquare size={14} /> Ok
-          </button>
-          <button type="button" className="btn btn-danger" onClick={() => setShowLicenceModal(false)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 16px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-            <X size={14} /> Cancel
-          </button>
+    <Modal open={showLicenceModal} title="Licence Details (debit)" width={900} closeOnOutside={false}
+      onClose={() => setShowLicenceModal(false)} onOk={saveLicenceModal} okLabel="Ok">
+      <div className="tw:grid tw:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] tw:gap-2.5 tw:rounded-sm tw:border tw:border-border tw:p-2.5">
+        {LICENCE_FIELDS.map((field) => (
+          <Field key={field.key} label={field.label} required={field.required} layout="col">
+            <LicenceControl field={field} value={licenceForm[field.key] || ''} onEnter={addLicenceRow}
+              onChange={(value) => setLicenceForm({ ...licenceForm, [field.key]: value })} />
+          </Field>
+        ))}
+        <div className="tw:flex tw:items-end">
+          <Button variant="default" onClick={addLicenceRow}>{licenceEditId !== null ? <><Pencil /> Update</> : <><Plus /> Add</>}</Button>
         </div>
       </div>
-    </div>
+      <DataTable columns={columns} rows={tempLicenceData} rowKey="id" selectedKey={licenceEditId} emptyText="No licence rows."
+        containerClassName="tw:rounded-sm tw:border tw:border-border" />
+    </Modal>
   );
 }

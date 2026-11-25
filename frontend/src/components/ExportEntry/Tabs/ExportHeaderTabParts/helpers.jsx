@@ -1,254 +1,191 @@
-// Helpers and constants
-// Split out of ExportHeaderTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import React, { useEffect, useState } from 'react';
-import { partyMerc, partyClass } from './useExportHeaderTab';
+import { useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { ComboInput, Field, Input } from '@/components/ui';
+import { partyClass, partyMerc, registrationTypeOf } from './hooks/partyCodes';
+import { includesText, PORT_LIST } from './headerLists';
 
-export function RichPortSelect({ ports, exportData, setExportData }) {
+// one letter matches thousands of ports / party branches: only the best matches are drawn
+const MAX_ROWS = 60;
+
+export function WarningText({ children }) {
+  return <span className="tw:text-[10px] tw:font-bold tw:text-destructive">⚠ {children}</span>;
+}
+
+export function TextField({ label, name, exportData, onChange, required, labelWidth, className, ...inputProps }) {
+  return (
+    <Field label={label} required={required} labelWidth={labelWidth} className={className}>
+      <Input name={name} required={required} value={exportData[name] || ''} onChange={onChange} {...inputProps} />
+    </Field>
+  );
+}
+
+// a name box with a type-ahead list and the code box beside it
+export function NameCodeField({ label, labelWidth, required, className, code, ...combo }) {
+  return (
+    <Field label={label} labelWidth={labelWidth} required={required} className={cn('tw:flex-1', className)}>
+      <ComboInput {...combo} />
+      {code}
+    </Field>
+  );
+}
+
+// port code boxes can be typed (5 / 6 letters, e.g. AEDXB) when the port is not in the list
+export function PortCodeInput({ name, exportData, setExportData }) {
+  const code = exportData[name] || '';
+  return (
+    <Input
+      required
+      maxLength={6}
+      title="Port code (can be typed)"
+      aria-invalid={Boolean(code) && code.length !== 5 && code.length !== 6}
+      className="tw:w-[60px] tw:flex-none"
+      value={code}
+      onChange={(event) => { const typed = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); setExportData((prev) => ({ ...prev, [name]: typed })); }}
+    />
+  );
+}
+
+const portRank = (port, query) => {
+  const code = port.portCode?.toLowerCase() || '';
+  const name = port.portName?.toLowerCase() || '';
+  if (code === query) return 0;
+  if (code.startsWith(query)) return 1;
+  if (name.startsWith(query)) return 2;
+  return code.includes(query) ? 3 : 4;
+};
+
+const bestPortMatches = (ports, typed) => {
+  const query = typed.toLowerCase();
+  return ports
+    .filter((port) => port.portCode?.toLowerCase().includes(query) || port.portName?.toLowerCase().includes(query))
+    .sort((a, b) => portRank(a, query) - portRank(b, query))
+    .slice(0, MAX_ROWS);
+};
+
+// Location (customs port): typed text only searches, the port is taken when picked
+export function CustomsPortSelect({ ports, exportData, setExportData, id }) {
   const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = React.useRef(null);
+  const matches = useMemo(() => (query ? bestPortMatches(ports, query) : []), [ports, query]);
+  const selectPort = (port) => setExportData((prev) => ({ ...prev, customsPortCode: port.portCode, customsPortName: port.portName }));
 
-  const filteredAll = (() => {
-    if (!query) return ports;
-    const q = query.toLowerCase();
-    const matched = ports.filter(p =>
-      p.portCode?.toLowerCase()?.includes(q) ||
-      p.portName?.toLowerCase()?.includes(q)
-    );
-    return matched.sort((a, b) => {
-      const ac = a.portCode?.toLowerCase() || '';
-      const bc = b.portCode?.toLowerCase() || '';
-      const an = a.portName?.toLowerCase() || '';
-      const bn = b.portName?.toLowerCase() || '';
-      const score = (c, n) =>
-        c === q         ? 0 :
-        c.startsWith(q) ? 1 :
-        n.startsWith(q) ? 2 :
-        c.includes(q)   ? 3 : 4;
-      return score(ac, an) - score(bc, bn);
-    });
-  })();
-  // 22-Nov-2026: only the first 60 matches are drawn - one letter matched thousands of rows and typing hung
-  const filtered = filteredAll.length > 60 ? filteredAll.slice(0, 60) : filteredAll;
+  return (
+    <>
+      <ComboInput id={id} required placeholder="PORT CODE" className="tw:w-[70px] tw:flex-none" listClassName="tw:min-w-72"
+        options={matches} filter={() => true} limit={MAX_ROWS} {...PORT_LIST}
+        value={exportData.customsPortCode || ''} onValueChange={setQuery} onFocus={() => setQuery('')} onSelect={selectPort} />
+      <Input readOnly placeholder="PORT NAME" value={exportData.customsPortName || ''} />
+    </>
+  );
+}
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+const PARTY_ROLES = {
+  SHIPPER: { isRole: (party) => party.isShipper, nameKey: 'shipperName', idKey: 'shipperId', required: true },
+  SUBAGENT: { isRole: (party) => party.isSubAgent, nameKey: 'subAgentName', idKey: 'subAgentId', required: false },
+  CONSIGNEE: { isRole: (party) => party.isConsignee, nameKey: 'consigneeName', idKey: 'consigneeId', required: true },
+};
 
-  const displayValue = isOpen ? query : (exportData.customsPortCode || '');
+// one option per party branch (a party without branches is one option with its own address)
+const partyOptions = (parties, type) => parties.filter(PARTY_ROLES[type].isRole).flatMap((party) => {
+  const common = { partyId: party.id, partyName: party.name, taxId: party.taxId, panNumber: party.panNumber, mercManuf: party.mercManuf, country: party.countryCode };
+  if (!party.branches?.length) {
+    return [{ ...common, branchSrNo: '', address1: party.street, address2: '', city: party.city, state: party.stateProvince, pinCode: party.zipPostcode, gstin: party.panNumber }];
+  }
+  return party.branches.map((branch) => ({
+    ...common, branchSrNo: branch.branchSrNo, address1: branch.address1, address2: branch.address2, city: branch.city, state: branch.state,
+    pinCode: branch.pinCode, gstin: branch.gstin || branch.regNo || party.panNumber,
+  }));
+});
 
-  const handleSelect = (opt) => {
-    setExportData({ 
-       ...exportData, 
-       customsPortCode: opt.portCode, 
-       customsPortName: opt.portName 
-    });
-    setIsOpen(false);
+function shipperFields(option, party, previous) {
+  const adCodes = party?.adCodes || [];
+  const registrationNo = String(option.gstin || '').trim().toUpperCase();
+  const registrationType = registrationTypeOf(registrationNo, previous.shipperGstinType);
+  const gstStateCode = /^[0-9]{2}/.exec(registrationNo);
+  const drawbackAccount = party?.drawbackAccounts?.[0];
+  return {
+    shipperId: option.partyId,
+    shipperName: option.partyName,
+    shipperIec: option.taxId || '',
+    shipperGstin: registrationNo,
+    shipperGstinType: registrationType,
+    mercManuf: partyMerc(option.mercManuf) || 'M',
+    shipperClass: partyClass(party?.classType) || previous.shipperClass || 'P',
+    shipperBranchSrNo: option.branchSrNo,
+    shipperAddress1: option.address1 || '',
+    shipperAddress2: option.address2 || '',
+    shipperCity: option.city || '',
+    shipperState: option.state || '',
+    shipperPin: option.pinCode || '',
+    adCode: adCodes.length === 1 ? adCodes[0].adCode : previous.adCode || '',
+    panNo: option.panNumber || '',
+    autoField_12: option.panNumber || previous.autoField_12 || '',
+    // the state of origin of the goods is the exporter's state when not chosen yet
+    ...(!previous.stateOriginCode && gstStateCode && registrationType === 'GSTIN' ? { stateOriginCode: gstStateCode[0] } : {}),
+    drawbackAcNo: drawbackAccount?.accountNo || '',
+    ifscCd: drawbackAccount?.ifscCode || '',
+    forexCode: drawbackAccount?.bankName || '',
   };
+}
 
-return (
-    <div ref={wrapperRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-      <input 
-        type="text" 
-        className={"input-field " + (!displayValue ? "mandatory-missing" : "")} 
-        value={displayValue} 
-        onChange={(e) => { 
-          setQuery(e.target.value); setIsOpen(true);
-        }}
-        onFocus={() => setIsOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIndex(prev => (prev < filtered.length - 1 ? prev + 1 : prev)); }
-          if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedIndex(prev => (prev > 0 ? prev - 1 : -1)); }
-          if (e.key === 'Enter' && highlightedIndex >= 0 && filtered[highlightedIndex]) { e.preventDefault(); handleSelect(filtered[highlightedIndex]); }
-        }}
-        placeholder="PORT CODE" 
-        style={{ width: '60px', textAlign: 'center', background: 'var(--bg-input)' }} 
-      />
-      <input type="text" className="input-field" value={exportData.customsPortName || ''} readOnly style={{ flex: 1, background: 'var(--bg-input)',  }} placeholder="PORT NAME" />
-      
-      {isOpen && query.length > 0 && filtered.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, width: 'calc(100% - 74px)', background: 'white', border: '1px solid var(--primary-border)', borderTop: 'none', zIndex: 50, maxHeight: '350px', overflowY: 'auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          {filtered.map((opt, i) => (
-            <div 
-              key={i} 
-              onClick={() => handleSelect(opt)}
-              style={{ padding: '6px 8px', borderBottom: '1px solid var(--bg-input, #f1f5f9)', cursor: 'pointer', background: i === highlightedIndex ? '#e0f2fe' : 'white' }}
-              onMouseEnter={() => setHighlightedIndex(i)}
-            >
-              <div style={{ fontWeight: 'bold', color: 'var(--primary-color-start, #0ea5e9)', fontSize: '11px' }}>{opt.portCode}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted, var(--text-muted, #64748b))' }}>{opt.portName} ({opt.category})</div>
-            </div>
-          ))}
-        </div>
-      )}
+function pickedPartyFields(option, type, parties, previous) {
+  if (type === 'SHIPPER') return shipperFields(option, parties.find((party) => party.id === option.partyId), previous);
+  if (type === 'SUBAGENT') {
+    return {
+      subAgentId: option.partyId,
+      subAgentName: option.partyName,
+      subAgentAddress1: [option.address1, option.address2, option.city, option.state, option.pinCode, option.country].filter(Boolean).join(', '),
+    };
+  }
+  return {
+    consigneeId: option.partyId,
+    consigneeName: option.partyName,
+    consigneeAddress1: option.address1 || '',
+    consigneeAddress2: option.address2 || '',
+    consigneeAddress3: '',
+    consigneeCity: option.city || '',
+    consigneeCountry: option.country || '',
+    consigneeCountryCode: option.country || '',
+  };
+}
+
+function PartyOption({ option }) {
+  return (
+    <div className="tw:flex tw:min-w-0 tw:flex-col">
+      <span className="tw:truncate tw:font-semibold tw:text-primary">{option.partyName}</span>
+      <span className="tw:truncate tw:text-[11px] tw:text-muted-foreground">{option.address1}{option.city ? `, ${option.city}` : ''}</span>
     </div>
   );
 }
 
-export function RichPartySelect({ parties, type, exportData, setExportData }) {
+// type: SHIPPER | SUBAGENT | CONSIGNEE. A typed name is kept as typed (and unlinks the party) until one is picked.
+export function PartySelect({ parties, type, exportData, setExportData, id }) {
+  const role = PARTY_ROLES[type];
   const [query, setQuery] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const wrapperRef = React.useRef(null);
+  const options = useMemo(() => partyOptions(parties, type), [parties, type]);
+  const matches = useMemo(() => (query
+    ? options.filter((option) => includesText(option.partyName, query) || includesText(option.address1, query)).slice(0, MAX_ROWS)
+    : []), [options, query]);
 
-  // Flatten parties into branches
-  const options = [];
-  parties.filter(p => type === 'SHIPPER' ? p.isShipper : type === 'SUBAGENT' ? p.isSubAgent : p.isConsignee).forEach(p => {
-    if (p.branches && p.branches.length > 0) {
-      p.branches.forEach(b => {
-        options.push({
-          partyId: p.id,
-          partyName: p.name,
-          taxId: p.taxId,
-          panNumber: p.panNumber,
-          mercManuf: p.mercManuf,
-          branchSrNo: b.branchSrNo,
-          address1: b.address1,
-          address2: b.address2,
-          city: b.city,
-          state: b.state,
-          pinCode: b.pinCode,
-          country: p.countryCode,
-          gstin: b.gstin || b.regNo || p.panNumber
-        });
-      });
-    } else {
-      options.push({
-        partyId: p.id,
-        partyName: p.name,
-        taxId: p.taxId,
-        panNumber: p.panNumber,
-        mercManuf: p.mercManuf,
-        branchSrNo: '',
-        address1: p.street,
-        address2: '',
-        city: p.city,
-        state: p.stateProvince,
-        pinCode: p.zipPostcode,
-        country: p.countryCode,
-        gstin: p.panNumber
-      });
-    }
-  });
-
-  const filteredAllParties = !query ? [] : options.filter(o => 
-    o.partyName?.toLowerCase()?.includes(query?.toLowerCase()) || 
-    (o.address1 && o.address1?.toLowerCase()?.includes(query?.toLowerCase()))
-  );
-  // 22-Nov-2026: only the first 60 matches are drawn (typing one letter drew every party-branch and hung)
-  const filtered = filteredAllParties.length > 60 ? filteredAllParties.slice(0, 60) : filteredAllParties;
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const currentValue = type === 'SHIPPER' ? exportData.shipperName : type === 'SUBAGENT' ? exportData.subAgentName : exportData.consigneeName;
-  const displayValue = isOpen ? query : (currentValue || '');
-
-  
-  const handleSelect = (opt) => {
-    if (type === 'SHIPPER') {
-      const party = parties.find(p => p.id === opt.partyId);
-      const adCodes = party ? (party.adCodes || []) : [];
-      const singleAdCode = adCodes.length === 1 ? adCodes[0].adCode : (exportData.adCode || '');
-      // a branch without GSTIN falls back to the PAN: then the GSTN type is PAN (it stayed "GSTIN" and ICEGATE
-      // rejects a PAN sent as GSTIN). 29-Oct-2026
-      const regNo = String(opt.gstin || '').trim().toUpperCase();
-      const regType = /^[0-9]{2}[A-Z0-9]{13}$/.test(regNo) ? 'GSTIN' : /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(regNo) ? 'PAN' : (exportData.shipperGstinType || 'GSTIN');
-
-      setExportData({ 
-         ...exportData, 
-         shipperId: opt.partyId, 
-         shipperName: opt.partyName, 
-         shipperIec: opt.taxId || '', 
-         shipperGstin: regNo, shipperGstinType: regType,
-         // from the party master (Manufacturer / Merchant / courier C, D); Class too (was not taken). 29-Oct-2026
-         mercManuf: partyMerc(opt.mercManuf) || 'M',
-         shipperClass: partyClass(party && party.classType) || exportData.shipperClass || 'P',
-         shipperBranchSrNo: opt.branchSrNo,
-         shipperAddress1: opt.address1 || '', 
-         shipperAddress2: opt.address2 || '', 
-         shipperCity: opt.city || '', 
-         shipperState: opt.state || '', 
-         shipperPin: opt.pinCode || '',
-         adCode: singleAdCode,
-         panNo: opt.panNumber || '', autoField_12: opt.panNumber || exportData.autoField_12 || '',
-         // state of origin of the goods = exporter's state when not chosen yet
-         ...(exportData.stateOriginCode ? {} : (() => { const g = /^[0-9]{2}/.exec(regNo); return g && regType === 'GSTIN' ? { stateOriginCode: g[0] } : {}; })()),
-         drawbackAcNo: party?.drawbackAccounts?.[0]?.accountNo || '',
-         ifscCd: party?.drawbackAccounts?.[0]?.ifscCode || '',
-         forexCode: party?.drawbackAccounts?.[0]?.bankName || ''
-      });
-    } else if (type === 'SUBAGENT') {
-      setExportData({ 
-         ...exportData, 
-         subAgentId: opt.partyId, 
-         subAgentName: opt.partyName, 
-         subAgentAddress1: [opt.address1, opt.address2, opt.city, opt.state, opt.pinCode, opt.country].filter(Boolean).join(', ')
-      });
-    } else {
-      setExportData({ 
-         ...exportData, 
-         consigneeId: opt.partyId, 
-         consigneeName: opt.partyName, 
-         consigneeAddress1: opt.address1 || '', 
-         consigneeAddress2: opt.address2 || '', 
-         consigneeAddress3: opt.address3 || '',
-         consigneeCity: opt.city || '', 
-         consigneeCountry: opt.country || '', 
-         consigneeCountryCode: opt.country || ''
-      });
-    }
-    setIsOpen(false);
+  const typeName = (name) => {
+    setQuery(name);
+    setExportData((prev) => ({ ...prev, [role.nameKey]: name, [role.idKey]: null }));
   };
-return (
-    <div ref={wrapperRef} style={{ position: 'relative', flex: 1 }}>
-      <input 
-        type="text" 
-        className={"input-field " + ((!displayValue && type !== 'SUBAGENT') ? "mandatory-missing" : "")} 
-        value={displayValue} 
-        onChange={(e) => {
-          const val = e.target.value;
-          setQuery(val);
-          setIsOpen(true);
-          if (type === 'SHIPPER') setExportData(prev => ({ ...prev, shipperName: val, shipperId: null }));
-          else if (type === 'SUBAGENT') setExportData(prev => ({ ...prev, subAgentName: val, subAgentId: null }));
-          else setExportData(prev => ({ ...prev, consigneeName: val, consigneeId: null }));
-        }}
-        onFocus={() => setIsOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedIndex(prev => (prev < filtered.length - 1 ? prev + 1 : prev)); }
-          if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedIndex(prev => (prev > 0 ? prev - 1 : -1)); }
-          if (e.key === 'Enter' && highlightedIndex >= 0 && filtered[highlightedIndex]) { e.preventDefault(); handleSelect(filtered[highlightedIndex]); }
-        }}
-        placeholder={`Search ${type}...`} 
-        style={{ width: '100%', border: '1px solid var(--primary-border)' }} 
-      />
-      
-      {isOpen && query.length > 0 && filtered.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid var(--primary-border)', borderTop: 'none', zIndex: 50, maxHeight: '350px', overflowY: 'auto', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-          {filtered.map((opt, i) => (
-            <div 
-              key={i} 
-              onClick={() => handleSelect(opt)}
-              style={{ padding: '6px 8px', borderBottom: '1px solid var(--bg-input, #f1f5f9)', cursor: 'pointer', background: i === highlightedIndex ? '#e0f2fe' : 'white' }}
-              onMouseEnter={() => setHighlightedIndex(i)}
-            >
-              <div style={{ fontWeight: 'bold', color: 'var(--primary-color-start, #0ea5e9)', fontSize: '11px' }}>{opt.partyName}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted, var(--text-muted, #64748b))' }}>{opt.address1}{opt.city ? `, ${opt.city}` : ''}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+
+  return (
+    <ComboInput
+      id={id}
+      required={role.required}
+      placeholder={`Search ${type}...`}
+      listClassName="tw:min-w-80"
+      options={matches}
+      filter={() => true}
+      limit={MAX_ROWS}
+      getValue={(option) => option.partyName}
+      renderOption={(option) => <PartyOption option={option} />}
+      value={exportData[role.nameKey] || ''}
+      onValueChange={typeName}
+      onFocus={() => setQuery('')}
+      onSelect={(option) => setExportData((prev) => ({ ...prev, ...pickedPartyFields(option, type, parties, prev) }))}
+    />
   );
 }

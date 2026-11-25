@@ -1,16 +1,22 @@
-// 04-Nov-2026 (v6): screens are opened from the navbar Accounts menu only (like every other module); this page has the
-// title, breadcrumb, search and + New, then the screen - or the accounts dashboard when no screen is open.
-// 04-Nov-2026 (v3): the Accounts page, rebuilt from iCAFFE's Accounts module in EagleView's own colours.
-// Top: theme bar with the iCAFFE groups (Masters, Voucher, Purchase, Other Transactions, Reports, Books & GST) and the
-// screens of the open group under it. Voucher and purchase screens, masters, reports, month closing and merge open
-// here; screens that already existed elsewhere open in their own page.
-import React, { useEffect, useMemo, useState } from 'react';
+// The Accounts page (/accounts-hub): title, breadcrumb, search and + New, then the screen picked in the navbar Accounts
+// menu (?item=) - or the accounts dashboard when no screen is open.
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BookOpen, Search, Plus, Save, Trash2, Pencil, Download, Printer, RefreshCw, ArrowRightLeft, Lock, Unlock, Command, ExternalLink, RotateCcw, Home as HomeIcon, ChevronRight, Building2, CalendarDays } from 'lucide-react';
+import { Search, Plus, Save, Trash2, Pencil, Download, ArrowRightLeft, Lock, Unlock, RotateCcw, ChevronRight, Building2, CalendarDays } from 'lucide-react';
+import { errorMessage } from '@/services/axiosInstance';
+import { cn } from '@/lib/utils';
+import { downloadBlob } from '@/lib/download';
+import { askConfirm } from '@/components/common/askConfirm';
+import {
+  Button, Checkbox, DateInput, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  Input, Label, NumberInput, SelectBox,
+} from '@/components/ui';
+import { useHoverOpen } from '@/components/AppHeader/useHoverOpen';
 import { canOpen } from '../utils/permissions';
-import { useGlobalContext } from '../GlobalContext';
-import { SECTIONS, ALL_ITEMS, hrefOf, QUICK } from './AccountsHubParts/menu';
-import { T, inr, fmtDate, api, lookup, Box, Btn, ActionBar, Field, inputStyle, roStyle, Grid, Money, Badge, LedgerPicker, SuggestBox } from './AccountsHubParts/ui';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { ALL_ITEMS, hrefOf, QUICK } from './AccountsHubParts/menu';
+import { fmtDate, lookup, Box, Btn, ActionBar, Field, Grid, Badge, LedgerPicker, SuggestBox } from './AccountsHubParts/ui';
+import { accountsApi } from './AccountsHubParts/accountsApi';
 import VoucherDesk from './AccountsHubParts/VoucherDesk';
 import CommandSearch from './AccountsHubParts/CommandSearch';
 import AccountsDashboard from './AccountsHubParts/Dashboard';
@@ -20,293 +26,475 @@ import { ChequeBooksScreen, JobClosingScreen, TdsPayableScreen, ApprovalsScreen,
 import { OutstandingScreen, CreditControlScreen, BankRecoScreen } from './AccountsHubParts/ControlDesk';
 import GstInvoiceDesk, { ProvisionalSheetScreen } from './AccountsHubParts/GstInvoiceDesk';
 
-const allowed = (i) => canOpen(hrefOf(i).split('?')[0]);
+// the top bar sets the branch and year a moment after the page opens; after this long the screen opens anyway
+const SCOPE_WAIT_MS = 2500;
 
-export default function AccountsHub() {
-  const nav = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const [palette, setPalette] = useState(false);
-  const active = ALL_ITEMS.find(i => i.id === params.get('item')) || null;
-  const [sec, setSec] = useState(active ? active.section.id : 'home');
-  useEffect(() => { if (active) setSec(active.section.id); }, [active && active.id]);
-  useEffect(() => {
-    const k = (e) => { if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') { e.preventDefault(); setPalette(true); } };
-    document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k);
-  }, []);
+const isAllowed = (item) => canOpen(hrefOf(item).split('?')[0]);
 
-  const pick = (it) => { if (it.route) { nav(it.route); return; } setParams({ item: it.id }); };
-  const sections = SECTIONS.map(s => ({ ...s, items: s.items.filter(allowed) })).filter(s => s.items.length);
-  const curSec = sections.find(s => s.id === sec);
-  const goHome = () => { setSec('home'); setParams({}); };
-
-  const quick = QUICK.map(q => ALL_ITEMS.find(i => i.id === q.id)).filter(i => i && allowed(i));
-  // 06-Nov-2026: every screen shows the branch and financial year picked in the top bar; picking another one reloads it
-  const g = useGlobalContext() || {};
-  const scope = ((g.activeBranch && (g.activeBranch.isAll ? 'ALL' : g.activeBranch.branchCode)) || '') + '|' + ((g.activeYear && g.activeYear.id) || '');
-  const [waited, setWaited] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setWaited(true), 2500); return () => clearTimeout(t); }, []);
-  const scopeReady = waited || !!(g.activeBranch && g.activeYear);
-  const groupTabs = [{ id: 'home', title: 'Home', icon: HomeIcon }, ...sections];
-
-  return (
-    <div style={{ padding: '0.25rem 0.5rem 0.5rem', minHeight: '100%', background: 'var(--bg-app, #f8fafc)' }}>
-      {/* page header - same pattern as the main Dashboard: title on the left, search and New on the right */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-        <div>
-          <h1 onClick={goHome} style={{ fontSize: '1.35rem', lineHeight: 1.2, fontWeight: 800, color: 'var(--text-main, #0f172a)', letterSpacing: '-0.5px', cursor: 'pointer', margin: 0 }}>{active ? active.label : 'Accounts'}</h1>
-          <p style={{ color: 'var(--text-muted, #64748b)', margin: '3px 0 0', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {active ? <><span onClick={goHome} style={{ cursor: 'pointer', textDecoration: 'underline' }} title="Back to Accounts home">Accounts</span><ChevronRight size={12} /><span onClick={() => { setSec(active.section.id); setParams({}); }} style={{ cursor: 'pointer', textDecoration: 'underline' }} title={'Back to ' + active.section.title}>{active.section.title}</span></> : 'Books, vouchers, bills and reports in one place.'}
-            {/* 07-Nov-2026: the branch / year in scope as two badges, so it is clear which books the figures are from */}
-            {g.activeBranch && (
-              <span title="Branch in scope (change it in the top bar)" style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.02em',
-                background: g.activeBranch.isAll ? '#fef3c7' : 'var(--primary-color-start, #0284c7)', color: g.activeBranch.isAll ? '#92400e' : '#fff', border: g.activeBranch.isAll ? '1px solid #f59e0b' : '1px solid transparent', boxShadow: '0 1px 2px rgba(0,0,0,.08)' }}>
-                <Building2 size={12} />{g.activeBranch.isAll ? 'All branches' : g.activeBranch.branchCode + ' - ' + g.activeBranch.branchName}
-              </span>
-            )}
-            {g.activeYear && (
-              <span title="Financial year in scope (change it in the top bar)" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: '11.5px', fontWeight: 800,
-                background: '#ede9fe', color: '#5b21b6', border: '1px solid #c4b5fd' }}>
-                <CalendarDays size={12} />FY {g.activeYear.code || g.activeYear.name}
-              </span>
-            )}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-          <div onClick={() => setPalette(true)} style={{ position: 'relative', cursor: 'text' }}>
-            <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-            <div style={{ padding: '0.35rem 0.8rem 0.35rem 2.1rem', borderRadius: 8, border: '1px solid var(--border-color, #cbd5e1)', fontSize: 13, width: 320, background: '#fff', boxSizing: 'border-box', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-              Search ledger, voucher or bill
-              <span style={{ marginLeft: 'auto', fontSize: 10, border: '1px solid #cbd5e1', borderRadius: 4, padding: '0 5px', color: '#64748b' }}>Ctrl K</span>
-            </div>
-          </div>
-          <NewMenu items={quick} onPick={pick} />
-        </div>
-      </div>
-
-      <div style={{ borderTop: '1px solid #cbd5e1', marginBottom: 12 }} />
-
-      {!scopeReady && active && <div style={{ padding: 30, textAlign: 'center', color: '#64748b', fontSize: 13 }}>Loading branch and year...</div>}
-      {(scopeReady || !active) && <div key={scope}>
-      {!active && <Home sections={sections} onPick={pick} />}
-      {active && active.desk && <VoucherDesk key={active.id} desk={active.desk} section={active.section} />}
-      {active && active.master && <MasterCrud key={active.id} kind={active.master} />}
-      {active && active.report && <ReportView key={active.id} item={active} />}
-      {active && active.view === 'months' && <MonthClosing />}
-      {active && active.view === 'merge' && <MergeAccount />}
-      {active && active.view === 'groups' && <GroupsScreen />}
-      {active && active.view === 'ledgers' && <LedgerScreen />}
-      {active && active.view === 'tds' && <TdsScreen />}
-      {active && active.view === 'mapcsr' && <MapCsrScreen />}
-      {active && active.view === 'ledgerrep' && <LedgerReport />}
-      {active && active.view === 'cheques' && <ChequeBooksScreen />}
-      {active && active.view === 'jobs' && <JobClosingScreen />}
-      {active && active.view === 'tdspay' && <TdsPayableScreen />}
-      {active && active.view === 'approvals' && <ApprovalsScreen key={active.id} startTab={active.id === 'approval' ? 'rules' : 'pending'} Rules={<MasterCrud kind="approvals" />} />}
-      {active && active.view === 'ib' && <InterBranchScreen key={active.id} startTab={active.id === 'ibraise' ? 'raise' : 'list'} />}
-      {active && active.view === 'outstanding' && <OutstandingScreen />}
-      {active && active.view === 'credit' && <CreditControlScreen />}
-      {active && active.view === 'brs' && <BankRecoScreen />}
-      {active && active.view === 'gstinv' && <GstInvoiceDesk key={active.kind} kind={active.kind} />}
-      {active && active.view === 'provsheet' && <ProvisionalSheetScreen />}
-      </div>}
-      <CommandSearch open={palette} onClose={() => setPalette(false)} />
-    </div>
-  );
-}
-
-// "+ New" button with the common entry screens, like the + New Job button on the main dashboard
-function NewMenu({ items, onPick }) {
-  const [open, setOpen] = useState(false);
-  if (!items.length) return null;
-  return (
-    <div className="dropdown" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button className="btn btn-primary" onClick={() => setOpen(true)}
-        style={{ background: T.grad, boxShadow: '0 4px 12px var(--primary-shadow, rgba(14,165,233,0.3))', border: 'none', padding: '0.4rem 1.1rem', fontWeight: 600 }}>
-        <Plus size={14} /> New
-      </button>
-      <div className="dropdown-menu" style={{ right: 0, left: 'auto', minWidth: 200, padding: '0.5rem', display: open ? 'flex' : 'none' }} onClick={() => setOpen(false)}>
-        {items.map(i => <div key={i.id} className="dropdown-item" onClick={() => onPick(i)} style={{ padding: '0.5rem 0.75rem', cursor: 'pointer' }}>{i.label}</div>)}
-      </div>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------ home: accounts dashboard (screens are in the group tabs and the navbar menu)
-function Home({ sections, onPick }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <AccountsDashboard />
-    </div>
-  );
-}
-// ------------------------------------------------------------------ master field input
-function FieldInput({ f, value, onChange, look }) {
-  if (f.type === 'bool') return <label style={{ display: 'flex', alignItems: 'center', gap: 6, height: 28, margin: 0 }}><input type="checkbox" checked={!!Number(value)} onChange={e => onChange(e.target.checked ? 1 : 0)} /> Yes</label>;
-  if (f.type === 'select') return <select style={inputStyle} value={value || ''} onChange={e => onChange(e.target.value)}><option value="">Select</option>{f.options.map(o => <option key={o}>{o}</option>)}</select>;
-  if (f.type === 'date') return <input type="date" style={inputStyle} value={value ? String(value).slice(0, 10) : ''} onChange={e => onChange(e.target.value)} />;
-  if (f.type === 'number') return <input type="number" step="any" style={{ ...inputStyle, textAlign: 'right' }} value={value ?? ''} onChange={e => onChange(e.target.value)} />;
-  if (f.type === 'ledger' || f.type === 'tdsnature' || f.type === 'costcentre') {
-    const list = look[f.type] || [];
-    const label = (o) => o.name + (f.type === 'tdsnature' && o.section ? ' (' + o.section + ')' : '');
-    // 06-Nov-2026: type-ahead list (was the browser's datalist: first 3,000 only, start-of-name match)
-    const items = list.map(o => ({ id: o.id, name: label(o), groupName: o.groupName || '' }));
-    return <LedgerPicker id={'fi-' + f.key} list={items} value={value || ''} onChange={id => onChange(id || '')} placeholder={list.length ? 'Type to search' : 'No entries yet'} />;
-  }
-  if (f.type === 'sac') return <SuggestBox text={value || ''} onText={v => onChange(v)} onPick={o => onChange(o.code)} items={look.sac || []} getKey={o => o.code}
-    getLabel={o => o.code + ' ' + (o.description || '')} getSub={o => o.description || ''} style={inputStyle} placeholder="996511 ..." />;
-  return <input style={inputStyle} value={value || ''} onChange={e => onChange(e.target.value)} />;
-}
-const showVal = (f, v, look) => {
-  if (v === null || v === undefined || v === '') return '';
-  if (f.type === 'bool') return Number(v) ? 'Yes' : 'No';
-  if (f.type === 'date') return fmtDate(v);
-  if (['ledger', 'tdsnature', 'costcentre'].includes(f.type)) { const o = (look[f.type] || []).find(x => String(x.id) === String(v)); return o ? o.name : '#' + v; }
-  if (f.type === 'number') return Number(v).toLocaleString('en-IN');
-  return String(v);
+const SIMPLE_VIEWS = {
+  months: MonthClosing, merge: MergeAccount, groups: GroupsScreen, ledgers: LedgerScreen, tds: TdsScreen, mapcsr: MapCsrScreen,
+  ledgerrep: LedgerReport, cheques: ChequeBooksScreen, jobs: JobClosingScreen, tdspay: TdsPayableScreen,
+  outstanding: OutstandingScreen, credit: CreditControlScreen, brs: BankRecoScreen, provsheet: ProvisionalSheetScreen,
 };
 
-// ------------------------------------------------------------------ generic master (iCAFFE: form, Save / Modify / Delete / Clear, list)
+function ScreenFor({ item }) {
+  if (item.desk) return <VoucherDesk key={item.id} desk={item.desk} section={item.section} />;
+  if (item.master) return <MasterCrud key={item.id} kind={item.master} />;
+  if (item.report) return <ReportView key={item.id} item={item} />;
+  if (item.view === 'approvals') return <ApprovalsScreen key={item.id} startTab={item.id === 'approval' ? 'rules' : 'pending'} Rules={<MasterCrud kind="approvals" />} />;
+  if (item.view === 'ib') return <InterBranchScreen key={item.id} startTab={item.id === 'ibraise' ? 'raise' : 'list'} />;
+  if (item.view === 'gstinv') return <GstInvoiceDesk key={item.kind} kind={item.kind} />;
+  const View = SIMPLE_VIEWS[item.view];
+  return View ? <View /> : null;
+}
+
+const scopeKeyOf = ({ activeBranch, activeYear }) => {
+  const branchKey = activeBranch ? (activeBranch.isAll ? 'ALL' : activeBranch.branchCode) || '' : '';
+  return `${branchKey}|${activeYear?.id || ''}`;
+};
+
+// which branch and year the figures are from (changed in the top bar)
+function ScopeBadges({ branch, year }) {
+  const badgeClass = 'tw:inline-flex tw:items-center tw:gap-1.25 tw:rounded-full tw:border tw:px-2.5 tw:py-0.75 tw:text-[11.5px] tw:font-extrabold tw:tracking-[0.02em] tw:shadow-xs';
+  return (
+    <>
+      {branch && (
+        <span
+          title="Branch in scope (change it in the top bar)"
+          className={cn(badgeClass, 'tw:ml-2.5', branch.isAll ? 'tw:border-amber-500 tw:bg-amber-100 tw:text-amber-800' : 'tw:border-transparent tw:bg-primary tw:text-primary-foreground')}
+        >
+          <Building2 className="tw:size-3" />{branch.isAll ? 'All branches' : branch.branchCode + ' - ' + branch.branchName}
+        </span>
+      )}
+      {year && (
+        <span title="Financial year in scope (change it in the top bar)" className={cn(badgeClass, 'tw:border-violet-300 tw:bg-violet-100 tw:text-violet-800 tw:shadow-none')}>
+          <CalendarDays className="tw:size-3" />FY {year.code || year.name}
+        </span>
+      )}
+    </>
+  );
+}
+
+export default function AccountsHub() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [scopeWaitOver, setScopeWaitOver] = useState(false);
+  const active = ALL_ITEMS.find((item) => item.id === params.get('item')) || null;
+  const activeBranch = useWorkspaceStore((state) => state.activeBranch);
+  const activeYear = useWorkspaceStore((state) => state.activeYear);
+  const scopeReady = scopeWaitOver || Boolean(activeBranch && activeYear);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setScopeWaitOver(true), SCOPE_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const open = (item) => { if (item.route) navigate(item.route); else setParams({ item: item.id }); };
+  const goHome = () => setParams({});
+  const quickItems = QUICK.map((quick) => ALL_ITEMS.find((item) => item.id === quick.id)).filter((item) => item && isAllowed(item));
+  const linkClass = 'tw:cursor-pointer tw:underline';
+
+  return (
+    <div className="tw:min-h-full tw:bg-page tw:px-2 tw:pt-1 tw:pb-2">
+      <div className="tw:mb-1.5 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-4">
+        <div className="tw:min-w-0">
+          <h1 onClick={goHome} className="tw:m-0 tw:cursor-pointer tw:text-[1.35rem] tw:leading-tight tw:font-extrabold tw:tracking-[-0.5px] tw:text-foreground">
+            {active ? active.label : 'Accounts'}
+          </h1>
+          <p className="tw:mt-0.75 tw:mb-0 tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-[11.5px] tw:text-muted-foreground">
+            {active ? (
+              <>
+                <span onClick={goHome} className={linkClass} title="Back to Accounts home">Accounts</span>
+                <ChevronRight className="tw:size-3" />
+                <span onClick={goHome} className={linkClass} title={'Back to ' + active.section.title}>{active.section.title}</span>
+              </>
+            ) : 'Books, vouchers, bills and reports in one place.'}
+            <ScopeBadges branch={activeBranch} year={activeYear} />
+          </p>
+        </div>
+        <div className="tw:flex tw:w-full tw:items-center tw:gap-2.5 tw:md:w-auto">
+          <Button
+            onClick={() => setSearchOpen(true)}
+            className="tw:h-8 tw:min-w-0 tw:flex-1 tw:justify-start tw:gap-2 tw:rounded-lg tw:border-input tw:text-[13px] tw:font-normal tw:text-muted-foreground tw:md:w-[320px] tw:md:flex-none"
+          >
+            <Search className="tw:size-4" />
+            <span className="tw:truncate">Search ledger, voucher or bill</span>
+          </Button>
+          <NewMenu items={quickItems} onPick={open} />
+        </div>
+      </div>
+
+      <div className="tw:mb-3 tw:border-t tw:border-input" />
+
+      {!scopeReady && active && <div className="tw:p-7.5 tw:text-center tw:text-[13px] tw:text-muted-foreground">Loading branch and year...</div>}
+      {(scopeReady || !active) && (
+        <div key={scopeKeyOf({ activeBranch, activeYear })}>
+          {active ? <ScreenFor item={active} /> : <AccountsDashboard />}
+        </div>
+      )}
+      <CommandSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </div>
+  );
+}
+
+// "+ New" with the common entry screens, like the + New Job button on the main dashboard
+function NewMenu({ items, onPick }) {
+  const { open, setOpen, hoverProps } = useHoverOpen();
+  if (!items.length) return null;
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="default"
+          size="lg"
+          className="tw:px-4.5 tw:font-semibold tw:shadow-md"
+          {...hoverProps}
+          onPointerDown={(event) => { if (event.pointerType === 'mouse' && open) event.preventDefault(); }}
+        >
+          <Plus /> New
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="tw:min-w-[200px] tw:p-2" {...hoverProps}>
+        {items.map((item) => <DropdownMenuItem key={item.id} onSelect={() => onPick(item)} className="tw:px-3 tw:py-2">{item.label}</DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ------------------------------------------------------------------ master field input
+const LOOKUP_TYPES = ['ledger', 'tdsnature', 'costcentre'];
+
+function FieldInput({ field, value, onChange, look }) {
+  if (field.type === 'bool') {
+    return (
+      <Label className="tw:h-7 tw:cursor-pointer">
+        <Checkbox checked={Boolean(Number(value))} onCheckedChange={(checked) => onChange(checked === true ? 1 : 0)} /> Yes
+      </Label>
+    );
+  }
+  if (field.type === 'select') return <SelectBox options={field.options} value={value || ''} onValueChange={onChange} placeholder="Select" clearable clearLabel="Select" />;
+  if (field.type === 'date') return <DateInput value={value ? String(value).slice(0, 10) : ''} onValueChange={onChange} />;
+  if (field.type === 'number') return <NumberInput negative align="right" value={value ?? ''} onValueChange={onChange} />;
+  if (LOOKUP_TYPES.includes(field.type)) {
+    const list = look[field.type] || [];
+    const labelOf = (entry) => entry.name + (field.type === 'tdsnature' && entry.section ? ' (' + entry.section + ')' : '');
+    const items = list.map((entry) => ({ id: entry.id, name: labelOf(entry), groupName: entry.groupName || '' }));
+    return <LedgerPicker id={'fi-' + field.key} list={items} value={value || ''} onChange={(id) => onChange(id || '')} placeholder={list.length ? 'Type to search' : 'No entries yet'} />;
+  }
+  if (field.type === 'sac') {
+    return (
+      <SuggestBox
+        text={value || ''}
+        onText={onChange}
+        onPick={(sac) => onChange(sac.code)}
+        items={look.sac || []}
+        getKey={(sac) => sac.code}
+        getLabel={(sac) => sac.code + ' ' + (sac.description || '')}
+        getSub={(sac) => sac.description || ''}
+        placeholder="996511 ..."
+      />
+    );
+  }
+  return <Input data-allow-text="" value={value || ''} onChange={(event) => onChange(event.target.value)} />;
+}
+
+const displayValue = (field, value, look) => {
+  if (value === null || value === undefined || value === '') return '';
+  if (field.type === 'bool') return Number(value) ? 'Yes' : 'No';
+  if (field.type === 'date') return fmtDate(value);
+  if (LOOKUP_TYPES.includes(field.type)) {
+    const entry = (look[field.type] || []).find((option) => String(option.id) === String(value));
+    return entry ? entry.name : '#' + value;
+  }
+  if (field.type === 'number') return Number(value).toLocaleString('en-IN');
+  return String(value);
+};
+
+const csvCell = (value) => { const text = String(value ?? ''); return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text; };
+const isActiveEntry = (row) => row.isActive === undefined || row.isActive === null || Boolean(Number(row.isActive));
+const STATUS_OPTIONS = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
+
+function MasterList({ meta, rows, shown, look, selectedId, query, onQuery, status, onStatus, onPick }) {
+  const titleField = meta.fields[0];
+  const subFields = meta.fields.slice(1, 3);
+  return (
+    <div className="tw:flex tw:max-h-[calc(100vh-190px)] tw:flex-col tw:rounded-lg tw:border tw:border-border tw:bg-card tw:lg:sticky tw:lg:top-2">
+      <div className="tw:flex tw:items-center tw:border-b tw:border-border/60 tw:px-2.5 tw:py-2">
+        <span className="tw:text-[11px] tw:font-extrabold tw:tracking-wider tw:text-head tw:uppercase">{meta.title}</span>
+        <span className="tw:ml-auto tw:text-[10.5px] tw:text-muted-foreground">{shown.length} of {rows.length}</span>
+      </div>
+      <div className="tw:grid tw:grid-cols-[1fr_96px] tw:gap-1.5 tw:border-b tw:border-border/60 tw:p-2">
+        <Input data-allow-text="" leftIcon={Search} value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search" />
+        <SelectBox options={STATUS_OPTIONS} value={status} onValueChange={onStatus} placeholder="All" clearable clearLabel="All" />
+      </div>
+      <div className="tw:flex-1 tw:overflow-y-auto">
+        {shown.map((row) => {
+          const selected = String(selectedId) === String(row.id);
+          return (
+            <Button
+              key={row.id}
+              variant="ghost"
+              size="block"
+              onClick={() => onPick(row)}
+              className={cn(
+                'tw:flex-col tw:items-stretch tw:gap-0 tw:rounded-none tw:border-0 tw:border-b tw:border-l-3 tw:border-b-border/60 tw:border-l-transparent tw:px-2.5 tw:py-1.75 tw:text-foreground',
+                selected && 'tw:border-l-primary tw:bg-accent',
+                !isActiveEntry(row) && 'tw:opacity-55'
+              )}
+            >
+              <span className="tw:flex tw:justify-between tw:gap-1.5">
+                <span className="tw:truncate tw:text-[11.5px] tw:font-bold">{displayValue(titleField, row[titleField.key], look) || '(blank)'}</span>
+                {!isActiveEntry(row) && <Badge tone="muted">Inactive</Badge>}
+              </span>
+              <span className="tw:truncate tw:text-[10px] tw:text-muted-foreground">{subFields.map((field) => displayValue(field, row[field.key], look)).filter(Boolean).join(' | ')}</span>
+            </Button>
+          );
+        })}
+        {!shown.length && <div className="tw:p-5 tw:text-center tw:text-[11.5px] tw:text-muted-foreground">{rows.length ? 'No entry matches' : 'No entries yet'}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ generic master: form, Save / Modify / Delete / Clear, list
 function MasterCrud({ kind }) {
   const [meta, setMeta] = useState(null);
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState({});
   const [look, setLook] = useState({});
-  const [q, setQ] = useState('');
+  const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const [msg, setMsg] = useState('');
-  const load = () => api('/api/accounts-hub/masters/' + kind).then(setRows).catch(e => setMsg(e.message));
-  const blank = (m = meta) => ({ ...Object.fromEntries(m.fields.map(f => [f.key, f.type === 'bool' ? 0 : ''])), isActive: 1 });
-  useEffect(() => {
-    api('/api/accounts-hub/masters/' + kind + '/meta').then(m => {
-      setMeta(m); setForm(blank(m)); load();
-      const need = new Set(m.fields.map(f => f.type));
-      Promise.all([need.has('ledger') ? lookup('ledgers') : [], need.has('tdsnature') ? lookup('tdsnatures') : [], need.has('costcentre') ? lookup('costcentres') : [], need.has('sac') ? lookup('sac') : []])
-        .then(([ledger, tdsnature, costcentre, sac]) => setLook({ ledger, tdsnature, costcentre, sac }));
-    }).catch(e => setMsg(e.message));
-  }, [kind]);
-  if (!meta) return <Box style={{ background: '#fff' }}><span style={{ color: T.muted }}>{msg || 'Loading'}</span></Box>;
-  const save = async () => {
-    setMsg('');
-    const miss = meta.fields.find(f => f.required && (form[f.key] === '' || form[f.key] == null));
-    if (miss) return setMsg('Enter ' + miss.label);
+  const [message, setMessage] = useState('');
+  const blankForm = (fields = meta.fields) => ({ ...Object.fromEntries(fields.map((field) => [field.key, field.type === 'bool' ? 0 : ''])), isActive: 1 });
+
+  const loadRows = async () => {
     try {
-      await api('/api/accounts-hub/masters/' + kind + (form.id ? '/' + form.id : ''), { method: form.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
-      setMsg(form.id ? 'Updated' : 'Saved'); if (!form.id) setForm(blank()); load();
-    } catch (e) { setMsg('Not saved: ' + e.message); }
+      setRows(await accountsApi.hubMasterRows(kind));
+    } catch (error) {
+      setMessage(errorMessage(error));
+    }
   };
-  const del = async () => {
-    if (!form.id || !window.confirm('Delete this entry?')) return;
-    try { await api('/api/accounts-hub/masters/' + kind + '/' + form.id, { method: 'DELETE' }); setMsg('Deleted'); setForm(blank()); load(); } catch (e) { setMsg('Not deleted: ' + e.message); }
+  useEffect(() => {
+    const start = async () => {
+      try {
+        const masterMeta = await accountsApi.hubMasterMeta(kind);
+        setMeta(masterMeta);
+        setForm(blankForm(masterMeta.fields));
+        loadRows();
+        const types = new Set(masterMeta.fields.map((field) => field.type));
+        const [ledger, tdsnature, costcentre, sac] = await Promise.all([
+          types.has('ledger') ? lookup('ledgers') : [],
+          types.has('tdsnature') ? lookup('tdsnatures') : [],
+          types.has('costcentre') ? lookup('costcentres') : [],
+          types.has('sac') ? lookup('sac') : [],
+        ]);
+        setLook({ ledger, tdsnature, costcentre, sac });
+      } catch (error) {
+        setMessage(errorMessage(error));
+      }
+    };
+    start();
+  }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!meta) return <Box className="tw:bg-card"><span className="tw:text-muted-foreground">{message || 'Loading'}</span></Box>;
+
+  const pick = (row) => { setForm({ ...row }); setMessage(''); };
+  const save = async () => {
+    setMessage('');
+    const missing = meta.fields.find((field) => field.required && (form[field.key] === '' || form[field.key] == null));
+    if (missing) { setMessage('Enter ' + missing.label); return; }
+    try {
+      await accountsApi.hubSaveMaster(kind, form);
+      setMessage(form.id ? 'Updated' : 'Saved');
+      if (!form.id) setForm(blankForm());
+      loadRows();
+    } catch (error) {
+      setMessage('Not saved: ' + errorMessage(error));
+    }
   };
-  const title = meta.fields[0];
-  const sub = meta.fields.slice(1, 3);
-  const active = (r) => r.isActive === undefined || r.isActive === null || !!Number(r.isActive);
-  const shown = rows.filter(r => (!status || (status === 'active') === active(r)) && (!q || meta.fields.some(f => String(showVal(f, r[f.key], look)).toLowerCase().includes(q.toLowerCase()))));
+  const remove = async () => {
+    if (!form.id || !(await askConfirm({ title: 'Delete entry', message: 'Delete this entry?', okLabel: 'Delete', tone: 'danger' }))) return;
+    try {
+      await accountsApi.hubDeleteMaster(kind, form.id);
+      setMessage('Deleted');
+      setForm(blankForm());
+      loadRows();
+    } catch (error) {
+      setMessage('Not deleted: ' + errorMessage(error));
+    }
+  };
+  const copyAsNew = () => {
+    const copy = { ...form };
+    delete copy.id;
+    setForm(copy);
+    setMessage('Copied - change it and Save as a new entry');
+  };
+
+  const titleField = meta.fields[0];
+  const typed = query.toLowerCase();
+  const shown = rows.filter((row) => (!status || (status === 'active') === isActiveEntry(row))
+    && (!typed || meta.fields.some((field) => String(displayValue(field, row[field.key], look)).toLowerCase().includes(typed))));
   const exportCsv = () => {
-    const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const lines = [meta.fields.map(f => esc(f.label)).join(',')].concat(shown.map(r => meta.fields.map(f => esc(showVal(f, r[f.key], look))).join(',')));
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' })); a.download = meta.title.replace(/[^\w]+/g, '_') + '.csv'; a.click();
+    const lines = [meta.fields.map((field) => csvCell(field.label)).join(',')]
+      .concat(shown.map((row) => meta.fields.map((field) => csvCell(displayValue(field, row[field.key], look))).join(',')));
+    downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }), meta.title.replace(/[^\w]+/g, '_') + '.csv');
   };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 330px) minmax(0, 1fr)', gap: 12, alignItems: 'start' }} className="acc-two">
-      {/* list */}
-      <div style={{ background: '#fff', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: 8, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 190px)', position: 'sticky', top: 8 }}>
-        <div style={{ padding: '8px 10px', borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 800, color: 'var(--primary-text, #1e3a8a)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{meta.title}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10.5, color: T.muted }}>{shown.length} of {rows.length}</span>
-        </div>
-        <div style={{ padding: 8, display: 'grid', gridTemplateColumns: '1fr 96px', gap: 6, borderBottom: '1px solid #eef2f7' }}>
-          <div style={{ position: 'relative' }}><Search size={13} style={{ position: 'absolute', left: 8, top: 8, color: '#94a3b8' }} /><input value={q} onChange={e => setQ(e.target.value)} placeholder="Search" style={{ ...inputStyle, paddingLeft: 26 }} /></div>
-          <select style={inputStyle} value={status} onChange={e => setStatus(e.target.value)}><option value="">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {shown.map(r => { const on = String(form.id) === String(r.id); return (
-            <div key={r.id} onClick={() => { setForm({ ...r }); setMsg(''); }}
-              style={{ padding: '7px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', background: on ? T.headBg : 'transparent', borderLeft: `3px solid ${on ? 'var(--primary-color-end, #0369a1)' : 'transparent'}`, opacity: active(r) ? 1 : 0.55 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{showVal(title, r[title.key], look) || '(blank)'}</span>
-                {!active(r) && <Badge tone="muted">Inactive</Badge>}
-              </div>
-              <div style={{ fontSize: 10, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.map(f => showVal(f, r[f.key], look)).filter(Boolean).join(' | ')}</div>
-            </div>); })}
-          {!shown.length && <div style={{ padding: 20, textAlign: 'center', fontSize: 11.5, color: T.muted }}>{rows.length ? 'No entry matches' : 'No entries yet'}</div>}
-        </div>
-      </div>
-      {/* form */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
-        <Box title={form.id ? meta.title + ' - ' + (showVal(title, form[title.key], look) || '') : meta.title + ' - new entry'}
-          right={<label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0, cursor: 'pointer', color: T.inkSoft }}><input type="checkbox" checked={form.isActive === undefined || !!Number(form.isActive)} onChange={e => setForm(p => ({ ...p, isActive: e.target.checked ? 1 : 0 }))} /> Active</label>}
-          style={{ background: '#fff' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {meta.fields.map(f => <Field key={f.key} label={f.label} required={f.required}><FieldInput f={f} value={form[f.key]} look={look} onChange={v => setForm(p => ({ ...p, [f.key]: v }))} /></Field>)}
+    <div className="tw:grid tw:grid-cols-1 tw:items-start tw:gap-3 tw:lg:grid-cols-[minmax(260px,330px)_minmax(0,1fr)]">
+      <MasterList
+        meta={meta} rows={rows} shown={shown} look={look} selectedId={form.id}
+        query={query} onQuery={setQuery} status={status} onStatus={setStatus} onPick={pick}
+      />
+      <div className="tw:flex tw:min-w-0 tw:flex-col tw:gap-2.5">
+        <Box
+          className="tw:bg-card"
+          title={form.id ? meta.title + ' - ' + (displayValue(titleField, form[titleField.key], look) || '') : meta.title + ' - new entry'}
+          right={(
+            <Label className="tw:cursor-pointer tw:text-foreground/80">
+              <Checkbox checked={form.isActive === undefined || Boolean(Number(form.isActive))} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: checked === true ? 1 : 0 }))} /> Active
+            </Label>
+          )}
+        >
+          <div className="tw:grid tw:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] tw:gap-3">
+            {meta.fields.map((field) => (
+              <Field key={field.key} label={field.label} required={field.required}>
+                <FieldInput field={field} value={form[field.key]} look={look} onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))} />
+              </Field>
+            ))}
           </div>
         </Box>
-        <ActionBar note={msg}>
-          <Btn kind="save" onClick={save} disabled={!!form.id}><Save size={13} /> Save</Btn>
-          <Btn kind="save" onClick={save} disabled={!form.id}><Pencil size={13} /> Modify</Btn>
-          <Btn kind="danger" onClick={del} disabled={!form.id}><Trash2 size={13} /> Delete</Btn>
-          <Btn kind="clear" onClick={() => { setForm(blank()); setMsg(''); }}><RotateCcw size={13} /> Clear</Btn>
-          <Btn kind="plain" onClick={() => { const c = { ...form }; delete c.id; setForm(c); setMsg('Copied - change it and Save as a new entry'); }} disabled={!form.id}><Plus size={13} /> Copy as new</Btn>
-          <Btn kind="plain" onClick={exportCsv} disabled={!shown.length}><Download size={13} /> Excel</Btn>
+        <ActionBar note={message}>
+          <Btn kind="save" onClick={save} disabled={Boolean(form.id)}><Save /> Save</Btn>
+          <Btn kind="save" onClick={save} disabled={!form.id}><Pencil /> Modify</Btn>
+          <Btn kind="danger" onClick={remove} disabled={!form.id}><Trash2 /> Delete</Btn>
+          <Btn kind="clear" onClick={() => { setForm(blankForm()); setMessage(''); }}><RotateCcw /> Clear</Btn>
+          <Btn kind="plain" onClick={copyAsNew} disabled={!form.id}><Plus /> Copy as new</Btn>
+          <Btn kind="plain" onClick={exportCsv} disabled={!shown.length}><Download /> Excel</Btn>
         </ActionBar>
-        <Grid title={'All entries (' + shown.length + ')'} maxHeight="calc(100vh - 420px)" rows={shown} rowKey={r => r.id} activeKey={form.id} onRow={r => { setForm({ ...r }); setMsg(''); }}
+        <Grid
+          title={'All entries (' + shown.length + ')'}
+          maxHeight="calc(100vh - 420px)"
+          rows={shown}
+          rowKey={(row) => row.id}
+          activeKey={form.id}
+          onRow={pick}
           empty="No entries yet - fill the form above and Save"
-          cols={meta.fields.slice(0, 7).map(f => ({ label: f.label, right: f.type === 'number', render: r => showVal(f, r[f.key], look) }))} />
+          cols={meta.fields.slice(0, 7).map((field) => ({ label: field.label, right: field.type === 'number', render: (row) => displayValue(field, row[field.key], look) }))}
+        />
       </div>
-      <style>{`@media (max-width: 900px) { .acc-two { grid-template-columns: 1fr !important; } }`}</style>
     </div>
   );
 }
 
 // ------------------------------------------------------------------ month closing
 function MonthClosing() {
-  const [d, setD] = useState(null); const [msg, setMsg] = useState('');
-  const load = () => api('/api/accounts-hub/months').then(setD).catch(e => setMsg(e.message));
-  useEffect(() => { load(); }, []);
-  const act = async (m, a) => {
-    if (!window.confirm((a === 'close' ? 'Close ' : 'Re-open ') + m.periodName + '? ' + (a === 'close' ? 'No voucher can be saved with a date in this month.' : ''))) return;
-    try { await api(`/api/accounts-hub/months/${m.month}/${a}`, { method: 'POST' }); setMsg((a === 'close' ? 'Closed ' : 'Re-opened ') + m.periodName); load(); } catch (e) { setMsg('Not changed: ' + e.message); }
+  const [closing, setClosing] = useState(null);
+  const [message, setMessage] = useState('');
+  const load = async () => {
+    try {
+      setClosing(await accountsApi.hubMonths());
+    } catch (error) {
+      setMessage(errorMessage(error));
+    }
   };
+  useEffect(() => { load(); }, []);
+
+  const change = async (month, action) => {
+    const closingMonth = action === 'close';
+    const confirmed = await askConfirm({
+      title: closingMonth ? 'Close month' : 'Re-open month',
+      message: (closingMonth ? 'Close ' : 'Re-open ') + month.periodName + '?',
+      note: closingMonth ? 'No voucher can be saved with a date in this month.' : undefined,
+      okLabel: closingMonth ? 'Close month' : 'Re-open',
+      tone: closingMonth ? 'danger' : 'warn',
+    });
+    if (!confirmed) return;
+    try {
+      await accountsApi.hubSetMonthState(month.month, action);
+      setMessage((closingMonth ? 'Closed ' : 'Re-opened ') + month.periodName);
+      load();
+    } catch (error) {
+      setMessage('Not changed: ' + errorMessage(error));
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Grid title={'Month Closing' + (d && d.fy ? ' - FY ' + (d.fy.name || d.fy.code) : '')} maxHeight="none"
-        rows={d ? d.months : []} rowKey={m => m.month}
+    <div className="tw:flex tw:flex-col tw:gap-2.5">
+      <Grid
+        title={'Month Closing' + (closing?.fy ? ' - FY ' + (closing.fy.name || closing.fy.code) : '')}
+        maxHeight="none"
+        rows={closing ? closing.months : []}
+        rowKey={(month) => month.month}
         cols={[
-          { label: 'Month', render: m => <b>{m.periodName}</b> },
-          { label: 'Vouchers', right: true, render: m => m.vouchers },
-          { label: 'Status', render: m => (m.isClosed ? <Badge tone="bad">Closed</Badge> : <Badge tone="ok">Open</Badge>) },
-          { label: 'Closed On', render: m => (m.isClosed ? fmtDate(m.closedOn) : '') },
-          { label: 'Closed By', render: m => (m.isClosed ? m.closedBy || '' : '') },
-          { label: 'Action', right: true, render: m => (m.isClosed ? <Btn small kind="clear" onClick={() => act(m, 'open')}><Unlock size={11} /> Re-open</Btn> : <Btn small kind="danger" onClick={() => act(m, 'close')}><Lock size={11} /> Close month</Btn>) },
-        ]} />
-      {msg && <ActionBar note={msg} />}
+          { label: 'Month', render: (month) => <b>{month.periodName}</b> },
+          { label: 'Vouchers', right: true, render: (month) => month.vouchers },
+          { label: 'Status', render: (month) => (month.isClosed ? <Badge tone="bad">Closed</Badge> : <Badge tone="ok">Open</Badge>) },
+          { label: 'Closed On', render: (month) => (month.isClosed ? fmtDate(month.closedOn) : '') },
+          { label: 'Closed By', render: (month) => (month.isClosed ? month.closedBy || '' : '') },
+          {
+            label: 'Action',
+            right: true,
+            render: (month) => (month.isClosed
+              ? <Btn small kind="clear" onClick={() => change(month, 'open')}><Unlock className="tw:size-3" /> Re-open</Btn>
+              : <Btn small kind="danger" onClick={() => change(month, 'close')}><Lock className="tw:size-3" /> Close month</Btn>),
+          },
+        ]}
+      />
+      {message && <ActionBar note={message} />}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ merge account
 function MergeAccount() {
-  const [ls, setLs] = useState([]); const [a, setA] = useState(''); const [b, setB] = useState(''); const [msg, setMsg] = useState('');
-  useEffect(() => { lookup('ledgers').then(setLs); }, []);
-  const pickId = (v) => (ls.find(l => l.name === v) || {}).id || '';
-  const A = ls.find(l => l.id === a), B = ls.find(l => l.id === b);
-  const go = async () => {
-    if (!A || !B || A.id === B.id) return setMsg('Choose two different ledgers');
-    if (!window.confirm(`All entries of "${A.name}" will move to "${B.name}" and "${A.name}" will be deleted. Continue?`)) return;
-    try { const r = await api('/api/accounts-hub/merge-ledgers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromId: A.id, toId: B.id }) }); setMsg(`Merged "${r.merged}" into "${r.into}"`); lookup('ledgers', true).then(setLs); }
-    catch (e) { setMsg('Not merged: ' + e.message); }
+  const [ledgers, setLedgers] = useState([]);
+  const [fromId, setFromId] = useState('');
+  const [intoId, setIntoId] = useState('');
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    const loadLedgers = async () => setLedgers(await lookup('ledgers'));
+    loadLedgers();
+  }, []);
+  const fromLedger = ledgers.find((ledger) => ledger.id === fromId);
+  const intoLedger = ledgers.find((ledger) => ledger.id === intoId);
+
+  const merge = async () => {
+    if (!fromLedger || !intoLedger || fromLedger.id === intoLedger.id) { setMessage('Choose two different ledgers'); return; }
+    const confirmed = await askConfirm({
+      title: 'Merge account',
+      message: `All entries of "${fromLedger.name}" will move to "${intoLedger.name}" and "${fromLedger.name}" will be deleted. Continue?`,
+      okLabel: 'Merge',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    try {
+      const result = await accountsApi.hubMergeLedgers(fromLedger.id, intoLedger.id);
+      setMessage(`Merged "${result.merged}" into "${result.into}"`);
+      setLedgers(await lookup('ledgers', true));
+    } catch (error) {
+      setMessage('Not merged: ' + errorMessage(error));
+    }
   };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
-      <Box title="Merge Account" style={{ background: '#fff' }}>
-        <div style={{ fontSize: 12, color: T.muted, marginBottom: 10 }}>Moves every voucher line of the first ledger to the second, adds its opening balance, then deletes the first ledger. Use it for duplicate accounts.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 10, alignItems: 'end' }}>
-          <Field label="Merge (will be deleted)" hint={A ? A.groupName : ' '}><LedgerPicker id="mergeA" list={ls} value={a} onChange={id => setA(id || '')} /></Field>
-          <ArrowRightLeft size={18} color={T.head} style={{ marginBottom: 24 }} />
-          <Field label="Into (stays)" hint={B ? B.groupName : ' '}><LedgerPicker id="mergeB" list={ls} value={b} onChange={id => setB(id || '')} /></Field>
+    <div className="tw:flex tw:max-w-[900px] tw:flex-col tw:gap-2.5">
+      <Box title="Merge Account" className="tw:bg-card">
+        <div className="tw:mb-2.5 tw:text-entry tw:text-muted-foreground">
+          Moves every voucher line of the first ledger to the second, adds its opening balance, then deletes the first ledger. Use it for duplicate accounts.
+        </div>
+        <div className="tw:grid tw:grid-cols-1 tw:items-end tw:gap-2.5 tw:md:grid-cols-[1fr_auto_1fr]">
+          <Field label="Merge (will be deleted)" hint={fromLedger ? fromLedger.groupName : ' '}>
+            <LedgerPicker id="mergeA" list={ledgers} value={fromId} onChange={(id) => setFromId(id || '')} />
+          </Field>
+          <ArrowRightLeft className="tw:mb-6 tw:hidden tw:size-4.5 tw:text-head tw:md:block" />
+          <Field label="Into (stays)" hint={intoLedger ? intoLedger.groupName : ' '}>
+            <LedgerPicker id="mergeB" list={ledgers} value={intoId} onChange={(id) => setIntoId(id || '')} />
+          </Field>
         </div>
       </Box>
-      <ActionBar note={msg}><Btn kind="danger" onClick={go} disabled={!a || !b}><ArrowRightLeft size={13} /> Merge</Btn></ActionBar>
+      <ActionBar note={message}><Btn kind="danger" onClick={merge} disabled={!fromId || !intoId}><ArrowRightLeft /> Merge</Btn></ActionBar>
     </div>
   );
 }

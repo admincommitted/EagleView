@@ -1,59 +1,71 @@
-import React from 'react';
+import { cn } from '@/lib/utils';
+import { DateInput, Input } from '@/components/ui';
 import { useExportContext } from '../../ExportContext';
-import ModernDatePicker from '../../../common/ModernDatePicker';
-import { invOf, itemNoOf } from './schemeUtils';
+import { invOf, itemNoOf, ar4Missing } from './schemeUtils';
+import { SchemeGrid, StatusText } from './SchemeParts';
 
-// Scheme > AR4 (ICEGATE SB "AR4" table). 29-Oct-2026: Range and Remarks added (in the ICEGATE table, missing here),
-// the list is updated from the latest items (a stale copy could undo a change typed just before), required fields marked.
-const th = { padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid #bae6fd' };
-const cell = { padding: '3px 4px', borderBottom: '1px solid var(--border-color, #e2e8f0)' };
-const inp = { height: '26px', width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '0 6px' };
-const miss = (v) => ({ borderColor: String(v || '').trim() ? 'var(--border-color, #cbd5e1)' : '#ef4444' });
+// Scheme > AR4 (ICEGATE SB "AR4" table), filled on the items that have AR4 = Y.
+const WARN_ROW = 'tw:bg-warning/10 tw:even:bg-warning/10';
 
-export const ar4Missing = (it) => ['ar4No', 'ar4Date', 'commissionerate', 'division', 'ar4Range'].filter((f) => !String(it[f] || '').trim());
+const TEXT_COLUMNS = [
+  { field: 'ar4No', header: 'AR4 No *', placeholder: 'AR4 No', maxLength: 17, width: 'tw:w-[150px]', required: true },
+  { field: 'commissionerate', header: 'Commissionerate *', placeholder: 'Commissionerate', maxLength: 20, required: true },
+  { field: 'division', header: 'Division *', placeholder: 'Division', maxLength: 20, required: true },
+  { field: 'ar4Range', header: 'Range *', placeholder: 'Range', maxLength: 20, required: true },
+  { field: 'ar4Remarks', header: 'Remarks', placeholder: 'Remarks', maxLength: 250 },
+];
 
 export default function Ar4Tab() {
   const { items, setItems } = useExportContext();
-  const updateItem = (id, field, value) => setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
-  const rows = (items || []).map((it, i) => ({ it, i })).filter(({ it }) => String(it.ar4 || '').toUpperCase() === 'Y');
-  const bad = rows.filter(({ it }) => ar4Missing(it).length).length;
-  const txt = (it, f, ph, max) => <input type="text" className="grid-input" placeholder={ph} maxLength={max} style={{ ...inp, ...miss(it[f]) }} value={it[f] || ''} onChange={(e) => updateItem(it.id, f, e.target.value)} />;
+  const updateItem = (id, field, value) => setItems((previous) => previous.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  const rows = (items || []).map((item, index) => ({ item, index })).filter(({ item }) => String(item.ar4 || '').toUpperCase() === 'Y');
+  const incomplete = rows.filter(({ item }) => ar4Missing(item).length).length;
+
+  const textColumn = ({ field, header, placeholder, maxLength, width, required }) => ({
+    key: field, header, width,
+    cell: ({ item }) => (
+      <Input
+        data-allow-text=""
+        placeholder={placeholder}
+        maxLength={maxLength}
+        aria-invalid={required && !String(item[field] || '').trim()}
+        value={item[field] || ''}
+        onChange={(event) => updateItem(item.id, field, event.target.value)}
+      />
+    ),
+  });
+  const [ar4NoColumn, ...otherTextColumns] = TEXT_COLUMNS.map(textColumn);
+
+  const columns = [
+    { key: 'inv', header: 'Inv', align: 'center', width: 'tw:w-[50px]', className: 'tw:font-semibold tw:text-success', cell: ({ item }) => invOf(item) },
+    { key: 'item', header: 'Item', align: 'center', width: 'tw:w-[50px]', className: 'tw:font-semibold tw:text-head', cell: ({ item, index }) => itemNoOf(item, index) },
+    ar4NoColumn,
+    {
+      key: 'ar4Date', header: 'AR4 Date *', width: 'tw:w-[120px]',
+      cell: ({ item }) => (
+        <DateInput value={item.ar4Date || ''} onValueChange={(ymd) => updateItem(item.id, 'ar4Date', ymd)} wrapperClassName={cn(!item.ar4Date && 'tw:[&_input]:border-destructive')} />
+      ),
+    },
+    ...otherTextColumns,
+  ];
+
   return (
-    <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 }}>
-        <strong style={{ fontSize: 13, color: 'var(--primary-text, #0369a1)' }}>AR4 Details (Central Excise)</strong>
-        <span style={{ color: bad ? '#b45309' : '#047857', fontWeight: 600 }}>{bad ? `${bad} item(s) incomplete` : `${rows.length} item(s) complete`}</span>
+    <div className="tw:flex tw:flex-col tw:gap-2 tw:px-4 tw:py-3">
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:text-entry">
+        <strong className="tw:text-[13px] tw:text-head">AR4 Details (Central Excise)</strong>
+        <StatusText tone={incomplete ? 'warn' : 'good'}>
+          {incomplete ? `${incomplete} item(s) incomplete` : `${rows.length} item(s) complete`}
+        </StatusText>
       </div>
-      <div style={{ overflow: 'auto', border: '1px solid var(--border-color, #cbd5e1)', background: '#fff' }}>
-        <table className="compact-table" style={{ width: '100%', minWidth: 1000, borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: '#dbeafe', color: 'var(--primary-text, #0369a1)' }}>
-              <th style={{ ...th, width: 50 }}>Inv</th>
-              <th style={{ ...th, width: 50 }}>Item</th>
-              <th style={{ ...th, width: 150 }}>AR4 No *</th>
-              <th style={{ ...th, width: 120 }}>AR4 Date *</th>
-              <th style={th}>Commissionerate *</th>
-              <th style={th}>Division *</th>
-              <th style={th}>Range *</th>
-              <th style={th}>Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ it, i }) => (
-              <tr key={it.id ?? i} style={{ background: ar4Missing(it).length ? '#fffbeb' : '#fff' }}>
-                <td style={{ ...cell, textAlign: 'center', color: '#059669', fontWeight: 600 }}>{invOf(it, i)}</td>
-                <td style={{ ...cell, textAlign: 'center', color: '#0369a1', fontWeight: 600 }}>{itemNoOf(it, i)}</td>
-                <td style={cell}>{txt(it, 'ar4No', 'AR4 No', 17)}</td>
-                <td style={cell}><ModernDatePicker className="grid-input" style={{ ...inp, ...miss(it.ar4Date) }} value={it.ar4Date || ''} onChange={(e) => updateItem(it.id, 'ar4Date', e.target.value)} /></td>
-                <td style={cell}>{txt(it, 'commissionerate', 'Commissionerate', 20)}</td>
-                <td style={cell}>{txt(it, 'division', 'Division', 20)}</td>
-                <td style={cell}>{txt(it, 'ar4Range', 'Range', 20)}</td>
-                <td style={cell}><input type="text" className="grid-input" placeholder="Remarks" maxLength={250} style={inp} value={it.ar4Remarks || ''} onChange={(e) => updateItem(it.id, 'ar4Remarks', e.target.value)} /></td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={8} style={{ padding: 16, textAlign: 'center', color: '#64748b' }}>No item has AR4 = Y.</td></tr>}
-          </tbody>
-        </table>
+      <div className="tw:flex tw:flex-col tw:border tw:border-border tw:bg-background">
+        <SchemeGrid
+          className="tw:min-w-[1000px]"
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => row.item.id ?? row.index}
+          rowClassName={(row) => ar4Missing(row.item).length > 0 && WARN_ROW}
+          emptyText="No item has AR4 = Y."
+        />
       </div>
     </div>
   );

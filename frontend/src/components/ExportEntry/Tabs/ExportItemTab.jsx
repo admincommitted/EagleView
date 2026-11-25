@@ -1,28 +1,19 @@
-import React from 'react';
 import useExportItemTab from './ExportItemTabParts/useExportItemTab';
-import SearchSchemeCodeSection from './ExportItemTabParts/sections/SearchSchemeCodeSection';
-import ReExportDetailsSection from './ExportItemTabParts/sections/ReExportDetailsSection';
-import SupportingDocumentConfigurationSection from './ExportItemTabParts/sections/SupportingDocumentConfigurationSection';
-import ItemDetailsSection from './ExportItemTabParts/sections/ItemDetailsSection';
-import IcegatePreValidationSection from './ExportItemTabParts/sections/IcegatePreValidationSection';
+import ItemListSection from './ExportItemTabParts/sections/ItemListSection';
+import ItemFormSection from './ExportItemTabParts/sections/ItemFormSection';
+import ItemPopups from './ExportItemTabParts/sections/ItemPopups';
 
-// ExportItemTab: state/logic in ./ExportItemTabParts/use*.jsx, screen sections in ./ExportItemTabParts/sections/.
 export default function ExportItemTab() {
-  const ctx = {};
-  Object.assign(ctx, useExportItemTab(ctx));
-  return <div onChangeCapture={ctx.markFormTouched} onInputCapture={ctx.markFormTouched} onClickCapture={ctx.markFormTouched} style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', overflowY: 'auto', paddingRight: '0.5rem', position: 'relative' }}>
-
-      
-      <SearchSchemeCodeSection ctx={ctx} />
-      <ReExportDetailsSection ctx={ctx} />
-      <SupportingDocumentConfigurationSection ctx={ctx} />
-      <ItemDetailsSection ctx={ctx} />
-
-
-
-
-
-      <IcegatePreValidationSection ctx={ctx} />
-
-    </div>;
+  const ctx = useExportItemTab();
+  const touch = ctx.markFormTouched;
+  return (
+    <div
+      className="tw:relative tw:flex tw:h-full tw:min-w-0 tw:flex-col tw:gap-2 tw:overflow-y-auto tw:pr-2"
+      onChangeCapture={touch} onInputCapture={touch} onClickCapture={touch} onPointerDownCapture={touch} onKeyDownCapture={touch}
+    >
+      <ItemPopups ctx={ctx} />
+      <ItemListSection ctx={ctx} />
+      <ItemFormSection ctx={ctx} />
+    </div>
+  );
 }

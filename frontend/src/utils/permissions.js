@@ -1,15 +1,13 @@
-// Module-wise user rights on the frontend (30-Oct-2026)
-// Source of truth is the backend: /api/users/modules (catalog with routes) and /api/users/my-permissions.
+// Module-wise user rights on the frontend.
+// Source of truth is the backend: /users/modules (catalog with routes) and /users/my-permissions.
 // Rules (same as node-backend/middleware/permissions.js):
 //   admin -> everything; user with no rights saved -> everything (legacy); otherwise canView per module.
-import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/store/authStore';
+import { usePermissionsStore } from '@/store/permissionsStore';
 
-const EVT = 'edi-permissions-changed';
-
-const readJson = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || '') ?? d; } catch (e) { return d; } };
-export const getUser = () => readJson('user', {}) || {};
+export const getUser = () => useAuthStore.getState().user || {};
 export const isAdmin = () => String(getUser().role || '').toLowerCase() === 'admin';
-export const getCatalog = () => readJson('moduleCatalog', null);
+export const getCatalog = () => usePermissionsStore.getState().catalog;
 
 // array of {moduleName, canView, canCreate, canEdit, canDelete} (may be empty = nothing allowed) or null (no restrictions set)
 export const getPermissions = () => { const p = getUser().permissions; return Array.isArray(p) ? p : null; };
@@ -56,29 +54,12 @@ export const moduleForRoute = (path) => {
 // can the user open this path (pathname, optionally with ?query)? unknown paths are open
 export const canOpen = (path) => { if (!isRestricted()) return true; const k = moduleForRoute(path); return !k || canView(k); };
 
-// Pulls the catalog + the caller's rights from the server and stores them; fires an event so menus re-render
-// 09-Nov-2026: two parts of the page asked at the same time on every page open; they now share one request
-let permInflight = null;
-export function refreshPermissions() {
-  if (permInflight) return permInflight;
-  permInflight = refreshPermissionsNow().finally(() => { permInflight = null; });
-  return permInflight;
-}
-async function refreshPermissionsNow() {
-  const token = localStorage.getItem('token'); if (!token) return;
-  const h = { Authorization: 'Bearer ' + token };
-  try {
-    const [c, p] = await Promise.all([fetch('/api/users/modules', { headers: h }), fetch('/api/users/my-permissions', { headers: h })]);
-    if (c.ok) { const cat = await c.json(); if (cat && cat.groups) { localStorage.setItem('moduleCatalog', JSON.stringify(cat)); localStorage.setItem('moduleCatalogError', ''); } }
-    else localStorage.setItem('moduleCatalogError', 'HTTP ' + c.status);
-    if (p.ok) { const me = await p.json(); const u = getUser(); u.permissions = me.permissions || null; if (me.role) u.role = me.role; localStorage.setItem('user', JSON.stringify(u)); }
-    window.dispatchEvent(new Event(EVT));
-  } catch (e) { /* offline: keep what we have */ }
-}
+/** Pulls the catalog and the caller's rights from the server into the stores. */
+export const refreshPermissions = () => usePermissionsStore.getState().refresh();
 
-// re-renders the caller when rights or the catalog change
+// re-renders the caller when the user's rights or the catalog change
 export function usePermissions() {
-  const [, setTick] = useState(0);
-  useEffect(() => { const f = () => setTick(t => t + 1); window.addEventListener(EVT, f); window.addEventListener('storage', f); return () => { window.removeEventListener(EVT, f); window.removeEventListener('storage', f); }; }, []);
+  useAuthStore((state) => state.user);
+  usePermissionsStore((state) => state.catalog);
   return { isAdmin: isAdmin(), restricted: isRestricted(), canOpen, canView, canCreate, canEdit, canDelete, moduleForRoute, effective };
 }

@@ -1,272 +1,218 @@
-﻿import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, AlertTriangle, ShieldCheck, DollarSign, List, Edit2, Plus, Clock } from 'lucide-react';
+﻿import { useEffect, useState } from 'react';
+import { AlertTriangle, Clock, DollarSign, Edit2, List, Plus, RefreshCw, Save, ShieldCheck, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { errorMessage } from '@/services/axiosInstance';
+import { Badge, Button, Card, DataTable, Field, NumberInput, SelectBox } from '@/components/ui';
+import { mastersFormApi } from './masterKit/masterRecordsApi';
 import { askDelete } from './switchRow';
+
+const EMPTY_RULE = { id: null, tradeType: 'IMPORT', type: 'DEMURRAGE', mode: 'SEA', basis: 'DISCHARGE_DATE', rateUom: 'PER_SHIPMENT_PER_DAY', freeDays: 0, slab1Rate: 0, slab2Rate: 0, slab3Rate: 0 };
+
+const TRADE_TYPES = [{ value: 'IMPORT', label: 'Import' }, { value: 'EXPORT', label: 'Export' }, { value: 'BOTH', label: 'Both' }];
+const MODES = [{ value: 'SEA', label: 'Sea Freight' }, { value: 'AIR', label: 'Air Freight' }, { value: 'ALL', label: 'All Modes (Global)' }];
+const IMPORT_PENALTIES = [
+  { value: 'DEMURRAGE', label: 'Port/CFS Demurrage (Import)' },
+  { value: 'DETENTION', label: 'Shipping Line Detention (Import)' },
+  { value: 'CUSTOMS_LATE_FEE', label: 'Customs Late Filing Fee (Sec 46)' },
+];
+const EXPORT_PENALTIES = [
+  { value: 'GROUND_RENT', label: 'CFS Ground Rent (Export)' },
+  { value: 'LATE_LEO_FEE', label: 'Late LEO Penalty' },
+  { value: 'DETENTION', label: 'Container Detention (Export)' },
+];
+const IMPORT_BASES = [
+  { value: 'DISCHARGE_DATE', label: 'Discharge Date' },
+  { value: 'IGM_DATE', label: 'IGM Date' },
+  { value: 'ARRIVAL_DATE', label: 'Vessel/Flight Arrival Date' },
+  { value: 'ASSESSMENT_DATE', label: 'Duty Assessment Date' },
+  { value: 'GATE_OUT_DATE', label: 'Gate Out Date' },
+];
+const EXPORT_BASES = [
+  { value: 'GATE_IN_DATE', label: 'Factory / CFS Gate In Date' },
+  { value: 'SHIPPING_BILL_DATE', label: 'Shipping Bill Date' },
+  { value: 'LEO_DATE', label: 'LEO Date' },
+  { value: 'SAILING_DATE', label: 'Vessel Sailing Date' },
+];
+const SLAB_RATES = [
+  { key: 'slab1Rate', label: 'Slab 1 Daily Rate (₹)', className: 'tw:text-success' },
+  { key: 'slab2Rate', label: 'Slab 2 Daily Rate (₹)', className: 'tw:text-warning' },
+  { key: 'slab3Rate', label: 'Slab 3 Daily Rate (₹)', className: 'tw:text-destructive' },
+];
+const TRADE_FILTERS = [{ value: 'ALL', label: 'ALL' }, { value: 'IMPORT', label: 'IMPORT' }, { value: 'EXPORT', label: 'EXPORT' }];
+const MODE_FILTERS = [{ value: 'ALL', label: 'All Rules' }, { value: 'SEA', label: 'Sea Freight Only' }, { value: 'AIR', label: 'Air Freight Only' }];
+const MODE_BADGE = { SEA: 'info', AIR: 'warning' };
+
+const spaced = (text) => String(text || '').replace(/_/g, ' ');
+
+function FilterButtons({ label, options, value, onChange }) {
+  return (
+    <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+      <span className="tw:text-[13px] tw:font-bold tw:text-muted-foreground">{label}:</span>
+      {options.map((option) => (
+        <Button key={option.value} size="sm" variant={value === option.value ? 'default' : 'secondary'} onClick={() => onChange(option.value)}>
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 export default function PenaltyRulesMasterForm() {
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('list');
+  const [view, setView] = useState('list');
   const [modeFilter, setModeFilter] = useState('ALL');
   const [tradeFilter, setTradeFilter] = useState('ALL');
   const [rules, setRules] = useState([]);
-  
-  useEffect(() => {
-    fetchRules();
-  }, []);
+  const [rule, setRule] = useState(EMPTY_RULE);
 
-  const fetchRules = async () => {
+  const loadRules = async () => {
     try {
-      const res = await fetch('/api/penalty-rules');
-      const data = await res.json();
-      if (data.success) {
-        setRules(data.data || []);
-      } else {
-        toast.error('API Error: ' + (data.message || data.error || 'Unknown'));
-      }
-    } catch (err) {
-      toast.error('Network Error: ' + err.message);
+      const data = await mastersFormApi.listPenaltyRules();
+      if (data.success) setRules(data.data || []);
+      else toast.error(`API Error: ${data.message || data.error || 'Unknown'}`);
+    } catch (error) {
+      toast.error(error.response ? `API Error: ${errorMessage(error)}` : `Network Error: ${error.message}`);
     }
   };
 
-  const [formData, setFormData] = useState({
-    id: null,
-    tradeType: 'IMPORT',
-    type: 'DEMURRAGE',
-    mode: 'SEA',
-    basis: 'DISCHARGE_DATE',
-    rateUom: 'PER_SHIPMENT_PER_DAY',
-    freeDays: 0,
-    slab1Rate: 0,
-    slab2Rate: 0,
-    slab3Rate: 0,
-  });
+  useEffect(() => { loadRules(); }, []);
 
-  const handleEdit = (rule) => {
-    setFormData(rule);
-    setActiveTab('form');
+  const setRuleField = (name) => (value) => setRule((current) => ({ ...current, [name]: value }));
+
+  const editRule = (picked) => {
+    setRule(picked);
+    setView('form');
   };
 
-  // 28-Oct-2026: Save really saves to the server (before it only changed the list on screen, lost on refresh)
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (formData.freeDays === '' || Number(formData.freeDays) < 0) return toast.error('Free days must be 0 or more');
-    if ([formData.slab1Rate, formData.slab2Rate, formData.slab3Rate].some(v => Number(v) < 0)) return toast.error('Rates cannot be negative');
+  const newRule = () => {
+    setRule(EMPTY_RULE);
+    setView('form');
+  };
+
+  const saveRule = async (event) => {
+    event.preventDefault();
+    if (rule.freeDays === '' || Number(rule.freeDays) < 0) return toast.error('Free days must be 0 or more');
+    if (SLAB_RATES.some((slab) => Number(rule[slab.key]) < 0)) return toast.error('Rates cannot be negative');
     setLoading(true);
     try {
-      const { id, createdAt, updatedAt, ...body } = formData;
-      const res = await fetch(id ? `/api/penalty-rules/${id}` : '/api/penalty-rules', { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.message || data.error || 'Save failed');
+      const { id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = rule;
+      const body = { ...rest, freeDays: Number(rest.freeDays), slab1Rate: Number(rest.slab1Rate), slab2Rate: Number(rest.slab2Rate), slab3Rate: Number(rest.slab3Rate) };
+      const data = id ? await mastersFormApi.updatePenaltyRule(id, body) : await mastersFormApi.createPenaltyRule(body);
+      if (!data.success) throw new Error(data.message || data.error || 'Save failed');
       toast.success(data.message || 'Penalty Rule saved');
-      await fetchRules();
-      setActiveTab('list');
-    } catch (err) {
-      toast.error(err.message);
+      await loadRules();
+      setView('list');
+    } catch (error) {
+      toast.error(errorMessage(error));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (rule) => {
-    if (!(await askDelete(`Delete ${rule.tradeType} ${String(rule.type).replace(/_/g, ' ')} (${rule.mode}) rule?`))) return;
+  const deleteRule = async (picked) => {
+    if (!(await askDelete(`Delete ${picked.tradeType} ${spaced(picked.type)} (${picked.mode}) rule?`))) return;
     try {
-      const res = await fetch(`/api/penalty-rules/${rule.id}`, { method: 'DELETE' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) throw new Error(data.message || 'Delete failed');
+      const data = await mastersFormApi.deletePenaltyRule(picked.id);
+      if (!data.success) throw new Error(data.message || 'Delete failed');
       toast.success('Rule deleted');
-      fetchRules();
-    } catch (err) {
-      toast.error(err.message);
+      loadRules();
+    } catch (error) {
+      toast.error(errorMessage(error));
     }
   };
 
+  const shownRules = rules.filter((row) => (modeFilter === 'ALL' || row.mode === modeFilter || row.mode === 'ALL') && (tradeFilter === 'ALL' || row.tradeType === tradeFilter));
+  const isExport = rule.tradeType === 'EXPORT';
+
+  const columns = [
+    { key: 'tradeType', header: 'Trade', cell: (row) => <Badge variant={row.tradeType === 'IMPORT' ? 'info' : 'success'}>{row.tradeType}</Badge> },
+    { key: 'type', header: 'Penalty Type', className: 'tw:font-bold', cell: (row) => spaced(row.type) },
+    { key: 'mode', header: 'Transport Mode', cell: (row) => <Badge variant={MODE_BADGE[row.mode] || 'neutral'}>{row.mode}</Badge> },
+    { key: 'basis', header: 'Trigger Basis', className: 'tw:text-muted-foreground', cell: (row) => spaced(row.basis) },
+    { key: 'rateUom', header: 'Rate UOM', cell: (row) => spaced(row.rateUom) },
+    { key: 'freeDays', header: 'Free Days', className: 'tw:font-semibold' },
+    { key: 'slab1Rate', header: 'Slab 1 Rate (₹)', className: 'tw:font-semibold tw:text-success', cell: (row) => `₹ ${row.slab1Rate}` },
+    { key: 'slab2Rate', header: 'Slab 2 Rate (₹)', className: 'tw:font-semibold tw:text-warning', cell: (row) => `₹ ${row.slab2Rate}` },
+    {
+      key: 'actions',
+      header: 'Action',
+      cell: (row) => (
+        <span className="tw:inline-flex tw:gap-1.5">
+          <Button size="icon" title="Edit" onClick={() => editRule(row)}><Edit2 /></Button>
+          <Button size="icon" variant="destructive" title="Delete" onClick={() => deleteRule(row)}><X /></Button>
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '16px 20px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#fef2f2', padding: '8px', borderRadius: '8px' }}>
-            <AlertTriangle size={24} color="#ef4444" />
-          </div>
+    <div className="tw:flex tw:min-h-full tw:flex-col tw:gap-5 tw:rounded-xl tw:bg-page tw:p-3 tw:normal-case tw:md:p-6">
+      <Card className="tw:flex tw:flex-col tw:gap-3 tw:px-5 tw:py-4 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+        <div className="tw:flex tw:items-center tw:gap-3">
+          <span className="tw:rounded-lg tw:bg-destructive/10 tw:p-2"><AlertTriangle className="tw:size-6 tw:text-destructive" /></span>
           <div>
-            <h2 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Penalty & Demurrage Config Master</h2>
-            <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Configure Free Days and Slab Rates for Financial Calculations</p>
+            <h2 className="tw:m-0 tw:text-lg tw:text-foreground">Penalty & Demurrage Config Master</h2>
+            <p className="tw:m-0 tw:text-entry tw:text-muted-foreground">Configure Free Days and Slab Rates for Financial Calculations</p>
           </div>
         </div>
-        
-        <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
-          <button 
-            onClick={() => setActiveTab('list')}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: activeTab === 'list' ? 'white' : 'transparent', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, color: activeTab === 'list' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'list' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}
-          >
-            <List size={16} /> Directory
-          </button>
-          <button 
-            onClick={() => { setFormData({ id: null, tradeType: 'IMPORT', type: 'DEMURRAGE', mode: 'SEA', basis: 'DISCHARGE_DATE', rateUom: 'PER_SHIPMENT_PER_DAY', freeDays: 0, slab1Rate: 0, slab2Rate: 0, slab3Rate: 0 }); setActiveTab('form'); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: activeTab === 'form' ? 'white' : 'transparent', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, color: activeTab === 'form' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'form' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer' }}
-          >
-            <Plus size={16} /> New Rule
-          </button>
+        <div className="tw:flex tw:gap-2 tw:rounded-lg tw:bg-muted tw:p-1">
+          <Button size="lg" variant={view === 'list' ? 'outline' : 'ghost'} onClick={() => setView('list')}><List /> Directory</Button>
+          <Button size="lg" variant={view === 'form' ? 'outline' : 'ghost'} onClick={newRule}><Plus /> New Rule</Button>
         </div>
-      </div>
+      </Card>
 
-      {activeTab === 'list' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Mode Filters */}
-          <div style={{ display: 'flex', gap: '8px', background: 'white', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginRight: '8px', display: 'flex', alignItems: 'center' }}>Trade:</span>
-            <button onClick={() => setTradeFilter('ALL')} style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: tradeFilter === 'ALL' ? '#0f172a' : '#f1f5f9', color: tradeFilter === 'ALL' ? 'white' : '#64748b' }}>ALL</button>
-            <button onClick={() => setTradeFilter('IMPORT')} style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: tradeFilter === 'IMPORT' ? '#3b82f6' : '#f1f5f9', color: tradeFilter === 'IMPORT' ? 'white' : '#64748b' }}>IMPORT</button>
-            <button onClick={() => setTradeFilter('EXPORT')} style={{ padding: '6px 12px', borderRadius: '4px', border: 'none', fontSize: '11px', fontWeight: 700, cursor: 'pointer', background: tradeFilter === 'EXPORT' ? '#10b981' : '#f1f5f9', color: tradeFilter === 'EXPORT' ? 'white' : '#64748b', marginRight: '24px' }}>EXPORT</button>
-            
-            <div style={{ width: '1px', background: '#e2e8f0', margin: '0 8px' }}></div>
-            
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', marginRight: '8px', display: 'flex', alignItems: 'center' }}>Mode:</span>
-            <button onClick={() => setModeFilter('ALL')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: modeFilter === 'ALL' ? '#0f172a' : '#f1f5f9', color: modeFilter === 'ALL' ? 'white' : '#64748b' }}>All Rules</button>
-            <button onClick={() => setModeFilter('SEA')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: modeFilter === 'SEA' ? '#0ea5e9' : '#f1f5f9', color: modeFilter === 'SEA' ? 'white' : '#64748b' }}>Sea Freight Only</button>
-            <button onClick={() => setModeFilter('AIR')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: modeFilter === 'AIR' ? '#8b5cf6' : '#f1f5f9', color: modeFilter === 'AIR' ? 'white' : '#64748b' }}>Air Freight Only</button>
-          </div>
+      {view === 'list' && (
+        <div className="tw:flex tw:flex-col tw:gap-4">
+          <Card className="tw:flex tw:flex-col tw:gap-3 tw:px-4 tw:py-3 tw:lg:flex-row tw:lg:items-center tw:lg:gap-8">
+            <FilterButtons label="Trade" options={TRADE_FILTERS} value={tradeFilter} onChange={setTradeFilter} />
+            <FilterButtons label="Mode" options={MODE_FILTERS} value={modeFilter} onChange={setModeFilter} />
+          </Card>
+          <DataTable columns={columns} rows={shownRules} emptyText="No penalty rules" containerClassName="tw:rounded-lg tw:border tw:border-border tw:bg-card" />
+        </div>
+      )}
 
-          <div style={{ background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-            <thead style={{ background: '#f8fafc', color: '#475569', fontWeight: 600 }}>
-              <tr>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Trade</th>
-                  <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Penalty Type</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Transport Mode</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Trigger Basis</th>
-                  <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Rate UOM</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Free Days</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Slab 1 Rate (&#8377;)</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Slab 2 Rate (&#8377;)</th>
-                <th style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.filter(r => (modeFilter === 'ALL' || r.mode === modeFilter || r.mode === 'ALL') && (tradeFilter === 'ALL' || r.tradeType === tradeFilter)).map(rule => (
-                <tr key={rule.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px 16px' }}><span style={{ background: rule.tradeType === 'IMPORT' ? '#eff6ff' : '#ecfdf5', color: rule.tradeType === 'IMPORT' ? '#2563eb' : '#059669', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800 }}>{rule.tradeType}</span></td>
-                  <td style={{ padding: '12px 16px', fontWeight: 700, color: '#334155' }}>{String(rule.type || '').replace(/_/g, ' ')}</td>
-                  <td style={{ padding: '12px 16px' }}><span style={{ background: rule.mode === 'SEA' ? '#e0f2fe' : (rule.mode === 'AIR' ? '#f3e8ff' : '#f1f5f9'), color: rule.mode === 'SEA' ? '#0369a1' : (rule.mode === 'AIR' ? '#7e22ce' : '#475569'), padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>{rule.mode}</span></td>
-                  <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px' }}>{String(rule.basis || '').replace(/_/g, ' ')}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600 }}>{rule.freeDays}</td>
-                  <td style={{ padding: '12px 16px', color: '#16a34a', fontWeight: 600 }}>&#8377; {rule.slab1Rate}</td>
-                  <td style={{ padding: '12px 16px', color: '#ea580c', fontWeight: 600 }}>&#8377; {rule.slab2Rate}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <button onClick={() => handleEdit(rule)} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '6px', borderRadius: '6px', cursor: 'pointer', color: '#0ea5e9' }}><Edit2 size={14} /></button>
-                    <button onClick={() => handleDelete(rule)} title="Delete" style={{ marginLeft: '6px', background: '#fef2f2', border: '1px solid #fecaca', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#dc2626', fontWeight: 700 }}>✕</button>
-                  </td>
-                </tr>
+      {view === 'form' && (
+        <Card className="tw:p-4 tw:md:p-6">
+          <form onSubmit={saveRule} className="tw:flex tw:flex-col tw:gap-5">
+            <div className="tw:rounded-lg tw:border-l-4 tw:border-destructive tw:bg-page tw:px-4 tw:py-3">
+              <h3 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-sm tw:text-foreground">
+                <ShieldCheck className="tw:size-4 tw:text-destructive" /> System Policy Engine
+              </h3>
+              <p className="tw:mt-1 tw:mb-0 tw:text-entry tw:text-muted-foreground">These rules will be directly applied to the Advance Calculator and Financial Radar. Please ensure they match standard tariff agreements.</p>
+            </div>
+
+            <div className="tw:grid tw:grid-cols-1 tw:gap-6 tw:md:grid-cols-2">
+              <Field label="Trade Type" layout="col">
+                <SelectBox options={TRADE_TYPES} value={rule.tradeType} onValueChange={setRuleField('tradeType')} />
+              </Field>
+              <Field label="Penalty Type" layout="col">
+                <SelectBox options={isExport ? EXPORT_PENALTIES : IMPORT_PENALTIES} value={rule.type} onValueChange={setRuleField('type')} />
+              </Field>
+              <Field label="Transport Mode" layout="col">
+                <SelectBox options={MODES} value={rule.mode} onValueChange={setRuleField('mode')} />
+              </Field>
+              <Field label="Calculation Trigger (Basis)" layout="col">
+                <SelectBox options={isExport ? EXPORT_BASES : IMPORT_BASES} value={rule.basis} onValueChange={setRuleField('basis')} />
+              </Field>
+              <Field label={<span className="tw:inline-flex tw:items-center tw:gap-1.5"><Clock className="tw:size-3.5" /> Base Free Days</span>} layout="col">
+                <NumberInput decimals={0} value={rule.freeDays} className="tw:bg-success/10" onValueChange={setRuleField('freeDays')} />
+              </Field>
+              {SLAB_RATES.map((slab) => (
+                <Field key={slab.key} layout="col" labelClassName={slab.className}
+                  label={<span className="tw:inline-flex tw:items-center tw:gap-1.5"><DollarSign className="tw:size-3.5" /> {slab.label}</span>}>
+                  <NumberInput value={rule[slab.key]} onValueChange={setRuleField(slab.key)} />
+                </Field>
               ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
+            </div>
+
+            <div className="tw:mt-4 tw:flex tw:justify-end">
+              <Button type="submit" variant="default" size="lg" disabled={loading}>
+                {loading ? <RefreshCw className="tw:animate-spin" /> : <Save />} Save Configuration
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
-
-      {activeTab === 'form' && (
-        <form onSubmit={handleSave} style={{ background: 'white', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          
-          <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', borderLeft: '4px solid #ef4444' }}>
-            <h3 style={{ margin: 0, fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ShieldCheck size={16} color="#ef4444" /> System Policy Engine
-            </h3>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>These rules will be directly applied to the Advance Calculator and Financial Radar. Please ensure they match standard tariff agreements.</p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Trade Type</label>
-              <select value={formData.tradeType} onChange={e => setFormData({...formData, tradeType: e.target.value})} style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}>
-                <option value="IMPORT">Import</option>
-                <option value="EXPORT">Export</option>
-                <option value="BOTH">Both</option>
-              </select>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Penalty Type</label>
-              <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}>
-                {formData.tradeType !== 'EXPORT' && (
-                  <>
-                    <option value="DEMURRAGE">Port/CFS Demurrage (Import)</option>
-                    <option value="DETENTION">Shipping Line Detention (Import)</option>
-                    <option value="CUSTOMS_LATE_FEE">Customs Late Filing Fee (Sec 46)</option>
-                  </>
-                )}
-                {formData.tradeType === 'EXPORT' && (
-                  <>
-                    <option value="GROUND_RENT">CFS Ground Rent (Export)</option>
-                    <option value="LATE_LEO_FEE">Late LEO Penalty</option>
-                    <option value="DETENTION">Container Detention (Export)</option>
-                  </>
-                )}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Transport Mode</label>
-              <select value={formData.mode} onChange={e => setFormData({...formData, mode: e.target.value})} style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}>
-                <option value="SEA">Sea Freight</option>
-                <option value="AIR">Air Freight</option>
-                <option value="ALL">All Modes (Global)</option>
-              </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Calculation Trigger (Basis)</label>
-              <select value={formData.basis} onChange={e => setFormData({...formData, basis: e.target.value})} style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none' }}>
-                {formData.tradeType !== 'EXPORT' ? (
-                  <>
-                    <option value="DISCHARGE_DATE">Discharge Date</option>
-                    <option value="IGM_DATE">IGM Date</option>
-                    <option value="ARRIVAL_DATE">Vessel/Flight Arrival Date</option>
-                    <option value="ASSESSMENT_DATE">Duty Assessment Date</option>
-                    <option value="GATE_OUT_DATE">Gate Out Date</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="GATE_IN_DATE">Factory / CFS Gate In Date</option>
-                    <option value="SHIPPING_BILL_DATE">Shipping Bill Date</option>
-                    <option value="LEO_DATE">LEO Date</option>
-                    <option value="SAILING_DATE">Vessel Sailing Date</option>
-                  </>
-                )}
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14}/> Base Free Days</label>
-              <input type="number" value={formData.freeDays} onChange={e => setFormData({...formData, freeDays: e.target.value === '' ? '' : Number(e.target.value)})} min="0" step="1" style={{ padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', outline: 'none', background: '#f0fdf4' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '6px' }}><DollarSign size={14}/> Slab 1 Daily Rate (&#8377;)</label>
-              <input type="number" value={formData.slab1Rate} onChange={e => setFormData({...formData, slab1Rate: Number(e.target.value)})} style={{ padding: '10px', border: '1px solid #bbf7d0', borderRadius: '6px', outline: 'none' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#ea580c', display: 'flex', alignItems: 'center', gap: '6px' }}><DollarSign size={14}/> Slab 2 Daily Rate (&#8377;)</label>
-              <input type="number" value={formData.slab2Rate} onChange={e => setFormData({...formData, slab2Rate: Number(e.target.value)})} style={{ padding: '10px', border: '1px solid #fed7aa', borderRadius: '6px', outline: 'none' }} />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}><DollarSign size={14}/> Slab 3 Daily Rate (&#8377;)</label>
-              <input type="number" value={formData.slab3Rate} onChange={e => setFormData({...formData, slab3Rate: Number(e.target.value)})} style={{ padding: '10px', border: '1px solid #fecaca', borderRadius: '6px', outline: 'none' }} />
-            </div>
-
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-            <button type="submit" disabled={loading} style={{ background: '#0f172a', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {loading ? <RefreshCw className="animate-spin" size={16} /> : <Save size={16} />} Save Configuration
-            </button>
-          </div>
-
-        </form>
-      )}
-
     </div>
   );
 }

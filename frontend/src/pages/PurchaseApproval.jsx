@@ -1,224 +1,156 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { CheckCircle, XCircle, ShoppingCart } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { CheckCircle, ShoppingCart, XCircle } from 'lucide-react';
+import { askConfirm } from '../components/common/askConfirm';
+import { Button, Card, CardContent, Field, Section, Textarea } from '@/components/ui';
+import { purchaseApi } from './PurchaseParts/purchaseApi';
+import ApprovalButtons from './PurchaseParts/ApprovalButtons';
+import DetailList from './PurchaseParts/DetailList';
+import Notice from './PurchaseParts/Notice';
+import PageHeader from './PurchaseParts/PageHeader';
+import StatusBadge from './PurchaseParts/StatusBadge';
+import { ukDate } from './PurchaseParts/purchaseFormat';
+
+const DECISION_ACTIONS = [
+  { key: 'APPROVED', label: 'Approve Purchase', icon: CheckCircle, variant: 'success', className: 'tw:flex-1' },
+  { key: 'REJECT', label: 'Reject Purchase', icon: XCircle, variant: 'destructive', className: 'tw:flex-1' },
+];
+const IMAGE_FILE = /\.(jpeg|jpg|gif|png)$/i;
+const STATUS_TONES = { APPROVED: { variant: 'success' }, REJECTED: { variant: 'danger' } };
+
+const requestDetails = (request) => [
+  { label: 'Item Name', value: request.itemName },
+  { label: 'Amount', value: `₹${request.amount}`, valueClassName: 'tw:text-sm tw:text-success' },
+  { label: 'Intended User', value: request.intendedUser },
+  { label: 'Designation', value: request.designation || '-' },
+  { label: 'Department', value: request.department || '-' },
+  { label: 'Last Purchased', value: request.lastPurchaseDate ? ukDate(request.lastPurchaseDate) : 'N/A' },
+  { label: 'Status', value: <StatusBadge status={request.status} tones={STATUS_TONES} /> },
+];
+
+function TextBlock({ title, children }) {
+  return (
+    <Section title={title}>
+      <div className="tw:rounded-sm tw:border tw:border-border tw:bg-page tw:p-2.5 tw:text-entry tw:normal-case">{children}</div>
+    </Section>
+  );
+}
+
+function Attachment({ url }) {
+  return (
+    <TextBlock title="Attached Photo / Document">
+      <a href={url} target="_blank" rel="noreferrer" className="tw:text-primary tw:underline">View Attachment</a>
+      {IMAGE_FILE.test(url) && (
+        <img src={url} alt="Attached product" className="tw:mt-2.5 tw:block tw:max-h-[300px] tw:max-w-full tw:rounded-sm tw:border tw:border-input" />
+      )}
+    </TextBlock>
+  );
+}
 
 export default function PurchaseApproval() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
+  const [loadError, setLoadError] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
-  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [askingReason, setAskingReason] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
-    const fetchRequest = async () => {
+    const loadRequest = async () => {
       try {
-        const res = await axios.get(`/api/purchase/${id}`);
-        setRequest(res.data);
-      } catch (err) {
-        setError("Request not found or failed to load.");
+        setRequest(await purchaseApi.purchaseRequest(id));
+      } catch {
+        setLoadError('Request not found or failed to load.');
       }
       setLoading(false);
     };
-    fetchRequest();
+    loadRequest();
   }, [id]);
 
-  const handleAction = async (status) => {
+  const decide = async (status) => {
     if (status === 'REJECTED' && !rejectionReason.trim()) {
-      alert("Please provide a rejection reason.");
+      toast.error('Please provide a rejection reason.');
       return;
     }
-    
     setSubmitting(true);
     try {
-      const res = await axios.put(`/api/purchase/${id}/action`, {
-        status,
-        rejectionReason,
-        approvedBy: 'Director' // In a real app, this comes from auth context
-      });
-      setRequest(res.data);
-      setSuccessMsg(`Request successfully ${status.toLowerCase()}!`);
-      setShowRejectInput(false);
-    } catch (err) {
-      alert("Action failed.");
+      setRequest(await purchaseApi.decidePurchaseRequest(id, { status, rejectionReason, approvedBy: 'Director' }));
+      setSuccessMessage(`Request successfully ${status.toLowerCase()}!`);
+      setAskingReason(false);
+    } catch {
+      toast.error('Action failed.');
     }
     setSubmitting(false);
   };
 
-  if (loading) return <div style={{ padding: '50px', textAlign: 'center' }}>Loading...</div>;
-  if (error) return <div style={{ padding: '50px', textAlign: 'center', color: 'red' }}>{error}</div>;
+  const addToAssets = async () => {
+    if (!(await askConfirm({ title: 'Add to assets', message: 'Add to Asset/Stock list?', okLabel: 'Add' }))) return;
+    try {
+      await purchaseApi.addAsset({
+        assetName: request.itemName,
+        description: request.itemDetails,
+        assignedTo: request.intendedUser,
+        assignedDepartment: request.department,
+        purchaseValue: request.amount,
+        sourcePurchaseId: request.id,
+      });
+      toast.success('Successfully added to Assets!');
+      navigate('/asset-management');
+    } catch {
+      toast.error('Failed to add to assets');
+    }
+  };
+
+  if (loading) return <div className="tw:p-12 tw:text-center">Loading...</div>;
+  if (loadError) return <div className="tw:p-12 tw:text-center tw:text-destructive">{loadError}</div>;
   if (!request) return null;
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', justifyContent: 'center' }}>
-      <div style={{ background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', width: '100%', maxWidth: '600px', alignSelf: 'flex-start' }}>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #e2e8f0', paddingBottom: '15px', marginBottom: '20px' }}>
-          <div style={{ background: '#2563eb', padding: '12px', borderRadius: '50%', color: 'white' }}>
-            <ShoppingCart size={24} />
-          </div>
-          <div>
-            <h2 style={{ margin: 0, color: '#0f172a' }}>Purchase Approval</h2>
-            <p style={{ margin: 0, color: '#64748b' }}>Req #{request.id}</p>
-          </div>
-        </div>
+    <div className="tw:flex tw:min-h-screen tw:justify-center tw:bg-page tw:p-3 tw:md:p-5">
+      <Card className="tw:w-full tw:max-w-[600px] tw:self-start">
+        <CardContent className="tw:gap-4 tw:p-4 tw:md:p-6">
+          <PageHeader icon={ShoppingCart} title="Purchase Approval" subtitle={`Req #${request.id}`} className="tw:border-b-2 tw:border-border tw:pb-3" />
 
-        {successMsg && (
-          <div style={{ padding: '15px', backgroundColor: '#dcfce7', color: '#166534', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CheckCircle size={20} /> {successMsg}
-          </div>
-        )}
+          {successMessage && <Notice tone="success" icon={CheckCircle} title={successMessage} />}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
-          <tbody>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Item Name:</td>
-              <td style={tdValueStyle}><strong>{request.itemName}</strong></td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Amount:</td>
-              <td style={tdValueStyle}><strong style={{ color: '#16a34a', fontSize: '16px' }}>₹{request.amount}</strong></td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Intended User:</td>
-              <td style={tdValueStyle}>{request.intendedUser}</td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Designation:</td>
-              <td style={tdValueStyle}>{request.designation || '-'}</td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Department:</td>
-              <td style={tdValueStyle}>{request.department || '-'}</td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Last Purchased:</td>
-              <td style={tdValueStyle}>{request.lastPurchaseDate ? new Date(request.lastPurchaseDate).toLocaleDateString('en-GB') : 'N/A'}</td>
-            </tr>
-            <tr style={trStyle}>
-              <td style={tdLabelStyle}>Status:</td>
-              <td style={tdValueStyle}>
-                <span style={{ 
-                  padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold',
-                  background: request.status === 'APPROVED' ? '#dcfce7' : request.status === 'REJECTED' ? '#fee2e2' : '#fef3c7',
-                  color: request.status === 'APPROVED' ? '#166534' : request.status === 'REJECTED' ? '#991b1b' : '#92400e'
-                }}>
-                  {request.status}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          <DetailList items={requestDetails(request)} />
+          <TextBlock title="Item Details / Specifications">{request.itemDetails || 'No details provided.'}</TextBlock>
+          <TextBlock title="Justification">{request.justification || 'No justification provided.'}</TextBlock>
+          {request.productPhotoUrl && <Attachment url={request.productPhotoUrl} />}
 
-        <div style={{ marginBottom: '20px' }}>
-          <h4 style={{ margin: '0 0 5px 0', color: '#475569' }}>Item Details / Specifications</h4>
-          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '14px' }}>
-            {request.itemDetails || 'No details provided.'}
-          </div>
-        </div>
+          {request.status === 'REJECTED' && request.rejectionReason && (
+            <Notice tone="danger" title="Rejection Reason" className="tw:border-dashed">{request.rejectionReason}</Notice>
+          )}
 
-        <div style={{ marginBottom: '30px' }}>
-          <h4 style={{ margin: '0 0 5px 0', color: '#475569' }}>Justification</h4>
-          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '14px' }}>
-            {request.justification || 'No justification provided.'}
-          </div>
-        </div>
+          {request.status === 'PENDING' && !askingReason && (
+            <ApprovalButtons actions={DECISION_ACTIONS} disabled={submitting} size="lg"
+              onAction={(key) => (key === 'REJECT' ? setAskingReason(true) : decide(key))} />
+          )}
 
-        {request.productPhotoUrl && (
-          <div style={{ marginBottom: '30px' }}>
-            <h4 style={{ margin: '0 0 5px 0', color: '#475569' }}>Attached Photo / Document</h4>
-            <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-              <a href={request.productPhotoUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline', fontSize: '14px' }}>View Attachment</a>
-              {request.productPhotoUrl.match(/\.(jpeg|jpg|gif|png)$/i) && (
-                <div style={{ marginTop: '10px' }}>
-                  <img src={request.productPhotoUrl} alt="Attached product" style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {request.status === 'REJECTED' && request.rejectionReason && (
-          <div style={{ marginBottom: '30px', background: '#fef2f2', padding: '15px', borderRadius: '6px', border: '1px dashed #f87171' }}>
-            <h4 style={{ margin: '0 0 5px 0', color: '#991b1b' }}>Rejection Reason</h4>
-            <div style={{ fontSize: '14px', color: '#7f1d1d' }}>{request.rejectionReason}</div>
-          </div>
-        )}
-
-        {request.status === 'PENDING' && (
-          <div>
-            {!showRejectInput ? (
-              <div style={{ display: 'flex', gap: '15px' }}>
-                <button 
-                  onClick={() => handleAction('APPROVED')}
-                  disabled={submitting}
-                  style={{ flex: 1, padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle size={18} /> Approve Purchase
-                </button>
-                <button 
-                  onClick={() => setShowRejectInput(true)}
-                  disabled={submitting}
-                  style={{ flex: 1, padding: '12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                  <XCircle size={18} /> Reject Purchase
-                </button>
+          {request.status === 'PENDING' && askingReason && (
+            <Notice tone="danger">
+              <Field label="Please provide a reason for rejection:" layout="col">
+                <Textarea rows={4} data-allow-text="" placeholder="Type reason here..." value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} />
+              </Field>
+              <div className="tw:flex tw:flex-wrap tw:gap-2">
+                <Button variant="destructive" disabled={submitting} onClick={() => decide('REJECTED')}>Confirm Rejection</Button>
+                <Button disabled={submitting} onClick={() => setAskingReason(false)}>Cancel</Button>
               </div>
-            ) : (
-              <div style={{ background: '#fef2f2', padding: '15px', borderRadius: '6px', border: '1px solid #fecaca' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#991b1b', fontSize: '14px' }}>Please provide a reason for rejection:</label>
-                <textarea 
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '4px', border: '1px solid #fca5a5', boxSizing: 'border-box', marginBottom: '15px' }}
-                  placeholder="Type reason here..."
-                />
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => handleAction('REJECTED')} disabled={submitting} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>Confirm Rejection</button>
-                  <button onClick={() => setShowRejectInput(false)} disabled={submitting} style={{ background: 'white', color: '#475569', border: '1px solid #cbd5e1', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            </Notice>
+          )}
 
-        {request.status === 'APPROVED' && (
-          <div style={{ marginTop: '20px', padding: '15px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
-            <h4 style={{ margin: '0 0 10px 0', color: '#166534' }}>Post-Approval Action</h4>
-            <p style={{ margin: '0 0 15px 0', color: '#15803d', fontSize: '14px' }}>Has this item been physically purchased and received? Add it to the company asset register.</p>
-            <button 
-              onClick={async () => {
-                if(window.confirm('Add to Asset/Stock list?')) {
-                  try {
-                    await axios.post('/api/assets', {
-                      assetName: request.itemName,
-                      description: request.itemDetails,
-                      assignedTo: request.intendedUser,
-                      assignedDepartment: request.department,
-                      purchaseValue: request.amount,
-                      sourcePurchaseId: request.id
-                    });
-                    alert('Successfully added to Assets!');
-                    navigate('/asset-management');
-                  } catch (e) {
-                    alert('Failed to add to assets');
-                  }
-                }
-              }}
-              style={{ padding: '10px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
-              Add to Assets / Stock
-            </button>
-          </div>
-        )}
-
-      </div>
+          {request.status === 'APPROVED' && (
+            <Notice tone="success" title="Post-Approval Action">
+              <p className="tw:m-0">Has this item been physically purchased and received? Add it to the company asset register.</p>
+              <div><Button variant="success" onClick={addToAssets}>Add to Assets / Stock</Button></div>
+            </Notice>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-const trStyle = { borderBottom: '1px solid #f1f5f9' };
-const tdLabelStyle = { padding: '12px 0', width: '35%', color: '#64748b', fontSize: '14px' };
-const tdValueStyle = { padding: '12px 0', color: '#0f172a', fontSize: '14px' };

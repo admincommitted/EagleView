@@ -1,88 +1,157 @@
-// Sub Agent / Overseas Agent master window (29-Oct-2026). Before, the list was 8 fixed sample names and "Save" did
-// nothing. Now the agents come from and are saved to the Party master (flag isSubAgent / isOverseasAgent, address in
-// the party's default branch), and "Use on this AWB" puts the agent into the AWB's Sub Agent / Overseas Agent party.
-import React, { useEffect, useState } from 'react';
-import { getParties } from '../../../utils/partiesCache'; // shared copy of the party list, 09-Nov-2026
-import ModalFrame, { inp, lab, addBtn } from './_ModalFrame';
+// Sub Agent / Overseas Agent master: the agents come from and are saved to the Party master (flag isSubAgent /
+// isOverseasAgent, address in the party's default branch); "Use on this AWB" puts the agent into the AWB's
+// Sub Agent / Overseas Agent party.
+import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, Field, Input } from '@/components/ui';
+import { getParties } from '../../../utils/partiesCache';
+import { freightApi } from '../freightApi';
+import ModalFrame from './_ModalFrame';
 
-const EMPTY = { id: null, name: '', marketingPerson1: '', panNumber: '', street: '', address2: '', city: '', state: '', country: 'IN', zip: '', email: '', mobile: '', phone: '', gstin: '' };
+const EMPTY_AGENT = { id: null, name: '', marketingPerson1: '', panNumber: '', street: '', address2: '', city: '', state: '', country: 'IN', zip: '', email: '', mobile: '', phone: '', gstin: '' };
+const AGENT_FIELDS = [
+  { key: 'name', label: 'Name', required: true, wide: true },
+  { key: 'marketingPerson1', label: 'Marketing Person' },
+  { key: 'panNumber', label: 'PAN Number', maxLength: 10 },
+  { key: 'street', label: 'Address Line 1', required: true, wide: true },
+  { key: 'address2', label: 'Address Line 2', wide: true },
+  { key: 'city', label: 'City', required: true },
+  { key: 'state', label: 'State' },
+  { key: 'country', label: 'Country (2 letters)', required: true, maxLength: 2 },
+  { key: 'zip', label: 'PIN / ZIP' },
+  { key: 'email', label: 'Email' },
+  { key: 'mobile', label: 'Mobile' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'gstin', label: 'GST No' },
+];
+
+const agentFromParty = (party) => {
+  const branch = (party.branches || []).find((item) => item.isDefault) || (party.branches || [])[0] || {};
+  return {
+    ...EMPTY_AGENT, id: party.id, name: party.name || '', marketingPerson1: party.marketingPerson1 || '', panNumber: party.panNumber || '',
+    street: branch.address1 || party.street || '', address2: branch.address2 || '', city: branch.city || party.city || '',
+    state: branch.state || party.stateProvince || '', country: branch.country || party.countryCode || 'IN', zip: branch.pinCode || party.zipPostcode || '',
+    email: branch.email1 || party.email || '', mobile: branch.mobile || party.phoneNumber || '', phone: branch.phone || '', gstin: branch.regNo || '',
+  };
+};
+
+function validationError(agent) {
+  if (!agent.name.trim()) return 'Name is required';
+  if (!agent.street.trim() || !agent.city.trim()) return 'Address Line 1 and City are required';
+  if (!/^[A-Za-z]{2}$/.test(agent.country.trim())) return 'Country must be a 2-letter code (IN, AE ...)';
+  if (agent.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/i.test(agent.panNumber.trim())) return 'PAN must be like ABCDE1234F';
+  if (agent.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(agent.email.trim())) return 'Email is not valid';
+  return '';
+}
+
+function partyPayload(agent, flag) {
+  const upper = (value) => value.trim().toUpperCase();
+  const country = upper(agent.country);
+  return {
+    name: upper(agent.name), [flag]: true, partyType: 'MULTI', street: upper(agent.street).slice(0, 70), city: upper(agent.city).slice(0, 17), stateProvince: upper(agent.state),
+    countryCode: country, zipPostcode: upper(agent.zip).slice(0, 9), phoneNumber: agent.mobile.trim(), email: agent.email.trim(), panNumber: upper(agent.panNumber),
+    marketingPerson1: upper(agent.marketingPerson1), iecNoReqd: false,
+    branches: [{
+      branchSrNo: '1', branchName: 'HEAD OFFICE', isDefault: true, address1: upper(agent.street), address2: upper(agent.address2), city: upper(agent.city), state: upper(agent.state),
+      country, pinCode: upper(agent.zip), email1: agent.email.trim(), mobile: agent.mobile.trim(), phone: agent.phone.trim(), regNo: upper(agent.gstin),
+    }],
+  };
+}
+
+const saveFailText = (error) => (error.response ? error.response.data?.message || error.response.data?.error || 'Save failed' : error.message);
 
 export default function AgentMasterWindow({ isOpen, onClose, kind, setParties }) {
   const flag = kind === 'OVERSEAS' ? 'isOverseasAgent' : 'isSubAgent';
   const label = kind === 'OVERSEAS' ? 'Overseas Agent' : 'Sub Agent';
-  const [list, setList] = useState([]);
-  const [q, setQ] = useState('');
-  const [f, setF] = useState(EMPTY);
-  const [msg, setMsg] = useState(null);
+  const [agents, setAgents] = useState([]);
+  const [search, setSearch] = useState('');
+  const [agent, setAgent] = useState(EMPTY_AGENT);
+  const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
-  const token = () => localStorage.getItem('token');
-  const load = () => getParties().then(d => setList((Array.isArray(d) ? d : (d && d.data) || []).filter(p => p[flag]))).catch(() => setList([]));
-  useEffect(() => { if (isOpen) { load(); setMsg(null); } }, [isOpen]);
+
+  const loadAgents = async () => {
+    try {
+      const parties = await getParties();
+      setAgents((Array.isArray(parties) ? parties : parties?.data || []).filter((party) => party[flag]));
+    } catch {
+      setAgents([]);
+    }
+  };
+  useEffect(() => {
+    if (!isOpen) return;
+    loadAgents();
+    setMessage(null);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!isOpen) return null;
 
-  const pick = (p) => {
-    const b = (p.branches || []).find(x => x.isDefault) || (p.branches || [])[0] || {};
-    setF({ ...EMPTY, id: p.id, name: p.name || '', marketingPerson1: p.marketingPerson1 || '', panNumber: p.panNumber || '', street: b.address1 || p.street || '', address2: b.address2 || '', city: b.city || p.city || '',
-      state: b.state || p.stateProvince || '', country: b.country || p.countryCode || 'IN', zip: b.pinCode || p.zipPostcode || '', email: b.email1 || p.email || '', mobile: b.mobile || p.phoneNumber || '', phone: b.phone || '', gstin: b.regNo || '' });
-    setMsg(null);
-  };
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const pick = (party) => { setAgent(agentFromParty(party)); setMessage(null); };
+  const startNew = () => { setAgent(EMPTY_AGENT); setMessage(null); };
+  const setField = (key, value) => setAgent((current) => ({ ...current, [key]: value }));
+
   const save = async () => {
-    const name = f.name.trim().toUpperCase();
-    if (!name) return setMsg({ err: true, t: 'Name is required' });
-    if (!f.street.trim() || !f.city.trim()) return setMsg({ err: true, t: 'Address line 1 and City are required' });
-    if (!/^[A-Za-z]{2}$/.test(f.country.trim())) return setMsg({ err: true, t: 'Country must be a 2-letter code (IN, AE ...)' });
-    if (f.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/i.test(f.panNumber.trim())) return setMsg({ err: true, t: 'PAN must be like ABCDE1234F' });
-    if (f.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.email.trim())) return setMsg({ err: true, t: 'Email is not valid' });
-    const country = f.country.trim().toUpperCase();
-    const body = { name, [flag]: true, partyType: 'MULTI', street: f.street.trim().toUpperCase().slice(0, 70), city: f.city.trim().toUpperCase().slice(0, 17), stateProvince: f.state.trim().toUpperCase(), countryCode: country,
-      zipPostcode: f.zip.trim().toUpperCase().slice(0, 9), phoneNumber: f.mobile.trim(), email: f.email.trim(), panNumber: f.panNumber.trim().toUpperCase(), marketingPerson1: f.marketingPerson1.trim().toUpperCase(), iecNoReqd: false,
-      branches: [{ branchSrNo: '1', branchName: 'HEAD OFFICE', isDefault: true, address1: f.street.trim().toUpperCase(), address2: f.address2.trim().toUpperCase(), city: f.city.trim().toUpperCase(), state: f.state.trim().toUpperCase(),
-        country, pinCode: f.zip.trim().toUpperCase(), email1: f.email.trim(), mobile: f.mobile.trim(), phone: f.phone.trim(), regNo: f.gstin.trim().toUpperCase() }] };
+    const problem = validationError(agent);
+    if (problem) return setMessage({ error: true, text: problem });
+    const payload = partyPayload(agent, flag);
     setBusy(true);
     try {
-      const res = await fetch(f.id ? `/api/masters/parties/${f.id}` : '/api/masters/parties', { method: f.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` }, body: JSON.stringify(body) });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.message || d.error || 'Save failed');
-      const saved = (d && (d.data || d)) || {};
-      setF(prev => ({ ...prev, id: prev.id || saved.id || null }));
-      setMsg({ t: `${label} ${name} saved in Party Master` });
-      load();
-    } catch (e) { setMsg({ err: true, t: e.message }); } finally { setBusy(false); }
+      const response = agent.id ? await freightApi.updateParty(agent.id, payload) : await freightApi.saveParty(payload);
+      const saved = response?.data || response || {};
+      setAgent((current) => ({ ...current, id: current.id || saved.id || null }));
+      setMessage({ text: `${label} ${payload.name} saved in Party Master` });
+      loadAgents();
+    } catch (error) {
+      setMessage({ error: true, text: saveFailText(error) });
+    } finally {
+      setBusy(false);
+    }
   };
+
   const useOnAwb = () => {
-    if (!f.name.trim()) return setMsg({ err: true, t: 'Pick or enter an agent first' });
-    setParties && setParties(p => ({ ...p, [label]: { name: f.name.trim().toUpperCase(), street: [f.street, f.address2].filter(Boolean).join(' ').trim().toUpperCase(), city: f.city.trim().toUpperCase(), state: f.state.trim().toUpperCase(),
-      country: f.country.trim().toUpperCase(), zip: f.zip.trim(), phone: f.mobile.trim() || f.phone.trim(), email: f.email.trim(), gstin: f.gstin.trim().toUpperCase(), panNumber: f.panNumber.trim().toUpperCase(), partyId: f.id || undefined } }));
-    onClose && onClose();
+    if (!agent.name.trim()) return setMessage({ error: true, text: 'Pick or enter an agent first' });
+    const upper = (value) => value.trim().toUpperCase();
+    setParties?.((parties) => ({
+      ...parties,
+      [label]: {
+        name: upper(agent.name), street: upper([agent.street, agent.address2].filter(Boolean).join(' ')), city: upper(agent.city), state: upper(agent.state),
+        country: upper(agent.country), zip: agent.zip.trim(), phone: agent.mobile.trim() || agent.phone.trim(), email: agent.email.trim(),
+        gstin: upper(agent.gstin), panNumber: upper(agent.panNumber), partyId: agent.id || undefined,
+      },
+    }));
+    onClose?.();
   };
-  const shown = list.filter(p => !q || String(p.name || '').toUpperCase().includes(q.toUpperCase()));
-  const F = (k, l, extra = {}) => <div><label style={lab}>{l}</label><input value={f[k]} onChange={set(k)} style={inp} {...extra} /></div>;
+
+  const shown = agents.filter((party) => !search || String(party.name || '').toUpperCase().includes(search.toUpperCase()));
+  const footer = message
+    ? <span className={cn('tw:font-bold', message.error ? 'tw:text-destructive' : 'tw:text-success')}>{message.text}</span>
+    : 'Saved in Party Master';
 
   return (
-    <ModalFrame title={`${label} Master`} width={860} onClose={onClose} footer={msg ? <span style={{ color: msg.err ? '#dc2626' : '#166534', fontWeight: 700 }}>{msg.t}</span> : 'Saved in Party Master'}>
-      <div style={{ display: 'flex', gap: '10px', minHeight: '360px' }}>
-        <div style={{ width: '250px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <input placeholder={`Search ${label.toLowerCase()}...`} value={q} onChange={e => setQ(e.target.value)} style={inp} />
-          <button onClick={() => { setF(EMPTY); setMsg(null); }} style={{ ...inp, cursor: 'pointer', background: '#fff', fontWeight: 700 }}>+ New {label}</button>
-          <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #cbd5e1', background: '#fff' }}>
-            {shown.map(p => <div key={p.id} onClick={() => pick(p)} style={{ padding: '6px 8px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: p.id === f.id ? '#e0f2fe' : '#fff', fontSize: '12px' }}>
-              <div style={{ fontWeight: 700 }}>{p.name}</div><div style={{ fontSize: '10px', color: '#64748b' }}>{[p.city, p.countryCode].filter(Boolean).join(', ')}</div></div>)}
-            {shown.length === 0 && <div style={{ padding: '8px', fontSize: '11px', color: '#64748b' }}>No {label.toLowerCase()} in Party Master yet</div>}
+    <ModalFrame title={`${label} Master`} width={860} onClose={onClose} footer={footer}>
+      <div className="tw:flex tw:min-h-[360px] tw:flex-col tw:gap-2.5 tw:md:flex-row">
+        <div className="tw:flex tw:w-full tw:flex-col tw:gap-1.5 tw:md:w-[250px]">
+          <Input placeholder={`Search ${label.toLowerCase()}...`} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Button onClick={startNew}><Plus /> New {label}</Button>
+          <div className="tw:max-h-[300px] tw:overflow-y-auto tw:rounded-sm tw:border tw:border-border tw:bg-background tw:md:max-h-none tw:md:flex-1">
+            {shown.map((party) => (
+              <Button key={party.id} variant="ghost" size="block" onClick={() => pick(party)}
+                className={cn('tw:flex-col tw:items-start tw:gap-0 tw:rounded-none tw:border-0 tw:border-b tw:border-border', party.id === agent.id && 'tw:bg-accent')}>
+                <span className="tw:font-bold">{party.name}</span>
+                <span className="tw:text-[10px] tw:text-muted-foreground">{[party.city, party.countryCode].filter(Boolean).join(', ')}</span>
+              </Button>
+            ))}
+            {shown.length === 0 && <div className="tw:p-2 tw:text-[11px] tw:text-muted-foreground">No {label.toLowerCase()} in Party Master yet</div>}
           </div>
         </div>
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', alignContent: 'start' }}>
-          <div style={{ gridColumn: 'span 2' }}>{F('name', 'Name *')}</div>
-          {F('marketingPerson1', 'Marketing Person')}{F('panNumber', 'PAN Number', { maxLength: 10 })}
-          <div style={{ gridColumn: 'span 2' }}>{F('street', 'Address Line 1 *')}</div>
-          <div style={{ gridColumn: 'span 2' }}>{F('address2', 'Address Line 2')}</div>
-          {F('city', 'City *')}{F('state', 'State')}
-          {F('country', 'Country (2 letters) *', { maxLength: 2 })}{F('zip', 'PIN / ZIP')}
-          {F('email', 'Email')}{F('mobile', 'Mobile')}
-          {F('phone', 'Phone')}{F('gstin', 'GST No')}
-          <div style={{ gridColumn: 'span 2', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <button onClick={save} disabled={busy} style={addBtn}>{busy ? 'Saving...' : (f.id ? 'Update' : 'Save')}</button>
-            <button onClick={useOnAwb} style={{ ...addBtn, backgroundColor: '#16a34a' }}>Use on this AWB</button>
+        <div className="tw:grid tw:flex-1 tw:grid-cols-1 tw:content-start tw:gap-2 tw:sm:grid-cols-2">
+          {AGENT_FIELDS.map((field) => (
+            <Field key={field.key} label={field.label} required={field.required} layout="col" className={cn(field.wide && 'tw:sm:col-span-2')}>
+              <Input value={agent[field.key]} maxLength={field.maxLength} onChange={(event) => setField(field.key, event.target.value)} />
+            </Field>
+          ))}
+          <div className="tw:flex tw:flex-wrap tw:justify-end tw:gap-2 tw:sm:col-span-2">
+            <Button variant="default" disabled={busy} onClick={save}>{busy ? 'Saving...' : (agent.id ? 'Update' : 'Save')}</Button>
+            <Button variant="success" onClick={useOnAwb}>Use on this AWB</Button>
           </div>
         </div>
       </div>

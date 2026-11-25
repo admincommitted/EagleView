@@ -1,89 +1,114 @@
-// Keeps what is typed in a document window (DG declaration, SLI, DO, ...) - 29-Oct-2026.
-// The windows were print-only: their inputs were not connected to anything and were empty again next time.
+// Keeps what is typed in a document window (DG declaration, SLI, DO, ...).
 // This wrapper reads every input / select / textarea of the window when something changes and stores the values per
 // document type in the AWB screen (extraDocs, saved with the AWB in table AwbExtraDocs). When the AWB is already
-// saved, the document is also saved straight away (PUT /api/awb/extra/...). Opening the window puts the values back.
-import React from 'react';
+// saved, the document is also saved straight away. Opening the window puts the values back.
+import { useEffect, useRef } from 'react';
 import { DocCtx } from '../Modals/docKit';
+import { freightApi } from '../freightApi';
 
 const FIELDS = 'input, select, textarea';
-const skip = (el) => ['button', 'submit', 'reset', 'file', 'image', 'hidden'].includes(String(el.type || '').toLowerCase());
-const sig = (el) => `${el.tagName}:${el.type || ''}:${el.name || el.placeholder || ''}`;
+const SKIPPED_TYPES = ['button', 'submit', 'reset', 'file', 'image', 'hidden'];
+const FILL_DELAY_MS = 30;
+const SAVE_DELAY_MS = 800;
+
+const isSkipped = (element) => SKIPPED_TYPES.includes(String(element.type || '').toLowerCase());
+const signatureOf = (element) => `${element.tagName}:${element.type || ''}:${element.name || element.placeholder || ''}`;
+const isCheckable = (element) => element.type === 'checkbox' || element.type === 'radio';
 
 function collect(root) {
   if (!root) return null;
-  const out = [];
-  let any = false;
-  root.querySelectorAll(FIELDS).forEach((el, i) => {
-    if (skip(el)) return;
-    const isCheck = el.type === 'checkbox' || el.type === 'radio';
-    const v = isCheck ? !!el.checked : el.value;
-    if (isCheck ? v : String(v || '').trim() !== '') any = true;
-    out.push({ i, s: sig(el), v });
+  const fields = [];
+  let anyFilled = false;
+  root.querySelectorAll(FIELDS).forEach((element, index) => {
+    if (isSkipped(element)) return;
+    const value = isCheckable(element) ? !!element.checked : element.value;
+    if (isCheckable(element) ? value : String(value || '').trim() !== '') anyFilled = true;
+    fields.push({ i: index, s: signatureOf(element), v: value });
   });
-  return any ? { fields: out, savedAt: new Date().toISOString() } : null;
+  return anyFilled ? { fields, savedAt: new Date().toISOString() } : null;
 }
 
 // set a value the way React notices it (works for controlled and uncontrolled fields)
-function setField(el, v) {
-  if (el.type === 'checkbox' || el.type === 'radio') { if (!!el.checked !== !!v) el.click(); return; }
-  const proto = el.tagName === 'SELECT' ? window.HTMLSelectElement.prototype : el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-  if (String(el.value) === String(v ?? '')) return;
-  setter.call(el, v ?? '');
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
+function setField(element, value) {
+  if (isCheckable(element)) {
+    if (!!element.checked !== !!value) element.click();
+    return;
+  }
+  const prototypes = { SELECT: window.HTMLSelectElement.prototype, TEXTAREA: window.HTMLTextAreaElement.prototype };
+  const prototype = prototypes[element.tagName] || window.HTMLInputElement.prototype;
+  const setValue = Object.getOwnPropertyDescriptor(prototype, 'value').set;
+  if (String(element.value) === String(value ?? '')) return;
+  setValue.call(element, value ?? '');
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-function fill(root, data) {
-  if (!root || !data || !Array.isArray(data.fields)) return;
-  const els = root.querySelectorAll(FIELDS);
-  // 11-Nov-2026: an empty saved value does not blank a field the window filled from the AWB
-  for (const f of data.fields) { const el = els[f.i]; if (el && !skip(el) && sig(el) === f.s && !(typeof f.v === 'string' && f.v === '' && el.value)) setField(el, f.v); }
+function fill(root, saved) {
+  if (!root || !saved || !Array.isArray(saved.fields)) return;
+  const elements = root.querySelectorAll(FIELDS);
+  for (const field of saved.fields) {
+    const element = elements[field.i];
+    if (!element || isSkipped(element) || signatureOf(element) !== field.s) continue;
+    // an empty saved value does not blank a field the window filled from the AWB
+    if (typeof field.v === 'string' && field.v === '' && element.value) continue;
+    setField(element, field.v);
+  }
 }
+
+const saveToServer = async (awbType, awbId, docType, data) => {
+  try {
+    await freightApi.saveAwbExtraDoc(awbType, awbId, docType, data);
+  } catch {
+    // kept on the screen; saved again with the AWB
+  }
+};
 
 export default function PersistedDoc({ docType, isOpen, extraDocs, setExtraDocs, awbId, awbType, children }) {
-  const ref = React.useRef(null);
-  const filling = React.useRef(false);
-  const timer = React.useRef(null);
+  const wrapperRef = useRef(null);
+  const fillingRef = useRef(false);
+  const saveTimerRef = useRef(null);
   const saved = extraDocs ? extraDocs[docType] : null;
 
-  React.useEffect(() => {
-    if (!isOpen) return undefined;
-    const t = setTimeout(() => { filling.current = true; try { fill(ref.current, saved); } finally { filling.current = false; } }, 30);
-    return () => clearTimeout(t);
-  }, [isOpen]);
-
-  // 11-Nov-2026: the document windows now draw on top of the page (portal), outside this wrapper - find their sheet
-  const root = () => document.querySelector(`[data-doc-root="${docType}"]`) || ref.current;
-  const capture = () => {
-    if (filling.current || !setExtraDocs) return;
-    const data = collect(root());
-    setExtraDocs(prev => ({ ...(prev || {}), [docType]: data }));
-    if (awbId) {
-      clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        const token = localStorage.getItem('token');
-        fetch(`/api/awb/extra/${awbType}/${awbId}/${docType}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ data }) }).catch(() => {});
-      }, 800);
-    }
+  const fillQuietly = (root) => {
+    fillingRef.current = true;
+    try { fill(root, saved); } finally { fillingRef.current = false; }
   };
-  React.useEffect(() => () => clearTimeout(timer.current), []);
 
-  const api = {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const timer = setTimeout(() => fillQuietly(wrapperRef.current), FILL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps -- fill once when the window opens
+
+  // the document windows draw on top of the page (portal), outside this wrapper - find their sheet
+  const sheetRoot = () => document.querySelector(`[data-doc-root="${docType}"]`) || wrapperRef.current;
+
+  const capture = () => {
+    if (fillingRef.current || !setExtraDocs) return;
+    const data = collect(sheetRoot());
+    setExtraDocs((previous) => ({ ...(previous || {}), [docType]: data }));
+    if (!awbId) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveToServer(awbType, awbId, docType, data), SAVE_DELAY_MS);
+  };
+
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+
+  const docApi = {
     docType,
     // the window calls this once it has filled the sheet from the AWB: what was typed before goes back on top
-    restore: (el) => { filling.current = true; try { fill(el || root(), saved); } finally { filling.current = false; } },
-    capture: () => capture(),
+    restore: (element) => fillQuietly(element || sheetRoot()),
+    capture,
   };
-  return <DocCtx.Provider value={api}><div ref={ref} onInput={capture} onChange={capture} style={{ display: 'contents' }}>{children}</div></DocCtx.Provider>;
+  return (
+    <DocCtx.Provider value={docApi}>
+      <div ref={wrapperRef} onInput={capture} onChange={capture} className="tw:contents">{children}</div>
+    </DocCtx.Provider>
+  );
 }
 
 // store one document (or list) in the screen and, when the AWB is saved already, in the database right away
 export function saveExtraDoc(ctx, docType, data, awbId, awbType) {
-  if (ctx && ctx.setExtraDocs) ctx.setExtraDocs(prev => ({ ...(prev || {}), [docType]: data }));
-  if (awbId) {
-    const token = localStorage.getItem('token');
-    fetch(`/api/awb/extra/${awbType}/${awbId}/${docType}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ data }) }).catch(() => {});
-  }
+  if (ctx && ctx.setExtraDocs) ctx.setExtraDocs((previous) => ({ ...(previous || {}), [docType]: data }));
+  if (awbId) saveToServer(awbType, awbId, docType, data);
 }

@@ -1,20 +1,88 @@
-import React, { useState, useEffect } from 'react';
-import { User, Lock, ShieldCheck, Box, Eye, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Box, Eye, EyeOff, Lock, ShieldCheck, User } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { startSession } from '@/services/session';
+import { Button, Checkbox, Input, Label } from '@/components/ui';
+import { authApi } from './authApi';
+
+const REMEMBERED_USER_KEY = 'rememberedUserId';
+
+const LOGIN_BOX = 'tw:h-auto tw:rounded-xl tw:border-border tw:bg-background tw:py-4 tw:text-base tw:shadow-xs tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/15';
+const FIELD_LABEL = 'tw:ml-1 tw:text-xs tw:font-bold tw:text-muted-foreground tw:uppercase';
+
+// the server's JSON answer of a failed request, or null when the server could not be reached
+const serverAnswer = (error) => {
+  const answer = error.response?.data;
+  return answer && typeof answer === 'object' ? answer : null;
+};
+
+function Notice({ tone, children }) {
+  return (
+    <div
+      className={cn(
+        'tw:mb-8 tw:flex tw:items-center tw:gap-2 tw:rounded-lg tw:border tw:px-4 tw:py-3 tw:text-sm tw:font-semibold',
+        tone === 'error' ? 'tw:border-destructive/30 tw:bg-destructive/10 tw:text-destructive' : 'tw:border-success/30 tw:bg-success/10 tw:text-success'
+      )}
+    >
+      <span className={cn('tw:size-1.5 tw:shrink-0 tw:rounded-full', tone === 'error' ? 'tw:bg-destructive' : 'tw:bg-success')} />
+      {children}
+    </div>
+  );
+}
+
+function IconBox({ icon: Icon, children }) {
+  return (
+    <div className="tw:relative">
+      <Icon className="tw:pointer-events-none tw:absolute tw:top-1/2 tw:left-5 tw:size-[18px] tw:-translate-y-1/2 tw:text-muted-foreground" />
+      {children}
+    </div>
+  );
+}
+
+function Feature({ icon: Icon, title, text }) {
+  return (
+    <div className="tw:flex tw:flex-col tw:gap-2">
+      <div className="tw:flex tw:items-center tw:gap-2 tw:font-semibold tw:text-slate-50">
+        <Icon className="tw:size-5 tw:text-sky-400" /> {title}
+      </div>
+      <div className="tw:text-[0.85rem] tw:text-slate-400">{text}</div>
+    </div>
+  );
+}
+
+function Branding() {
+  return (
+    <div className="tw:relative tw:hidden tw:flex-1 tw:flex-col tw:justify-center tw:overflow-hidden tw:bg-linear-135 tw:from-slate-900 tw:to-primary tw:px-16 tw:py-20 tw:text-white tw:lg:flex">
+      <div className="tw:relative tw:z-10 tw:max-w-[600px]">
+        <div className="tw:flex tw:min-h-[220px] tw:flex-col tw:justify-center">
+          <h2 className="tw:mb-6 tw:text-[3.5rem] tw:leading-[1.1] tw:font-extrabold tw:tracking-[-1px] tw:text-white">
+            <span className="tw:text-shadow-lg">EagleView</span> <br />
+            <span className="tw:inline-block tw:bg-linear-to-r tw:from-slate-50 tw:to-sky-400 tw:bg-clip-text tw:text-transparent">Customs Clearance.</span>
+          </h2>
+          <p className="tw:mb-8 tw:min-h-20 tw:text-[1.15rem] tw:leading-[1.7] tw:font-normal tw:text-slate-200 tw:text-shadow-md">
+            File Shipping Bills and Bills of Entry directly to ICEGATE. Experience lightning-fast assessments, automated duty calculations, and zero-delay cargo clearances.
+          </p>
+        </div>
+        <div className="tw:flex tw:gap-10 tw:border-t tw:border-white/10 tw:pt-8">
+          <Feature icon={ShieldCheck} title="Secure Access" text="Enterprise-grade security" />
+          <Feature icon={Box} title="Global Tracking" text="Real-time logistics control" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Login() {
-  const [userId, setUserId] = useState(() => localStorage.getItem('rememberedUserId') || '');
-  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('rememberedUserId'));
+  const [userId, setUserId] = useState(() => localStorage.getItem(REMEMBERED_USER_KEY) || '');
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  // 14-Nov-2026: a login from outside the office asks for a 6-digit code e-mailed to the user
-  const [otp, setOtp] = useState(null); // { id, sentTo }
+  // a login from outside the office asks for a 6-digit code e-mailed to the user: { id, sentTo }
+  const [otp, setOtp] = useState(null);
   const [otpCode, setOtpCode] = useState('');
-  const navigate = useNavigate();
 
   const handleForgot = async () => {
     if (!userId) {
@@ -24,323 +92,160 @@ export default function Login() {
     setError('');
     setSuccess('');
     try {
-        const response = await fetch('/api/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
-        });
-        const data = await response.json();
-        if (response.ok) {
-            setSuccess(data.message);
-        } else {
-            setError(data.error || 'Failed to reset password');
-        }
-    } catch (err) {
-        setError('Cannot connect to server');
+      const answer = await authApi.forgotPassword(userId);
+      setSuccess(answer.message);
+    } catch (requestError) {
+      const answer = serverAnswer(requestError);
+      setError(answer ? answer.error || 'Failed to reset password' : 'Cannot connect to server');
     }
   };
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const signIn = (answer) => {
+    const user = answer.data ? answer.data.user : answer.user;
+    startSession(answer.data ? answer.data.accessToken : answer.token, user);
+    if (rememberMe) localStorage.setItem(REMEMBERED_USER_KEY, userId);
+    else localStorage.removeItem(REMEMBERED_USER_KEY);
+    // a Director (PO approver) lands on the POs waiting for his approval
+    window.location.href = String(user?.role || '').toLowerCase() === 'director' ? '/purchase-management' : '/dashboard';
+  };
+
+  const startAgain = () => {
+    setOtp(null);
+    setOtpCode('');
+    setSuccess('');
+  };
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError('');
     setSuccess('');
+    if (!userId || !password || (otp && !otpCode)) {
+      setError('Please fill in all the fields.');
+      return;
+    }
     setLoading(true);
     try {
-        const response = otp
-            ? await fetch('/api/auth/login/otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ otpId: otp.id, code: otpCode.trim() }) })
-            : await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: userId, password })
-        });
-        const data = await response.json();
-        if (response.ok && data.otpRequired) {
-            setOtp({ id: data.otpId, sentTo: data.sentTo }); setOtpCode('');
-            setSuccess(`${data.message} (sent to ${data.sentTo})`);
-            return;
-        }
-        if (!response.ok && otp && data.restart) { setOtp(null); setOtpCode(''); }
-        if (response.ok) {
-            localStorage.setItem('token', data.data ? data.data.accessToken : data.token);
-            localStorage.setItem('user', JSON.stringify(data.data ? data.data.user : data.user));
-            // 30-Oct-2026: /uploads files are behind the login; links cannot send a header, so the token also goes in a cookie
-            try { document.cookie = `edi_token=${encodeURIComponent(data.data ? data.data.accessToken : data.token)}; path=/uploads; SameSite=Lax; max-age=86400${window.location.protocol === 'https:' ? '; Secure' : ''}`; } catch (e) { /* cookies blocked */ }
-            if (rememberMe) {
-              localStorage.setItem('rememberedUserId', userId);
-            } else {
-              localStorage.removeItem('rememberedUserId');
-            }
-            // 16-Nov-2026: a Director (PO approver) lands on the POs waiting for his approval
-            const loggedRole = String(((data.data ? data.data.user : data.user) || {}).role || '').toLowerCase();
-            window.location.href = loggedRole === 'director' ? '/purchase-management' : '/dashboard';
-        } else {
-            setError(data.error || 'Login failed');
-        }
-    } catch (err) {
+      const answer = otp
+        ? await authApi.loginWithCode(otp.id, otpCode.trim())
+        : await authApi.login({ username: userId, password });
+      if (answer.otpRequired) {
+        setOtp({ id: answer.otpId, sentTo: answer.sentTo });
+        setOtpCode('');
+        setSuccess(`${answer.message} (sent to ${answer.sentTo})`);
+        return;
+      }
+      signIn(answer);
+    } catch (requestError) {
+      const answer = serverAnswer(requestError);
+      if (!answer) {
         setError('Cannot connect to server. Please check your network.');
+        return;
+      }
+      if (otp && answer.restart) {
+        setOtp(null);
+        setOtpCode('');
+      }
+      setError(answer.error || 'Login failed');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Inter', system-ui, sans-serif", backgroundColor: 'var(--bg-app, var(--bg-app, #f8fafc))' }}>
-      
-      {/* Left Side: Premium Corporate Branding */}
-      <div style={{ 
-          flex: 1, 
-          padding: '5rem 4rem', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          justifyContent: 'center',
-          background: 'linear-gradient(135deg, #0f172a 0%, var(--primary-color-end, #1e3a8a) 100%)',
-          color: 'white',
-          position: 'relative',
-          overflow: 'hidden'
-      }}>
-        
-        <div style={{ position: 'relative', zIndex: 10, maxWidth: '600px' }}>
-          
-          <div style={{ minHeight: '220px', display: 'flex', flexDirection: 'column', justifyContent: 'center', perspective: '1000px' }}>
-            <h2  style={{ 
-              fontSize: '3.5rem', fontWeight: 800, lineHeight: 1.1, marginBottom: '1.5rem', letterSpacing: '-1px', 
-              color: 'var(--bg-panel, var(--bg-panel, #ffffff))', 
-              opacity: 1 
-            }}>
-              <span style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>EagleView</span> <br/>
-              <span style={{ background: 'linear-gradient(to right, #f8fafc, var(--primary-color-start, #38bdf8))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', textShadow: 'none', display: 'inline-block' }}>
-                Customs Clearance.
-              </span>
-            </h2>
-            
-            <p  style={{ 
-              fontSize: '1.15rem', color: 'var(--border-color, var(--border-color, #e2e8f0))', lineHeight: 1.7, 
-              marginBottom: '2rem', fontWeight: 400, minHeight: '80px', textShadow: '0 1px 5px rgba(0,0,0,0.5)',
-              opacity: 1 
-            }}>
-              File Shipping Bills and Bills of Entry directly to ICEGATE. Experience lightning-fast assessments, automated duty calculations, and zero-delay cargo clearances.
-            </p>
-          </div>
+    <div className="tw:flex tw:min-h-screen tw:bg-page tw:font-sans">
+      <Branding />
 
-          <div style={{ display: 'flex', gap: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '2rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--bg-app, var(--bg-app, #f8fafc))', fontWeight: 600 }}>
-                  <ShieldCheck size={20} color="var(--primary-border, #38bdf8)" /> Secure Access
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Enterprise-grade security</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--bg-app, var(--bg-app, #f8fafc))', fontWeight: 600 }}>
-                  <Box size={20} color="var(--primary-border, #38bdf8)" /> Global Tracking
-                </div>
-                <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Real-time logistics control</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="tw:relative tw:flex tw:flex-1 tw:items-center tw:justify-center tw:bg-background tw:py-24 tw:lg:flex-[0_0_500px] tw:lg:py-0">
+        <div className="tw:absolute tw:inset-x-0 tw:top-0 tw:z-30 tw:h-1 tw:bg-linear-to-r tw:from-ring tw:to-primary" />
+        <img src="/logo.png" alt="Committed Cargo Care Limited" className="tw:absolute tw:top-8 tw:right-8 tw:z-20 tw:block tw:h-[35px] tw:mix-blend-multiply" />
 
-      {/* Right Side: High-Class Login Form */}
-      <div style={{ flex: '0 0 500px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))', position: 'relative', boxShadow: 'none' }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'linear-gradient(to right, var(--primary-color-start, #38bdf8), var(--primary-color-end, #2563eb))', zIndex: 30 }}></div>
-        
-        <div style={{ position: 'absolute', top: '2rem', right: '2rem', display: 'flex', zIndex: 20 }}>
-            <img src="/logo.png" alt="Committed Cargo Care Limited" style={{ height: '35px', display: 'block', mixBlendMode: 'multiply' }} />
-        </div>
+        <div className="tw:relative tw:z-10 tw:w-full tw:max-w-[420px] tw:px-8">
+          <h2 className="tw:mb-12 tw:text-center tw:text-4xl tw:font-extrabold tw:tracking-[-0.5px] tw:text-foreground">Welcome Back</h2>
 
-        <div style={{ 
-          width: '100%', 
-          maxWidth: '420px',
-          padding: '0 2rem',
-          position: 'relative',
-          zIndex: 10
-        }}>
-          
-          <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
-            <h2 style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--text-main, var(--text-main, #0f172a))', marginBottom: '0.75rem', letterSpacing: '-0.5px' }}>Welcome Back</h2>
-          </div>
-          
-          {error && (
-            <div style={{ 
-                backgroundColor: '#fef2f2', 
-                border: '1px solid #fecaca', 
-                color: '#dc2626', 
-                padding: '12px 16px', 
-                borderRadius: '8px', 
-                marginBottom: '2rem', 
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-            }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#dc2626' }}></div>
-                {error}
-            </div>
-          )}
-            
-            {success && (
-              <div style={{ 
-                  backgroundColor: '#ecfdf5', 
-                  border: '1px solid #a7f3d0', 
-                  color: '#059669', 
-                  padding: '12px 16px', 
-                  borderRadius: '8px', 
-                  marginBottom: '2rem', 
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-              }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#059669' }}></div>
-                  {success}
-              </div>
-            )}
+          {error && <Notice tone="error">{error}</Notice>}
+          {success && <Notice tone="success">{success}</Notice>}
 
           <form onSubmit={handleLogin}>
-            
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', marginLeft: '4px', textTransform: 'uppercase' }}>User ID</label>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <User size={18} color="#94a3b8" style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)' }} />
-                <input 
-                  type="text" 
-                  required 
-                  value={userId} 
-                  onChange={(e) => setUserId(e.target.value.toUpperCase())}
-                  placeholder="e.g. ADMIN" 
-                  style={{ 
-                      width: '100%', 
-                      padding: '1rem 1rem 1rem 3rem', 
-                      borderRadius: '12px', 
-                      border: '1px solid var(--border-color, #e2e8f0)', 
-                      fontSize: '1rem', 
-                      color: 'var(--text-main, #0f172a)', 
-                      outline: 'none', 
-                      backgroundColor: 'var(--bg-panel, #ffffff)',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                      transition: 'all 0.2s ease',
-                      boxSizing: 'border-box',
-                      letterSpacing: '0.05em',
-                      fontWeight: 600
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = 'var(--primary-border, #38bdf8)'; e.target.style.boxShadow = '0 0 0 4px var(--primary-shadow, rgba(56,189,248,0.1))'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'var(--border-color, #e2e8f0)'; e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
+            <div className="tw:mb-6">
+              <Label htmlFor="login-user" className={cn(FIELD_LABEL, 'tw:mb-2')}>User ID</Label>
+              <IconBox icon={User}>
+                <Input
+                  id="login-user"
+                  value={userId}
+                  onChange={(event) => setUserId(event.target.value.toUpperCase())}
+                  placeholder="e.g. ADMIN"
+                  autoComplete="username"
+                  data-allow-text=""
+                  className={cn(LOGIN_BOX, 'tw:pl-12 tw:font-semibold tw:tracking-wider')}
                 />
-              </div>
+              </IconBox>
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', marginLeft: '4px', textTransform: 'uppercase' }}>Password</label>
-                <span onClick={handleForgot} style={{ fontSize: '0.8rem', color: 'var(--primary-color-end, #2563eb)', fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }} onMouseOver={e=>e.target.style.color='var(--primary-color-end, #1d4ed8)'} onMouseOut={e=>e.target.style.color='var(--primary-color-end, #2563eb)'}>Forgot Password?</span>
+            <div className="tw:mb-6">
+              <div className="tw:mb-2 tw:flex tw:items-center tw:justify-between">
+                <Label htmlFor="login-password" className={FIELD_LABEL}>Password</Label>
+                <Button variant="link" className="tw:h-auto tw:text-[0.8rem]" onClick={handleForgot}>Forgot Password?</Button>
               </div>
-              <div style={{ position: 'relative' }}>
-                <Lock size={18} color="#94a3b8" style={{ position: 'absolute', left: '1.2rem', top: '50%', transform: 'translateY(-50%)' }} />
-                <input 
+              <IconBox icon={Lock}>
+                <Input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
-                  required 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="********" 
-                  style={{ 
-                      width: '100%', 
-                      padding: '1rem 3rem 1rem 3rem', 
-                      borderRadius: '12px', 
-                      border: '1px solid var(--border-color, #e2e8f0)', 
-                      fontSize: '1rem', 
-                      color: 'var(--text-main, var(--text-main, #0f172a))', 
-                      outline: 'none', 
-                      backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                      transition: 'all 0.2s ease',
-                      boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = 'var(--primary-border, #38bdf8)'; e.target.style.boxShadow = '0 0 0 4px var(--primary-shadow, rgba(56,189,248,0.1))'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'var(--border-color, #e2e8f0)'; e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; }}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="********"
+                  autoComplete="current-password"
+                  data-allow-text=""
+                  className={cn(LOGIN_BOX, 'tw:px-12')}
                 />
-                <button 
-                  type="button" 
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '1.2rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="tw:absolute tw:top-1/2 tw:right-3 tw:-translate-y-1/2 tw:text-muted-foreground tw:hover:bg-transparent"
+                  onClick={() => setShowPassword((shown) => !shown)}
                 >
-                  {showPassword ? <EyeOff size={18} color="#94a3b8" /> : <Eye size={18} color="#94a3b8" />}
-                </button>
-              </div>
+                  {showPassword ? <EyeOff className="tw:size-[18px]" /> : <Eye className="tw:size-[18px]" />}
+                </Button>
+              </IconBox>
             </div>
 
             {otp && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <label htmlFor="otpCode" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted, #64748b)', marginLeft: '4px', textTransform: 'uppercase' }}>Login code (e-mailed to {otp.sentTo})</label>
-                  <span onClick={() => { setOtp(null); setOtpCode(''); setSuccess(''); }} style={{ fontSize: '0.8rem', color: 'var(--primary-color-end, #2563eb)', fontWeight: 600, cursor: 'pointer' }}>Start again</span>
+              <div className="tw:mb-6">
+                <div className="tw:mb-2 tw:flex tw:items-center tw:justify-between tw:gap-2">
+                  <Label htmlFor="otpCode" className={cn(FIELD_LABEL, 'tw:whitespace-normal')}>Login code (e-mailed to {otp.sentTo})</Label>
+                  <Button variant="link" className="tw:h-auto tw:text-[0.8rem]" onClick={startAgain}>Start again</Button>
                 </div>
-                <input id="otpCode" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={otpCode} autoFocus
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code"
-                  style={{ width: '100%', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color, #e2e8f0)', fontSize: '1.4rem', letterSpacing: '0.4em', textAlign: 'center', fontWeight: 700, boxSizing: 'border-box', backgroundColor: 'var(--bg-panel, #ffffff)', color: 'var(--text-main, #0f172a)' }} />
+                <Input
+                  id="otpCode"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otpCode}
+                  autoFocus
+                  onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="6-digit code"
+                  className={cn(LOGIN_BOX, 'tw:px-4 tw:text-center tw:text-[1.4rem] tw:font-bold tw:tracking-[0.4em]')}
+                />
               </div>
             )}
 
-            <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center' }}>
-              <input 
-                type="checkbox" 
-                id="remember" 
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ 
-                  marginRight: '8px', 
-                  width: '16px', 
-                  height: '16px', 
-                  borderRadius: '4px',
-                  border: '1px solid var(--border-color, #cbd5e1)',
-                  accentColor: 'var(--primary-color-start, #38bdf8)'
-                }} 
-              />
-              <label htmlFor="remember" style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)', cursor: 'pointer', fontWeight: 500 }}>Remember my User ID</label>
+            <div className="tw:mb-8 tw:flex tw:items-center tw:gap-2">
+              <Checkbox id="remember" checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} className="tw:size-4" />
+              <Label htmlFor="remember" className="tw:cursor-pointer tw:text-[0.85rem] tw:font-medium tw:text-muted-foreground">Remember my User ID</Label>
             </div>
 
-            <button 
-              type="submit" 
+            <Button
+              type="submit"
+              variant="default"
+              size="lg"
               disabled={loading}
-              style={{ 
-                width: '100%', 
-                padding: '1rem', 
-                borderRadius: '12px', 
-                background: 'linear-gradient(to right, var(--primary-color-start, #0284c7), var(--primary-color-end, #0369a1))',
-                color: 'white', 
-                border: 'none', 
-                fontSize: '1rem', 
-                fontWeight: 700, 
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.25)',
-                transition: 'all 0.3s ease',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em'
-              }}
-              onMouseOver={(e) => { if(!loading) { e.target.style.transform = 'translateY(-2px)'; e.target.style.boxShadow = '0 6px 20px rgba(2, 132, 199, 0.4)'; } }}
-              onMouseOut={(e) => { if(!loading) { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = '0 4px 14px rgba(2, 132, 199, 0.25)'; } }}
+              className="tw:h-auto tw:w-full tw:rounded-xl tw:border-0 tw:bg-linear-to-r tw:from-ring tw:to-primary tw:py-4 tw:text-base tw:font-bold tw:tracking-wider tw:uppercase tw:shadow-lg tw:transition-all tw:duration-300 tw:hover:-translate-y-0.5 tw:hover:shadow-xl"
             >
-              {loading ? (
-                <>
-                  <span style={{ fontSize: '0.9rem' }}>AUTHENTICATING...</span>
-                </>
-              ) : (
-                <>
-                  <span>{otp ? 'Verify code' : 'Sign In'}</span>
-                  <span>&rarr;</span>
-                </>
-              )}
-            </button>
+              {loading ? <span className="tw:text-sm">AUTHENTICATING...</span> : <><span>{otp ? 'Verify code' : 'Sign In'}</span><span>&rarr;</span></>}
+            </Button>
           </form>
         </div>
       </div>
     </div>
   );
 }
-

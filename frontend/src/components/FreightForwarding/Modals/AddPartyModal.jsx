@@ -1,299 +1,188 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
+import { Save } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, Field, Input, Modal, Section, Textarea } from '@/components/ui';
+import { freightApi } from '../freightApi';
+
+const COUNTRY_CODES = {
+  AFGHANISTAN: 'AF', ALBANIA: 'AL', ALGERIA: 'DZ', ANDORRA: 'AD', ANGOLA: 'AO', ARGENTINA: 'AR', ARMENIA: 'AM', AUSTRALIA: 'AU', AUSTRIA: 'AT', AZERBAIJAN: 'AZ',
+  BAHAMAS: 'BS', BAHRAIN: 'BH', BANGLADESH: 'BD', BARBADOS: 'BB', BELARUS: 'BY', BELGIUM: 'BE', BELIZE: 'BZ', BENIN: 'BJ', BHUTAN: 'BT', BOLIVIA: 'BO', BOSNIA: 'BA',
+  BOTSWANA: 'BW', BRAZIL: 'BR', BRUNEI: 'BN', BULGARIA: 'BG', 'BURKINA FASO': 'BF', BURUNDI: 'BI', CAMBODIA: 'KH', CAMEROON: 'CM', CANADA: 'CA', CHAD: 'TD', CHILE: 'CL',
+  CHINA: 'CN', COLOMBIA: 'CO', COMOROS: 'KM', CONGO: 'CG', 'COSTA RICA': 'CR', CROATIA: 'HR', CUBA: 'CU', CYPRUS: 'CY', CZECHIA: 'CZ', 'CZECH REPUBLIC': 'CZ', DENMARK: 'DK',
+  DJIBOUTI: 'DJ', DOMINICA: 'DM', 'DOMINICAN REPUBLIC': 'DO', ECUADOR: 'EC', EGYPT: 'EG', 'EL SALVADOR': 'SV', 'EQUATORIAL GUINEA': 'GQ', ERITREA: 'ER', ESTONIA: 'EE', ESWATINI: 'SZ',
+  ETHIOPIA: 'ET', FIJI: 'FJ', FINLAND: 'FI', FRANCE: 'FR', GABON: 'GA', GAMBIA: 'GM', GEORGIA: 'GE', GERMANY: 'DE', GHANA: 'GH', GREECE: 'GR', GRENADA: 'GD', GUATEMALA: 'GT',
+  GUINEA: 'GN', GUYANA: 'GY', HAITI: 'HT', HONDURAS: 'HN', HUNGARY: 'HU', ICELAND: 'IS', INDIA: 'IN', INDONESIA: 'ID', IRAN: 'IR', IRAQ: 'IQ', IRELAND: 'IE', ISRAEL: 'IL',
+  ITALY: 'IT', JAMAICA: 'JM', JAPAN: 'JP', JORDAN: 'JO', KAZAKHSTAN: 'KZ', KENYA: 'KE', KIRIBATI: 'KI', KOREA: 'KR', KUWAIT: 'KW', KYRGYZSTAN: 'KG', LAOS: 'LA', LATVIA: 'LV',
+  LEBANON: 'LB', LESOTHO: 'LS', LIBERIA: 'LR', LIBYA: 'LY', LIECHTENSTEIN: 'LI', LITHUANIA: 'LT', LUXEMBOURG: 'LU', MADAGASCAR: 'MG', MALAWI: 'MW', MALAYSIA: 'MY', MALDIVES: 'MV',
+  MALI: 'ML', MALTA: 'MT', MAURITANIA: 'MR', MAURITIUS: 'MU', MEXICO: 'MX', MOLDOVA: 'MD', MONACO: 'MC', MONGOLIA: 'MN', MONTENEGRO: 'ME', MOROCCO: 'MA', MOZAMBIQUE: 'MZ',
+  MYANMAR: 'MM', NAMIBIA: 'NA', NEPAL: 'NP', NETHERLANDS: 'NL', 'NEW ZEALAND': 'NZ', NICARAGUA: 'NI', NIGER: 'NE', NIGERIA: 'NG', MACEDONIA: 'MK', NORWAY: 'NO', OMAN: 'OM',
+  PAKISTAN: 'PK', PALAU: 'PW', PANAMA: 'PA', PARAGUAY: 'PY', PERU: 'PE', PHILIPPINES: 'PH', POLAND: 'PL', PORTUGAL: 'PT', QATAR: 'QA', ROMANIA: 'RO', RUSSIA: 'RU', RWANDA: 'RW',
+  SAMOA: 'WS', 'SAN MARINO': 'SM', 'SAUDI ARABIA': 'SA', SENEGAL: 'SN', SERBIA: 'RS', SEYCHELLES: 'SC', 'SIERRA LEONE': 'SL', SINGAPORE: 'SG', SLOVAKIA: 'SK', SLOVENIA: 'SI',
+  SOMALIA: 'SO', 'SOUTH AFRICA': 'ZA', SPAIN: 'ES', 'SRI LANKA': 'LK', SUDAN: 'SD', SURINAME: 'SR', SWEDEN: 'SE', SWITZERLAND: 'CH', SYRIA: 'SY', TAIWAN: 'TW', TAJIKISTAN: 'TJ',
+  TANZANIA: 'TZ', THAILAND: 'TH', TOGO: 'TG', TONGA: 'TO', TRINIDAD: 'TT', TUNISIA: 'TN', TURKEY: 'TR', TURKMENISTAN: 'TM', UGANDA: 'UG', UKRAINE: 'UA', UAE: 'AE', 'UNITED ARAB EMIRATES': 'AE',
+  UK: 'GB', 'UNITED KINGDOM': 'GB', USA: 'US', 'UNITED STATES': 'US', URUGUAY: 'UY', UZBEKISTAN: 'UZ', VANUATU: 'VU', VENEZUELA: 'VE', VIETNAM: 'VN', YEMEN: 'YE', ZAMBIA: 'ZM', ZIMBABWE: 'ZW',
+  'UNITED STATES OF AMERICA': 'US',
+};
+
+const EMPTY_FORM = { name: '', accountNumber: '', streetAddress: '', country: '', city: '', state: '', zipCode: '', phoneNumber: '', faxNumber: '', email: '' };
+
+const SECTIONS = [
+  {
+    title: 'Name Details', gridClassName: 'tw:sm:grid-cols-[2fr_1fr]',
+    fields: [{ name: 'name', label: 'Name', required: true, maxLength: 35 }, { name: 'accountNumber', label: 'Account Number', maxLength: 15 }],
+  },
+  {
+    title: 'Address Details', gridClassName: 'tw:sm:grid-cols-[1fr_1.5fr_1.5fr]',
+    fields: [
+      { name: 'streetAddress', label: 'Street Address', required: true, maxLength: 70, lines: 2, className: 'tw:sm:col-span-3' },
+      { name: 'country', label: 'Country', required: true, maxLength: 2, placeholder: 'e.g. IN' },
+      { name: 'city', label: 'City', required: true, maxLength: 17 },
+      { name: 'state', label: 'State', maxLength: 9 },
+      { name: 'zipCode', label: 'Zip / Postal', maxLength: 9 },
+    ],
+    note: 'Note: State & Zip are mandatory for local Customs in several regions.',
+  },
+  {
+    title: 'Contact Details', gridClassName: 'tw:sm:grid-cols-3',
+    fields: [
+      { name: 'phoneNumber', label: 'Phone Number', maxLength: 25 },
+      { name: 'faxNumber', label: 'Fax Number', maxLength: 25 },
+      { name: 'email', label: 'Email', maxLength: 100, type: 'email' },
+    ],
+  },
+];
+
+// an address read by the AI may come as one block "street, city, state zip, country": split it
+function formFromPrefill(prefill) {
+  let city = prefill.city || '';
+  let state = prefill.state || '';
+  let country = prefill.country || '';
+  let zip = prefill.zip || '';
+  let street = prefill.address || '';
+  if (country && country.length > 2) country = COUNTRY_CODES[country.toUpperCase().trim()] || country;
+  if (street && !city && !state && street.includes(',')) {
+    const parts = street.split(',').map((part) => part.trim());
+    if (parts.length >= 3) {
+      const possibleCountry = parts.pop();
+      if (possibleCountry.length > 2) country = possibleCountry;
+      const stateAndZip = parts.pop();
+      const zipMatch = stateAndZip.match(/(\d{5,6})/);
+      if (zipMatch) {
+        zip = zipMatch[1];
+        state = stateAndZip.replace(zip, '').trim();
+      } else {
+        state = stateAndZip;
+      }
+      city = parts.pop();
+      street = parts.join(', ');
+    }
+  }
+  return { name: prefill.name || '', streetAddress: street, city, state, country, zipCode: zip, phoneNumber: prefill.phone || '' };
+}
+
+function partyTypeOf(title) {
+  const upperTitle = title.toUpperCase();
+  if (upperTitle.includes('CONSIGNEE')) return 'CONSIGNEE';
+  if (upperTitle.includes('BUYER')) return 'BUYER';
+  if (upperTitle.includes('NOTIFY 1')) return 'NOTIFY 1';
+  if (upperTitle.includes('NOTIFY 2')) return 'NOTIFY 2';
+  if (upperTitle.includes('OVERSEAS')) return 'OVERSEAS AGENT';
+  return 'SHIPPER';
+}
+
+function partyPayload(form, partyType) {
+  const street = form.streetAddress || '';
+  return {
+    name: form.name,
+    partyType,
+    isShipper: partyType === 'SHIPPER',
+    isConsignee: partyType === 'CONSIGNEE',
+    isNotifyParty: partyType.includes('NOTIFY'),
+    isBuyer: partyType === 'BUYER',
+    isOverseasAgent: partyType === 'OVERSEAS AGENT',
+    street: street.substring(0, 70),
+    city: (form.city || '').substring(0, 17),
+    stateProvince: form.state || '',
+    zipPostcode: (form.zipCode || '').substring(0, 9),
+    phoneNumber: form.phoneNumber || ' ',
+    email: form.email || '',
+    countryCode: form.country,
+    currencyCode: 'INR',
+    salesRep: 'ADMIN',
+    status: 'Active',
+    isCustomer: true,
+    branches: [{
+      branch: 'HEAD OFFICE',
+      defaultAddress: true,
+      contactPerson: form.name,
+      address1: street.substring(0, 35),
+      address2: street.length > 35 ? street.substring(35, 70) : '',
+      city: form.city,
+      state: form.state,
+      country: form.country,
+      pinCode: form.zipCode,
+      phone: form.phoneNumber,
+      email: form.email,
+    }],
+  };
+}
 
 const AddPartyModal = ({ isOpen, onClose, title, onSaved, prefillData }) => {
-  const [uiModal, setUiModal] = useState({ isOpen: false, title: '', message: '', type: 'success', isComplete: false });
-  const [savedData, setSavedData] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    accountNumber: '',
-    streetAddress: '',
-    country: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    phoneNumber: '',
-    faxNumber: '',
-      email: ''
-  });
-
+  const [form, setForm] = useState(EMPTY_FORM);
 
   useEffect(() => {
-    if (isOpen && prefillData) {
-        let city = prefillData.city || '';
-        let state = prefillData.state || '';
-        let country = prefillData.country || '';
-        let zip = prefillData.zip || '';
-        let street = prefillData.address || '';
-        
-        const countryMap = {
-            "AFGHANISTAN": "AF", "ALBANIA": "AL", "ALGERIA": "DZ", "ANDORRA": "AD", "ANGOLA": "AO", "ARGENTINA": "AR", "ARMENIA": "AM", "AUSTRALIA": "AU", "AUSTRIA": "AT", "AZERBAIJAN": "AZ",
-            "BAHAMAS": "BS", "BAHRAIN": "BH", "BANGLADESH": "BD", "BARBADOS": "BB", "BELARUS": "BY", "BELGIUM": "BE", "BELIZE": "BZ", "BENIN": "BJ", "BHUTAN": "BT", "BOLIVIA": "BO", "BOSNIA": "BA",
-            "BOTSWANA": "BW", "BRAZIL": "BR", "BRUNEI": "BN", "BULGARIA": "BG", "BURKINA FASO": "BF", "BURUNDI": "BI", "CAMBODIA": "KH", "CAMEROON": "CM", "CANADA": "CA", "CHAD": "TD", "CHILE": "CL",
-            "CHINA": "CN", "COLOMBIA": "CO", "COMOROS": "KM", "CONGO": "CG", "COSTA RICA": "CR", "CROATIA": "HR", "CUBA": "CU", "CYPRUS": "CY", "CZECHIA": "CZ", "CZECH REPUBLIC": "CZ", "DENMARK": "DK",
-            "DJIBOUTI": "DJ", "DOMINICA": "DM", "DOMINICAN REPUBLIC": "DO", "ECUADOR": "EC", "EGYPT": "EG", "EL SALVADOR": "SV", "EQUATORIAL GUINEA": "GQ", "ERITREA": "ER", "ESTONIA": "EE", "ESWATINI": "SZ",
-            "ETHIOPIA": "ET", "FIJI": "FJ", "FINLAND": "FI", "FRANCE": "FR", "GABON": "GA", "GAMBIA": "GM", "GEORGIA": "GE", "GERMANY": "DE", "GHANA": "GH", "GREECE": "GR", "GRENADA": "GD", "GUATEMALA": "GT",
-            "GUINEA": "GN", "GUYANA": "GY", "HAITI": "HT", "HONDURAS": "HN", "HUNGARY": "HU", "ICELAND": "IS", "INDIA": "IN", "INDONESIA": "ID", "IRAN": "IR", "IRAQ": "IQ", "IRELAND": "IE", "ISRAEL": "IL",
-            "ITALY": "IT", "JAMAICA": "JM", "JAPAN": "JP", "JORDAN": "JO", "KAZAKHSTAN": "KZ", "KENYA": "KE", "KIRIBATI": "KI", "KOREA": "KR", "KUWAIT": "KW", "KYRGYZSTAN": "KG", "LAOS": "LA", "LATVIA": "LV",
-            "LEBANON": "LB", "LESOTHO": "LS", "LIBERIA": "LR", "LIBYA": "LY", "LIECHTENSTEIN": "LI", "LITHUANIA": "LT", "LUXEMBOURG": "LU", "MADAGASCAR": "MG", "MALAWI": "MW", "MALAYSIA": "MY", "MALDIVES": "MV",
-            "MALI": "ML", "MALTA": "MT", "MAURITANIA": "MR", "MAURITIUS": "MU", "MEXICO": "MX", "MOLDOVA": "MD", "MONACO": "MC", "MONGOLIA": "MN", "MONTENEGRO": "ME", "MOROCCO": "MA", "MOZAMBIQUE": "MZ",
-            "MYANMAR": "MM", "NAMIBIA": "NA", "NEPAL": "NP", "NETHERLANDS": "NL", "NEW ZEALAND": "NZ", "NICARAGUA": "NI", "NIGER": "NE", "NIGERIA": "NG", "MACEDONIA": "MK", "NORWAY": "NO", "OMAN": "OM",
-            "PAKISTAN": "PK", "PALAU": "PW", "PANAMA": "PA", "PARAGUAY": "PY", "PERU": "PE", "PHILIPPINES": "PH", "POLAND": "PL", "PORTUGAL": "PT", "QATAR": "QA", "ROMANIA": "RO", "RUSSIA": "RU", "RWANDA": "RW",
-            "SAMOA": "WS", "SAN MARINO": "SM", "SAUDI ARABIA": "SA", "SENEGAL": "SN", "SERBIA": "RS", "SEYCHELLES": "SC", "SIERRA LEONE": "SL", "SINGAPORE": "SG", "SLOVAKIA": "SK", "SLOVENIA": "SI",
-            "SOMALIA": "SO", "SOUTH AFRICA": "ZA", "SPAIN": "ES", "SRI LANKA": "LK", "SUDAN": "SD", "SURINAME": "SR", "SWEDEN": "SE", "SWITZERLAND": "CH", "SYRIA": "SY", "TAIWAN": "TW", "TAJIKISTAN": "TJ",
-            "TANZANIA": "TZ", "THAILAND": "TH", "TOGO": "TG", "TONGA": "TO", "TRINIDAD": "TT", "TUNISIA": "TN", "TURKEY": "TR", "TURKMENISTAN": "TM", "UGANDA": "UG", "UKRAINE": "UA", "UAE": "AE", "UNITED ARAB EMIRATES": "AE",
-            "UK": "GB", "UNITED KINGDOM": "GB", "USA": "US", "UNITED STATES": "US", "URUGUAY": "UY", "UZBEKISTAN": "UZ", "VANUATU": "VU", "VENEZUELA": "VE", "VIETNAM": "VN", "YEMEN": "YE", "ZAMBIA": "ZM", "ZIMBABWE": "ZW",
-            "UNITED STATES OF AMERICA": "US"
-        };
-        if (country && country.length > 2) {
-            let upperCountry = country.toUpperCase().trim();
-            if (countryMap[upperCountry]) {
-                country = countryMap[upperCountry];
-            }
-        }
-
-        // Fallback: If AI only returned a raw address block, try to split it
-        if (street && !city && !state && street.includes(',')) {
-            const parts = street.split(',').map(s => s.trim());
-            // Usually the last part is Country, second to last is State/Zip, third to last is City
-            if (parts.length >= 3) {
-                 const possibleCountry = parts.pop();
-                 if (possibleCountry.length > 2) country = possibleCountry; // INDIA, etc
-                 const possibleStateZip = parts.pop();
-                 
-                 // extract zip from state if combined (e.g. "UTTARAKHAND 247667")
-                 const zipMatch = possibleStateZip.match(/(\d{5,6})/);
-                 if (zipMatch) {
-                     zip = zipMatch[1];
-                     state = possibleStateZip.replace(zip, '').trim();
-                 } else {
-                     state = possibleStateZip;
-                 }
-                 
-                 city = parts.pop();
-                 street = parts.join(', ');
-            }
-        }
-        
-        setFormData(prev => ({
-            ...prev,
-            name: prefillData.name || '',
-            streetAddress: street,
-            city: city,
-            state: state,
-            country: country,
-            zipCode: zip,
-            phoneNumber: prefillData.phone || ''
-        }));
-    } else if (isOpen) {
-        // Reset if open but no prefill
-        handleClear();
-    }
+    if (!isOpen) return;
+    setForm((current) => (prefillData ? { ...current, ...formFromPrefill(prefillData) } : EMPTY_FORM));
   }, [isOpen, prefillData]);
 
-  const customAlert = (msg, isComplete = false) => {
-    let title = 'INFORMATION';
-    let type = 'success';
-    if(msg.toLowerCase().includes('error') || msg.toLowerCase().includes('failed') || msg.toLowerCase().includes('mandatory')) {
-        title = 'ERROR';
-        type = 'error';
-    } else if (msg.toLowerCase().includes('success')) {
-        title = 'SUCCESS';
-        type = 'success';
-    }
-    setUiModal({ isOpen: true, title, message: String(msg ?? ''), type, isComplete });
-    if (!isComplete) {
-        setTimeout(() => setUiModal({ isOpen: false, title: '', message: '', type: 'success', isComplete: false }), 4000);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value.toUpperCase() });
-  };
-
-  const handleClear = () => {
-    setFormData({
-      name: '', accountNumber: '', streetAddress: '', country: '', city: '', state: '', zipCode: '', phoneNumber: '', faxNumber: '',
-      email: ''
-    });
-  };
+  const handleChange = (event) => setForm({ ...form, [event.target.name]: event.target.value.toUpperCase() });
+  const handleClear = () => setForm(EMPTY_FORM);
 
   const handleAdd = async () => {
-    if (!formData.name || !formData.streetAddress || !formData.country || !formData.city) {
-      customAlert("Name, Street Address, Country, and City are mandatory fields.");
+    if (!form.name || !form.streetAddress || !form.country || !form.city) {
+      toast.error('Name, Street Address, Country, and City are mandatory fields.');
       return;
     }
-
-    // Determine party type from title (e.g., 'Add Shipper Details' -> 'SHIPPER')
-    let pType = 'SHIPPER';
-    const t = title.toUpperCase();
-    if (t.includes('CONSIGNEE')) pType = 'CONSIGNEE';
-    else if (t.includes('BUYER')) pType = 'BUYER';
-    else if (t.includes('NOTIFY 1')) pType = 'NOTIFY 1';
-    else if (t.includes('NOTIFY 2')) pType = 'NOTIFY 2';
-    else if (t.includes('OVERSEAS')) pType = 'OVERSEAS AGENT';
-
-    // Map to the Unified Party Master JSON structure
-    const payload = {
-      name: formData.name,
-      partyType: pType,
-        isShipper: pType === 'SHIPPER',
-        isConsignee: pType === 'CONSIGNEE',
-        isNotifyParty: pType.includes('NOTIFY'),
-        isBuyer: pType === 'BUYER',
-        isOverseasAgent: pType === 'OVERSEAS AGENT',
-      street: (formData.streetAddress || '').substring(0, 70),
-      city: (formData.city || '').substring(0, 17),
-      stateProvince: formData.state || '',
-      zipPostcode: (formData.zipCode || '').substring(0, 9),
-      phoneNumber: formData.phoneNumber || ' ',
-        email: formData.email || '',
-      countryCode: formData.country,
-      currencyCode: 'INR',
-      salesRep: 'ADMIN',
-      status: 'Active',
-      isCustomer: true,
-      branches: [
-        {
-          branch: 'HEAD OFFICE',
-          defaultAddress: true,
-          contactPerson: formData.name,
-          address1: (formData.streetAddress || '').substring(0, 35),
-            address2: (formData.streetAddress || '').length > 35 ? formData.streetAddress.substring(35, 70) : '',
-          city: formData.city,
-          state: formData.state,
-          country: formData.country,
-          pinCode: formData.zipCode,
-          phone: formData.phoneNumber,
-            email: formData.email
-        }
-      ]
-    };
-
     try {
-      const res = await fetch('/api/masters/parties', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok) {
-        customAlert("Party saved successfully to the Unified Party Master!");
-        handleClear();
-        if (onSaved) onSaved(data);
-        onClose();
-      } else {
-        customAlert("Validation Error: " + (data.message || data.error || "Unknown error"));
-      }
-    } catch (err) {
-      customAlert("Network Error");
+      const saved = await freightApi.saveParty(partyPayload(form, partyTypeOf(title)));
+      toast.success('Party saved successfully to the Unified Party Master!');
+      handleClear();
+      onSaved?.(saved);
+      onClose();
+    } catch (error) {
+      const data = error.response?.data;
+      toast.error(error.response ? 'Validation Error: ' + (data?.message || data?.error || 'Unknown error') : 'Network Error');
     }
   };
 
+  const footer = (
+    <>
+      <Button onClick={handleClear}>CLEAR</Button>
+      <Button variant="success" onClick={handleAdd}><Save /> SAVE TO MASTER</Button>
+    </>
+  );
+
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 20000000, backdropFilter: 'blur(2px)' }}>
-      <div className="glass-panel" style={{ position: 'relative', width: '600px', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, border: '1px solid var(--border-highlight)', boxShadow: 'var(--shadow-lg)' }}>
-        
-        {/* Header */}
-        <div style={{ backgroundColor: 'var(--primary-color)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontWeight: '600', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
+    <Modal open={isOpen} onClose={onClose} title={title} width={600} closeOnOutside={false} footer={footer}>
+      {SECTIONS.map((section) => (
+        <Section key={section.title} title={section.title}>
+          <div className={cn('tw:grid tw:grid-cols-1 tw:items-end tw:gap-3', section.gridClassName)}>
+            {section.fields.map((field) => (
+              <Field key={field.name} label={field.label} required={field.required} layout="col" className={field.className}>
+                {field.lines
+                  ? <Textarea name={field.name} value={form[field.name]} onChange={handleChange} maxLength={field.maxLength} rows={field.lines} className="tw:resize-none" />
+                  : <Input name={field.name} type={field.type} value={form[field.name]} onChange={handleChange} maxLength={field.maxLength} placeholder={field.placeholder} />}
+              </Field>
+            ))}
+            {section.note && (
+              <div className="tw:rounded-sm tw:border tw:border-border tw:bg-page tw:px-2 tw:py-1.5 tw:text-[10px] tw:text-head tw:italic tw:normal-case tw:sm:col-span-2">{section.note}</div>
+            )}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', padding: '4px', fontSize: '14px' }}>&#10005;</button>
-        </div>
-
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: 'var(--bg-app, var(--bg-app, #f8fafc))' }}>
-          
-          {/* Name Details */}
-          <div style={{ backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))', border: '1px solid var(--border-color)', padding: '12px', borderRadius: '4px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ color: 'var(--primary-color)', fontWeight: '700', fontSize: '11px', marginBottom: '10px', textTransform: 'uppercase' }}>Name Details</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Name <span style={{ color: '#ef4444' }}>*</span></label>
-                <input name="name" value={formData.name} onChange={handleChange} type="text" className="input-field" maxLength={35} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Account Number</label>
-                <input name="accountNumber" value={formData.accountNumber} onChange={handleChange} type="text" className="input-field" maxLength={15} style={{ width: '100%' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Address Details */}
-          <div style={{ backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))', border: '1px solid var(--border-color)', padding: '12px', borderRadius: '4px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ color: 'var(--primary-color)', fontWeight: '700', fontSize: '11px', marginBottom: '10px', textTransform: 'uppercase' }}>Address Details</div>
-            
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Street Address <span style={{ color: '#ef4444' }}>*</span></label>
-              <textarea name="streetAddress" value={formData.streetAddress} onChange={handleChange} className="input-field" maxLength={70} rows={2} style={{ width: '100%', resize: 'none' }} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1.5fr', gap: '12px', marginBottom: '12px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Country <span style={{ color: '#ef4444' }}>*</span></label>
-                <input name="country" value={formData.country} onChange={handleChange} type="text" className="input-field" maxLength={2} style={{ width: '100%' }} placeholder="e.g. IN" />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>City <span style={{ color: '#ef4444' }}>*</span></label>
-                <input name="city" value={formData.city} onChange={handleChange} type="text" className="input-field" maxLength={17} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>State</label>
-                <input name="state" value={formData.state} onChange={handleChange} type="text" className="input-field" maxLength={9} style={{ width: '100%' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', alignItems: 'center' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Zip / Postal</label>
-                <input name="zipCode" value={formData.zipCode} onChange={handleChange} type="text" className="input-field" maxLength={9} style={{ width: '100%' }} />
-              </div>
-              <div style={{ fontSize: '10px', color: 'var(--primary-text, #0369a1)', fontStyle: 'italic', background: '#e0f2fe', padding: '6px 8px', borderRadius: '4px', border: '1px solid #000000' }}>
-                Note: State & Zip are mandatory for local Customs in several regions.
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Details */}
-          <div style={{ backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))', border: '1px solid var(--border-color)', padding: '12px', borderRadius: '4px', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ color: 'var(--primary-color)', fontWeight: '700', fontSize: '11px', marginBottom: '10px', textTransform: 'uppercase' }}>Contact Details</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Phone Number</label>
-                <input name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} type="text" className="input-field" maxLength={25} style={{ width: '100%' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Fax Number</label>
-                <input name="faxNumber" value={formData.faxNumber} onChange={handleChange} type="text" className="input-field" maxLength={25} style={{ width: '100%' }} />
-              </div>
-                <div>
-                  <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Email</label>
-                  <input name="email" value={formData.email} onChange={handleChange} type="email" className="input-field" maxLength={100} style={{ width: '100%' }} />
-                </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Actions */}
-        <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', gap: '8px', backgroundColor: 'var(--bg-panel, var(--bg-panel, #ffffff))', borderTop: '1px solid var(--border-color)' }}>
-          <button onClick={handleClear} style={{ padding: '6px 16px', backgroundColor: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>CLEAR</button>
-          <button onClick={handleAdd} style={{ padding: '6px 24px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', boxShadow: '0 1px 2px rgba(16,185,129,0.2)' }}>SAVE TO MASTER</button>
-        </div>
-        {uiModal.isOpen && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '1.5rem', width: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>{uiModal.type === 'error' ? '?' : '?'}</div>
-              <h3 style={{ color: uiModal.type === 'error' ? '#ef4444' : '#10b981', margin: '0 0 1rem 0' }}>{uiModal.title}</h3>
-              <p style={{ margin: '0 0 1.5rem 0', color: '#334155', fontWeight: 600, fontSize: '12px' }}>{uiModal.message}</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+        </Section>
+      ))}
+    </Modal>
   );
 };
 
 export default AddPartyModal;
-
-

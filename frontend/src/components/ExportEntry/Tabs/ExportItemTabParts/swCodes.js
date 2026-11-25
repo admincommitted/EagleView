@@ -1,6 +1,5 @@
-// Code suggestions for the Shipping Bill SW Info and SW Statement windows (19-Nov-2026), from the ICES 1.5 CHA-Customs
-// Exports message format 3.7 (06-Nov-2026) and the ICEGATE advisories of 2026. Only suggestions: any other code can still
-// be typed (the directories of ICEGATE are longer).
+// Code suggestions for the Shipping Bill SW Info and SW Statement windows, from the ICES 1.5 CHA-Customs Exports message
+// format 3.7 and the ICEGATE advisories. Only suggestions: any other code can still be typed (ICEGATE's lists are longer).
 
 export const SB_INFO_TYPES = [
   ['ORC', 'Origin criteria'], ['CHR', 'Item characteristics'], ['DTY', 'Duty / cess'], ['DIR', 'Directory'], ['OTH', 'Other'],
@@ -16,8 +15,7 @@ export const SB_INFO_QUALIFIERS = {
   OTH: [['DTA', 'DTA shipping bill - SB level, invoice 1 / item 1'], ['DTAG', 'GSTIN of the DTA unit (supplier)'], ['SEZG', 'GSTIN of the SEZ unit (recipient)']],
 };
 
-// NCPTI: the code of every SB accepted so far (iCAFFE files of Jun-Oct 2026). The NZ FTA advisory and format 3.7 print it
-// as "NCTPI" - see claude/check-2026-11-19-icegate-formats-vs-eagleview.md.
+// NCPTI is the code of every SB accepted so far; the NZ FTA advisory and format 3.7 print it as "NCTPI".
 export const SB_INFO_CODES = {
   'ORC/EPT': [['NCPTI', 'Not under any trade agreement'], ['FTANZD', 'India-New Zealand FTA (from 20-Oct-2026)']],
   'CHR/TEX': [['FR001', 'Flame retardant fabric'], ['FR009', 'Other than flame retardant fabric']],

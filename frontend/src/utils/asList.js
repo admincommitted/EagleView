@@ -1,11 +1,10 @@
-// A list field of a saved job can come back as JSON text ('[]', '[{...}]') - 12-Nov-2026. Opening an item of a
-// reopened job crashed the whole app ("old.find is not a function"), so did the Supporting Docs window and
-// Duplicate Item. Every screen that walks such a list takes it through asList.
+// A list field of a saved job can come back as JSON text ('[]', '[{...}]'); every screen that walks such a list
+// takes it through asList.
 export const asList = (v) => {
   if (Array.isArray(v)) return v;
   if (typeof v === 'string') {
     const s = v.trim();
-    if (s.startsWith('[')) { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    if (s.startsWith('[')) { try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch { return []; } }
   }
   return [];
 };

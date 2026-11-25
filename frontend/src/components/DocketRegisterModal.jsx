@@ -1,62 +1,108 @@
-// 10-Nov-2026: "Register Shipment" from the job list (click UN-REGISTERED in the Docket No column).
-// Same as the button on the job screen (DocketFromJob): choose / change the branch, OK -> docket no made and the
-// shipment entered in Shipment Registration (POST /api/shipments/from-job). onDone(docket) updates the list row.
-import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Copy, ExternalLink, X } from 'lucide-react';
+// "Register Shipment" from the job list (click UN-REGISTERED in the Docket No column), the same as the button on the
+// job screen (DocketFromJob): choose the branch, OK -> the docket no is made and the shipment entered in Shipment
+// Registration. onDone(docket) updates the list row.
+import { useEffect, useState } from 'react';
+import { CheckCircle2, Copy, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { errorMessage } from '@/services/axiosInstance';
+import { Button, Field, Modal, SelectBox } from '@/components/ui';
+import { sharedWidgetsApi } from './common/sharedWidgetsApi';
 
-export const docketPath = (division, docketNo) => '/freight/shipment/' + String(division || 'AI').toLowerCase() + '?docket=' + encodeURIComponent(docketNo);
+export const docketPath = (division, docketNo) => `/freight/shipment/${String(division || 'AI').toLowerCase()}?docket=${encodeURIComponent(docketNo)}`;
+
+const branchOptions = (branches, branch) => [
+  ...(branch && !branches.some((option) => option.code === branch) ? [{ value: branch, label: branch }] : []),
+  ...branches.map((option) => ({ value: option.code, label: `${option.code} - ${option.name}` })),
+];
+
+function DocketResult({ result, onOpen, onClose }) {
+  const { docket } = result;
+  const copyDocketNo = async () => {
+    try {
+      await navigator.clipboard.writeText(docket.docketNo);
+    } catch {
+      // the browser does not allow the copy
+    }
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={result.failed ? 'Docket not generated' : 'Docket generated'}
+      width={420}
+      footer={(
+        <>
+          {docket && <Button onClick={copyDocketNo}><Copy /> Copy</Button>}
+          {docket && onOpen && <Button variant="default" onClick={() => onOpen(docket)}><ExternalLink /> Open Docket</Button>}
+          <Button variant="secondary" onClick={onClose}>OK</Button>
+        </>
+      )}
+    >
+      <div className="tw:flex tw:flex-col tw:items-center tw:gap-2 tw:text-center tw:normal-case">
+        {docket && <CheckCircle2 className="tw:size-9 tw:text-success" />}
+        <p className={cn('tw:m-0 tw:text-[13px] tw:font-bold', result.failed ? 'tw:text-destructive' : 'tw:text-foreground')}>{result.message}</p>
+        {docket && <p className="tw:m-0 tw:text-[22px] tw:font-extrabold tw:tracking-wide tw:text-primary">{docket.docketNo}</p>}
+      </div>
+    </Modal>
+  );
+}
 
 export default function DocketRegisterModal({ side = 'Import', job, onClose, onDone, onOpen }) {
-  const [branches, setBranches] = useState([]); const [branch, setBranch] = useState(job.branchCode || '');
-  const [busy, setBusy] = useState(false); const [box, setBox] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [branch, setBranch] = useState(job.branchCode || '');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
   useEffect(() => {
-    fetch('/api/shipments/meta').then(r => r.json()).then(m => { setBranches(m.branches || []); if (!job.branchCode && m.branches && m.branches[0]) setBranch(m.branches[0].code); }).catch(() => null);
-  }, []); // eslint-disable-line
-  const make = async () => {
+    const loadBranches = async () => {
+      try {
+        const meta = await sharedWidgetsApi.shipmentMeta();
+        setBranches(meta.branches || []);
+        if (!job.branchCode && meta.branches?.[0]) setBranch(meta.branches[0].code);
+      } catch {
+        // the list stays empty; the job's own branch is still offered
+      }
+    };
+    loadBranches();
+  }, [job.branchCode]);
+
+  const register = async () => {
     setBusy(true);
     try {
-      const r = await fetch('/api/shipments/from-job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ side, jobId: job.id, jobNo: job.jobNo, branchCode: branch }) });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      setBox({ ok: true, t: j.message, d: j }); if (onDone) onDone(j);
-    } catch (e) { setBox({ bad: true, t: 'Docket not generated: ' + e.message }); }
+      const docket = await sharedWidgetsApi.docketFromJob({ side, jobId: job.id, jobNo: job.jobNo, branchCode: branch });
+      setResult({ message: docket.message, docket });
+      onDone?.(docket);
+    } catch (error) {
+      setResult({ failed: true, message: `Docket not generated: ${errorMessage(error)}` });
+    }
     setBusy(false);
   };
-  const air = /^A/i.test(String(job.shipmentMode || job.modeOfTransport || ''));
-  const btn = { padding: '6px 14px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#f8fafc', cursor: 'pointer', fontSize: 12 };
+
+  if (result) return <DocketResult result={result} onOpen={onOpen} onClose={onClose} />;
+
+  const transport = /^A/i.test(String(job.shipmentMode || job.modeOfTransport || '')) ? 'Air' : 'Sea';
   return (
-    <div onClick={() => !busy && onClose()} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-label="Register shipment" style={{ background: '#fff', borderRadius: 10, width: 420, maxWidth: '100%', padding: '16px 20px', boxShadow: '0 20px 50px rgba(0,0,0,.25)', textAlign: box ? 'center' : 'left' }}>
-        {!box ? (
-          <>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Register Shipment</div>
-            <div style={{ fontSize: 12, color: '#475569', marginBottom: 10 }}>
-              Make the freight docket of {side === 'Export' ? 'shipping bill' : 'BE'} job <b>{job.jobNo}</b>{job.importer ? <> ({job.importer})</> : null} - Shipment Registration, {side} {air ? 'Air' : 'Sea'}.
-            </div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Branch</label>
-            <select value={branch} onChange={e => setBranch(e.target.value)} style={{ width: '100%', height: 30, border: '1px solid #94a3b8', borderRadius: 5, padding: '0 6px', margin: '3px 0 14px' }}>
-              {!branches.some(b => b.code === branch) && branch && <option value={branch}>{branch}</option>}
-              {branches.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}
-            </select>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={onClose} disabled={busy} style={btn}>Cancel</button>
-              <button type="button" onClick={make} disabled={busy} style={{ ...btn, border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 700, padding: '6px 18px' }}>{busy ? 'Registering...' : 'Ok'}</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ cursor: 'pointer', color: '#64748b' }} onClick={onClose}><X size={16} /></span></div>
-            {box.ok && <CheckCircle2 size={38} color="#16a34a" />}
-            <div style={{ fontSize: 13, fontWeight: 700, color: box.bad ? '#b91c1c' : '#0f172a', margin: '8px 0' }}>{box.t}</div>
-            {box.d && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '0.5px', color: '#1d4ed8', margin: '6px 0 14px' }}>{box.d.docketNo}</div>}
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {box.d && <button type="button" onClick={() => { try { navigator.clipboard.writeText(box.d.docketNo); } catch (e) { /* ignore */ } }} style={{ ...btn, background: '#fff', display: 'inline-flex', gap: 5, alignItems: 'center' }}><Copy size={13} /> Copy</button>}
-              {box.d && onOpen && <button type="button" onClick={() => onOpen(box.d)} style={{ ...btn, border: 'none', background: '#1d4ed8', color: '#fff', display: 'inline-flex', gap: 5, alignItems: 'center' }}><ExternalLink size={13} /> Open Docket</button>}
-              <button type="button" onClick={onClose} style={{ ...btn, fontWeight: 700 }}>OK</button>
-            </div>
-          </>
-        )}
+    <Modal
+      open
+      onClose={() => { if (!busy) onClose(); }}
+      title="Register Shipment"
+      width={420}
+      footer={(
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="default" onClick={register} disabled={busy}>{busy ? 'Registering...' : 'Ok'}</Button>
+        </>
+      )}
+    >
+      <div className="tw:flex tw:flex-col tw:gap-3 tw:normal-case">
+        <p className="tw:m-0 tw:text-entry tw:text-muted-foreground">
+          Make the freight docket of {side === 'Export' ? 'shipping bill' : 'BE'} job <b>{job.jobNo}</b>
+          {job.importer ? ` (${job.importer})` : ''} - Shipment Registration, {side} {transport}.
+        </p>
+        <Field label="Branch" layout="col">
+          <SelectBox options={branchOptions(branches, branch)} value={branch} onValueChange={setBranch} className="tw:w-full" />
+        </Field>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,83 +1,32 @@
-import React from 'react';
-import { X, BookOpen } from 'lucide-react';
+import { BookOpen, X } from 'lucide-react';
+import { Button } from '@/components/ui';
 import { helpDocs } from '../utils/helpContent';
 
 const HelpViewer = ({ isOpen, onClose, topic }) => {
   if (!isOpen) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: '60px',
-        right: 0,
-        width: '420px',
-        height: 'calc(100vh - 60px)',
-        backgroundColor: '#f4ecd8', // Vintage paper color
-        boxShadow: '-10px 0 25px rgba(0, 0, 0, 0.15)',
-        zIndex: 999999,
-        display: 'flex',
-        flexDirection: 'column',
-        transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
-        borderLeft: '4px double #4a3b32', // Newspaper margin
-        fontFamily: '"Georgia", "Times New Roman", serif',
-        textTransform: 'none' // Override global uppercase
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          padding: '24px 24px 16px',
-          borderBottom: '2px solid #4a3b32',
-          margin: '0 20px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <BookOpen size={28} color="#4a3b32" />
-          <h2 style={{ margin: 0, fontSize: '26px', color: '#2c241b', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            System Guide
-          </h2>
+    <aside className="tw:fixed tw:top-[60px] tw:right-0 tw:z-[999999] tw:flex tw:h-[calc(100vh-60px)] tw:w-full tw:flex-col tw:border-l-4 tw:border-double tw:border-head tw:bg-background tw:font-serif tw:normal-case tw:shadow-[-10px_0_25px_rgba(0,0,0,0.15)] tw:md:w-[420px]">
+      <div className="tw:mx-5 tw:flex tw:items-start tw:justify-between tw:border-b-2 tw:border-head tw:px-6 tw:pt-6 tw:pb-4">
+        <div className="tw:flex tw:items-center tw:gap-3">
+          <BookOpen className="tw:size-7 tw:text-head" />
+          <h2 className="tw:m-0 tw:text-[26px] tw:font-bold tw:tracking-wide tw:text-foreground tw:uppercase">System Guide</h2>
         </div>
-        <button
+        <Button
+          variant="default"
+          size="icon"
+          aria-label="Close"
+          className="tw:size-9 tw:rounded-full tw:border-head tw:bg-head tw:transition-transform tw:hover:scale-110 tw:hover:bg-head"
           onClick={onClose}
-          style={{
-            background: '#4a3b32',
-            border: 'none',
-            borderRadius: '50%',
-            cursor: 'pointer',
-            padding: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#f4ecd8',
-            boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-            transition: 'transform 0.2s',
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         >
-          <X size={20} strokeWidth={3} />
-        </button>
+          <X className="tw:size-5" strokeWidth={3} />
+        </Button>
       </div>
       <div
-        className="newspaper-content"
-        style={{
-          padding: '24px 20px',
-          overflowY: 'auto',
-          flex: 1,
-          color: '#2c241b',
-          lineHeight: '1.8',
-          fontSize: '15px',
-          textAlign: 'justify'
-        }}
-        dangerouslySetInnerHTML={{
-          __html: helpDocs[topic] || '<p>No help available for this section.</p>',
-        }}
+        className="newspaper-content tw:flex-1 tw:overflow-y-auto tw:px-5 tw:py-6 tw:text-justify tw:text-[15px] tw:leading-[1.8] tw:text-foreground"
+        dangerouslySetInnerHTML={{ __html: helpDocs[topic] || '<p>No help available for this section.</p>' }}
       />
-    </div>
+    </aside>
   );
 };
 

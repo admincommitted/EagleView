@@ -1,352 +1,485 @@
-// Printable reports of Export > Get Report (29-Oct-2026): same look as Import > Report (title, job box, bordered tables).
-// Each report reads the job on screen (header, invoices, items, scheme rows); nothing is fetched except masters passed in.
-import React from 'react';
-import { claimsRodtep } from '../../Schemes/RodtepTab';
-import { num as n, itemFobInr, rodtepAmount, dbkAmount, CAP_NEEDS_QTY, rodtepRowOf, rodtepRateOf, rodtepQtyOf, itemTotalPmv } from '../../Schemes/schemeUtils';
+// Printable reports of Export > Get Report, in the paper look of Import > Report (title, job box, ruled tables). Each
+// report reads the job on screen (header, invoices, items, scheme rows); nothing is fetched except masters passed in.
+import { asList } from '../../../../../utils/asList';
 import { rateText } from '../../../../../utils/cbicExchange';
+import { claimsRodtep, num, itemFobInr, rodtepAmount, dbkAmount, CAP_NEEDS_QTY, rodtepRowOf, rodtepRateOf, rodtepQtyOf, itemTotalPmv } from '../../Schemes/schemeUtils';
+import { cellSpecOf } from '../../../../JobEntry/Tabs/ReportTabParts/sections/reportFormat';
+import {
+  ReportBody, ReportCell, ReportFootnote, ReportHeadCell, ReportLabelCell, ReportPage, ReportRow, ReportTable, ReportTableHeader, ReportTitle,
+} from '../../../../JobEntry/Tabs/ReportTabParts/reportTable';
 
-const cell = { border: '1px solid #475569', padding: '3px 5px', verticalAlign: 'top' };
-const head = { ...cell, background: '#e2e8f0', fontWeight: 700, textAlign: 'left' };
-const right = { ...cell, textAlign: 'right' };
-const fmt = (v, d = 2) => n(v).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
-const dmy = (v) => { const m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(String(v || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v || ''); };
-const arr = (v) => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } } return Array.isArray(v) ? v : []; };
-const invOf = (it) => String(it.invSr || it.invSrNo || 1);
-const itmOf = (it, i) => String(it.itemSr || it.itemSrNo || i + 1);
-const invNo = (inv) => inv.no || inv.invoiceNo || '';
-const Empty = ({ cols, text }) => <tr><td colSpan={cols} style={{ ...cell, textAlign: 'center', color: '#64748b', padding: '10px' }}>{text}</td></tr>;
+const formatAmount = (value, decimals = 2) => num(value).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+const toSlashDate = (value) => {
+  const match = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(String(value || ''));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(value || '');
+};
+const invoiceSrOf = (item) => String(item.invSr || item.invSrNo || 1);
+const itemSrOf = (item, index) => String(item.itemSr || item.itemSrNo || index + 1);
+const itemTag = (item, index) => `${invoiceSrOf(item)}/${itemSrOf(item, index)}`;
+const invoiceNoOf = (invoice) => invoice.no || invoice.invoiceNo || '';
+const invoiceValueOf = (invoice) => invoice.value || invoice.invoiceValue;
+const invoiceDateOf = (invoice) => toSlashDate(invoice.date || invoice.invoiceDate);
+const contractTypeOf = (invoice) => invoice.contractType || invoice.natureOfContract || '';
+const schemeCodeText = (item) => String(item.scheme || '').split(/[\s-]/)[0];
+const containersOf = (job, containers) => (Array.isArray(job.Containers) && job.Containers.length ? job.Containers : (containers || []));
+const itemsOfInvoice = (items, invoiceIndex) => (items || []).map((item, index) => ({ item, index })).filter(({ item }) => invoiceSrOf(item) === String(invoiceIndex + 1));
+const right = (value, extra = {}) => ({ value, align: 'right', ...extra });
+const BOLD = 'tw:font-bold';
+
+export function EmptyRow({ colSpan, text }) {
+  return (
+    <ReportRow>
+      <ReportCell colSpan={colSpan} align="center" className="tw:py-[10px] tw:text-[#64748b]">{text}</ReportCell>
+    </ReportRow>
+  );
+}
+
+function GridCells({ cells }) {
+  return cells.map((cell, index) => {
+    const spec = cellSpecOf(cell);
+    return <ReportCell key={index} align={spec.align} colSpan={spec.colSpan} title={spec.title} className={spec.className}>{spec.value}</ReportCell>;
+  });
+}
+
+// headings, rows of cells (value or { value, align, colSpan, title, className }), an empty line and total lines
+function ExportGrid({ headings, rows, emptyText, totals = [], rowClassName, className }) {
+  return (
+    <ReportTable className={className}>
+      <ReportTableHeader>
+        <ReportRow>{headings.map((heading) => <ReportHeadCell key={heading} align="left">{heading}</ReportHeadCell>)}</ReportRow>
+      </ReportTableHeader>
+      <ReportBody>
+        {rows.map((cells, index) => <ReportRow key={index} className={rowClassName}><GridCells cells={cells} /></ReportRow>)}
+        {rows.length === 0 && <EmptyRow colSpan={headings.length} text={emptyText} />}
+        {totals.map((cells, index) => <ReportRow key={index} className={BOLD}><GridCells cells={cells} /></ReportRow>)}
+      </ReportBody>
+    </ReportTable>
+  );
+}
+
+// label / value pairs, two to a line
+function FactTable({ rows, labelWidth = 'tw:w-[15%]', valueWidth = 'tw:w-[35%]', className }) {
+  return (
+    <ReportTable className={className}>
+      <ReportBody>
+        {rows.map(([leftLabel, leftValue, rightLabel, rightValue], index) => (
+          <ReportRow key={index}>
+            <ReportLabelCell className={labelWidth}>{leftLabel}</ReportLabelCell>
+            <ReportCell className={valueWidth}>{leftValue}</ReportCell>
+            <ReportLabelCell className={labelWidth}>{rightLabel}</ReportLabelCell>
+            <ReportCell className={valueWidth}>{rightValue}</ReportCell>
+          </ReportRow>
+        ))}
+      </ReportBody>
+    </ReportTable>
+  );
+}
+
+const BlockTitle = ({ children }) => <div className="tw:mt-[6px] tw:mb-[3px] tw:font-bold">{children}</div>;
 
 export function ExportReportHeader({ title, d }) {
-  const j = d || {};
-  const rows = [
-    ['Job No', j.jobNo && j.jobNo !== 'DRAFT' ? j.jobNo : 'DRAFT', 'Job Date', dmy(j.jobDate)],
-    ['Exporter', j.shipperName || j.exporterName || '', 'IEC', j.shipperIec || j.ieCode || ''],
-    ['S/B No', j.sbNo || j.sbNumber || '', 'S/B Date', dmy(j.sbDate || j.autoField_26)],
-    ['MAWB No', j.mawbNo || j.autoField_22 || '', 'HAWB No', j.hawbNo || j.autoField_24 || ''],
-    ['Port of Loading', j.loadingPortCode || j.customsPortCode || j.customsPortName || '', 'Destination', [j.destPortName || j.destPortCode, j.destCountryName || j.destCountryCode].filter(Boolean).join(', ')],
-  ];
+  const job = d || {};
   return (
-    <div style={{ marginBottom: '8px' }}>
-      <div style={{ textAlign: 'center', fontWeight: 700, fontSize: '12pt', marginBottom: '6px', textTransform: 'uppercase' }}>{title}</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody>
-        {rows.map((r, i) => <tr key={i}>
-          <td style={{ ...cell, fontWeight: 700, width: '15%', background: '#f8fafc' }}>{r[0]}</td><td style={{ ...cell, width: '35%' }}>{r[1]}</td>
-          <td style={{ ...cell, fontWeight: 700, width: '15%', background: '#f8fafc' }}>{r[2]}</td><td style={{ ...cell, width: '35%' }}>{r[3]}</td>
-        </tr>)}
-      </tbody></table>
+    <div className="tw:mb-[8px]">
+      <ReportTitle className="tw:mb-[6px] tw:uppercase">{title}</ReportTitle>
+      <FactTable
+        rows={[
+          ['Job No', job.jobNo && job.jobNo !== 'DRAFT' ? job.jobNo : 'DRAFT', 'Job Date', toSlashDate(job.jobDate)],
+          ['Exporter', job.shipperName || job.exporterName || '', 'IEC', job.shipperIec || job.ieCode || ''],
+          ['S/B No', job.sbNo || job.sbNumber || '', 'S/B Date', toSlashDate(job.sbDate || job.autoField_26)],
+          ['MAWB No', job.mawbNo || job.autoField_22 || '', 'HAWB No', job.hawbNo || job.autoField_24 || ''],
+          ['Port of Loading', job.loadingPortCode || job.customsPortCode || job.customsPortName || '', 'Destination',
+            [job.destPortName || job.destPortCode, job.destCountryName || job.destCountryCode].filter(Boolean).join(', ')],
+        ]}
+      />
     </div>
   );
 }
-const Wrap = ({ children }) => <div style={{ fontFamily: 'Helvetica, Arial, sans-serif', fontSize: '9pt', color: '#000' }}>{children}</div>;
-const Note = ({ children }) => <div style={{ marginTop: '6px', fontSize: '8pt', color: '#475569' }}>{children}</div>;
+
+function ReportSheet({ title, d, children }) {
+  return (
+    <ReportPage>
+      <ExportReportHeader title={title} d={d} />
+      {children}
+    </ReportPage>
+  );
+}
+
+const ITEM_GRID_HEADINGS = (currency) => ['Item', 'Scheme', 'RITC', 'Description', 'Qty', 'UQC', 'Rate', `Value (${currency || 'FC'})`];
+const itemGridCells = (item, index) => [
+  itemSrOf(item, index), schemeCodeText(item), item.ritc, item.desc || item.description,
+  right(formatAmount(item.qty, 3)), item.unit || item.uqc, right(formatAmount(item.rate || item.price, 4)), right(formatAmount(item.totalFc || item.total)),
+];
 
 // Invoice-wise checklist: each invoice with its items
 export function InvoiceWiseReport({ d, items }) {
-  const invs = d?.invoices || [];
+  const invoices = d?.invoices || [];
   return (
-    <Wrap><ExportReportHeader title="Invoice Wise Checklist" d={d} />
-      {invs.length === 0 && <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody><Empty cols={1} text="No invoice in this job" /></tbody></table>}
-      {invs.map((inv, k) => {
-        const rows = (items || []).map((it, i) => ({ it, i })).filter(({ it }) => invOf(it) === String(k + 1));
-        const tot = rows.reduce((a, { it }) => a + n(it.totalFc || it.total), 0);
+    <ReportSheet title="Invoice Wise Checklist" d={d}>
+      {invoices.length === 0 && <ReportTable><ReportBody><EmptyRow colSpan={1} text="No invoice in this job" /></ReportBody></ReportTable>}
+      {invoices.map((invoice, invoiceIndex) => {
+        const rows = itemsOfInvoice(items, invoiceIndex);
+        const total = rows.reduce((sum, { item }) => sum + num(item.totalFc || item.total), 0);
+        const totalFob = rows.reduce((sum, { item }) => sum + itemFobInr(item), 0);
+        const difference = total - num(invoiceValueOf(invoice));
         return (
-          <div key={k} style={{ marginBottom: '10px', breakInside: 'avoid' }}>
-            <div style={{ fontWeight: 700, margin: '6px 0 3px' }}>Invoice {k + 1}: {invNo(inv)} dt {dmy(inv.date || inv.invoiceDate)} - {inv.currency} {fmt(inv.value || inv.invoiceValue)} ({inv.contractType || inv.natureOfContract || ''}) - FOB ₹ {fmt(inv.invFobInr)}</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr><th style={head}>Item</th><th style={head}>Scheme</th><th style={head}>RITC</th><th style={head}>Description</th><th style={head}>Qty</th><th style={head}>UQC</th><th style={head}>Rate</th><th style={head}>Value ({inv.currency || 'FC'})</th><th style={head}>FOB ₹</th></tr></thead>
-              <tbody>
-                {rows.map(({ it, i }) => <tr key={i}>
-                  <td style={cell}>{itmOf(it, i)}</td><td style={cell}>{String(it.scheme || '').split(/[\s-]/)[0]}</td><td style={cell}>{it.ritc}</td><td style={cell}>{it.desc || it.description}</td>
-                  <td style={right}>{fmt(it.qty, 3)}</td><td style={cell}>{it.unit || it.uqc}</td><td style={right}>{fmt(it.rate || it.price, 4)}</td><td style={right}>{fmt(it.totalFc || it.total)}</td><td style={right}>{fmt(itemFobInr(it))}</td>
-                </tr>)}
-                {rows.length === 0 && <Empty cols={9} text="No item in this invoice" />}
-                <tr><td colSpan={7} style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>Items total</td><td style={{ ...right, fontWeight: 700 }}>{fmt(tot)}</td><td style={{ ...right, fontWeight: 700 }}>{fmt(rows.reduce((a, { it }) => a + itemFobInr(it), 0))}</td></tr>
-              </tbody>
-            </table>
-            {Math.abs(tot - n(inv.value || inv.invoiceValue)) > 0.01 && <Note>⚠ Items total differs from the invoice value by {fmt(tot - n(inv.value || inv.invoiceValue))}</Note>}
-          </div>);
+          <div key={invoiceIndex} className="tw:mb-[10px] tw:break-inside-avoid">
+            <BlockTitle>
+              Invoice {invoiceIndex + 1}: {invoiceNoOf(invoice)} dt {invoiceDateOf(invoice)} - {invoice.currency} {formatAmount(invoiceValueOf(invoice))} ({contractTypeOf(invoice)}) - FOB ₹ {formatAmount(invoice.invFobInr)}
+            </BlockTitle>
+            <ExportGrid
+              headings={[...ITEM_GRID_HEADINGS(invoice.currency), 'FOB ₹']}
+              rows={rows.map(({ item, index }) => [...itemGridCells(item, index), right(formatAmount(itemFobInr(item)))])}
+              emptyText="No item in this invoice"
+              totals={[[right('Items total', { colSpan: 7 }), right(formatAmount(total)), right(formatAmount(totalFob))]]}
+            />
+            {Math.abs(difference) > 0.01 && <ReportFootnote>⚠ Items total differs from the invoice value by {formatAmount(difference)}</ReportFootnote>}
+          </div>
+        );
       })}
-    </Wrap>
+    </ReportSheet>
   );
 }
 
-// RoDTEP wise checklist: claim per item with rate / cap from the RoDTEP master (estimate)
+// RoDTEP wise checklist: claim per item with rate / cap from the RoDTEP master (estimate). A row whose cap is per unit
+// and has no quantity says "qty?" and stays out of the total: a printed checklist must not carry a figure never worked out.
 export function RodtepReport({ d, items, rodteps }) {
-  // 12-Nov-2026: Appendix 4RE rate for AA / EOU / SEZ items; quantity = SW info DTY / RDT in the schedule unit
-  const rateOf = (it) => rodtepRateOf(rodtepRowOf(rodteps, it), it);
-  const qtyOf = (it, m) => rodtepQtyOf(it, d && d._infoTypes, m && m.uqc);
-  // 30-Oct-2026: amt is null when the cap is per unit and no quantity was keyed. A printed checklist must not
-  // carry a figure that was never worked out, so the cell says "qty?" and the total leaves the row out.
-  const rows = (items || []).map((it, i) => { const m = rateOf(it); const on = claimsRodtep(it); const q = qtyOf(it, m); return { it, i, m, on, q, amt: on && m ? rodtepAmount({ fob: itemFobInr(it), qty: q.qty, rate: m.rate, cap: m.cap, rsPerUqc: m.rsPerUqc }) : 0 }; });
-  const pendingRodtep = rows.filter(r => r.on && r.m && r.amt === null).length;
+  const rows = (items || []).map((item, index) => {
+    const rate = rodtepRateOf(rodtepRowOf(rodteps, item), item);
+    const claimed = claimsRodtep(item);
+    const quantity = rodtepQtyOf(item, d && d._infoTypes, rate && rate.uqc);
+    const amount = claimed && rate ? rodtepAmount({ fob: itemFobInr(item), qty: quantity.qty, rate: rate.rate, cap: rate.cap, rsPerUqc: rate.rsPerUqc }) : 0;
+    return { item, index, rate, claimed, quantity, amount };
+  });
+  const notWorkedOut = rows.filter((row) => row.claimed && row.rate && row.amount === null).length;
+  const total = rows.reduce((sum, row) => sum + (row.amount === null ? 0 : row.amount), 0);
   return (
-    <Wrap><ExportReportHeader title="RoDTEP Wise Checklist" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>RITC</th><th style={head}>Description</th><th style={head}>Qty</th><th style={head}>FOB ₹</th><th style={head}>Claim</th><th style={head}>Rate %</th><th style={head}>Cap ₹/unit</th><th style={head}>Est. RoDTEP ₹</th></tr></thead>
-        <tbody>
-          {rows.map(({ it, i, m, on, amt, q }) => <tr key={i}>
-            <td style={cell}>{invOf(it)}/{itmOf(it, i)}</td><td style={cell}>{it.ritc}</td><td style={cell}>{it.desc}</td><td style={right}>{q.qty ? fmt(q.qty, 3) : '-'} {q.unit}</td><td style={right}>{fmt(itemFobInr(it))}</td>
-            <td style={cell}>{on ? 'RODTEPY' : 'RODTEPN'}</td><td style={right}>{m ? fmt(m.rate) + (m.appendix === '4RE' ? ' (4RE)' : '') : 'n/a'}</td><td style={right}>{m && n(m.cap) ? fmt(m.cap) : '-'}</td><td style={right} title={amt === null ? CAP_NEEDS_QTY : ''}>{!on || !m ? '-' : (amt === null ? 'qty?' : fmt(amt))}</td>
-          </tr>)}
-          {rows.length === 0 && <Empty cols={9} text="No item" />}
-          <tr><td colSpan={8} style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>Total estimated RoDTEP (claimed items){pendingRodtep > 0 ? ` - ${pendingRodtep} item(s) not worked out` : ''}</td><td style={{ ...right, fontWeight: 700 }}>{fmt(rows.reduce((a, r) => a + (r.amt === null ? 0 : r.amt), 0))}</td></tr>
-        </tbody>
-      </table>
-      <Note>Estimate = rate % of FOB ₹, limited to cap × qty (DTY / RDT quantity in the schedule unit), from the RoDTEP master: Appendix 4R, or 4RE for exports under AA / EOU / SEZ. The amount is worked out by Customs.</Note>
-    </Wrap>
+    <ReportSheet title="RoDTEP Wise Checklist" d={d}>
+      <ExportGrid
+        headings={['Inv/Item', 'RITC', 'Description', 'Qty', 'FOB ₹', 'Claim', 'Rate %', 'Cap ₹/unit', 'Est. RoDTEP ₹']}
+        rows={rows.map(({ item, index, rate, claimed, quantity, amount }) => [
+          itemTag(item, index), item.ritc, item.desc,
+          right(`${quantity.qty ? formatAmount(quantity.qty, 3) : '-'} ${quantity.unit}`),
+          right(formatAmount(itemFobInr(item))),
+          claimed ? 'RODTEPY' : 'RODTEPN',
+          right(rate ? formatAmount(rate.rate) + (rate.appendix === '4RE' ? ' (4RE)' : '') : 'n/a'),
+          right(rate && num(rate.cap) ? formatAmount(rate.cap) : '-'),
+          right(!claimed || !rate ? '-' : (amount === null ? 'qty?' : formatAmount(amount)), { title: amount === null ? CAP_NEEDS_QTY : '' }),
+        ])}
+        emptyText="No item"
+        totals={[[
+          right(`Total estimated RoDTEP (claimed items)${notWorkedOut > 0 ? ` - ${notWorkedOut} item(s) not worked out` : ''}`, { colSpan: 8 }),
+          right(formatAmount(total)),
+        ]]}
+      />
+      <ReportFootnote>Estimate = rate % of FOB ₹, limited to cap × qty (DTY / RDT quantity in the schedule unit), from the RoDTEP master: Appendix 4R, or 4RE for exports under AA / EOU / SEZ. The amount is worked out by Customs.</ReportFootnote>
+    </ReportSheet>
   );
 }
+
+// a value typed on the Scheme tab is kept; otherwise it is worked out, and null means it could not be
+const dbkValueOf = (row, item) => (String(row.dbkVal || '').trim() !== ''
+  ? num(row.dbkVal)
+  : dbkAmount({ fob: itemFobInr(item), qty: row.dbkQty, rateAdv: row.dbkRtAdv, rateSpe: row.dbkRtSpe, cap: row.dbkCap }));
 
 // Drawback particulars: DBK rows of Scheme > Dbk
 export function DrawbackReport({ d, items, dbkItems }) {
-  const rows = (dbkItems || []).map((r) => {
-    const it = (items || []).find((x, i) => invOf(x) === String(r.invNo) && itmOf(x, i) === String(r.itemNo)) || {};
-    // a value typed on the Scheme tab is kept; otherwise it is worked out, and null means it could not be
-    const val = String(r.dbkVal || '').trim() !== '' ? n(r.dbkVal) : dbkAmount({ fob: itemFobInr(it), qty: r.dbkQty, rateAdv: r.dbkRtAdv, rateSpe: r.dbkRtSpe, cap: r.dbkCap });
-    return { r, it, val };
+  const rows = (dbkItems || []).map((row) => {
+    const item = (items || []).find((other, index) => invoiceSrOf(other) === String(row.invNo) && itemSrOf(other, index) === String(row.itemNo)) || {};
+    return { row, item, value: dbkValueOf(row, item) };
   });
+  const notWorkedOut = rows.filter((line) => line.value === null).length;
   return (
-    <Wrap><ExportReportHeader title="Drawback Particulars" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>Description</th><th style={head}>DBK Sr No</th><th style={head}>DBK Qty</th><th style={head}>Unit</th><th style={head}>FOB ₹</th><th style={head}>Rate %</th><th style={head}>Cap ₹/unit</th><th style={head}>DBK ₹</th><th style={head}>Avail.</th></tr></thead>
-        <tbody>
-          {rows.map(({ r, it, val }, k) => <tr key={k}>
-            <td style={cell}>{r.invNo}/{r.itemNo}</td><td style={cell}>{it.desc || ''}</td><td style={cell}>{r.dbkNo}</td><td style={right}>{fmt(r.dbkQty, 3)}</td><td style={cell}>{r.accUnit}</td>
-            <td style={right}>{fmt(itemFobInr(it))}</td><td style={right}>{r.dbkRtAdv ? fmt(r.dbkRtAdv) : '-'}</td><td style={right}>{n(r.dbkCap) ? fmt(r.dbkCap) : '-'}</td><td style={right} title={val === null ? CAP_NEEDS_QTY : ''}>{val === null ? 'qty?' : fmt(val)}</td><td style={cell}>{r.drawbackAvailable || 'Y'}</td>
-          </tr>)}
-          {rows.length === 0 && <Empty cols={10} text="No drawback item (scheme 19) in this job" />}
-          <tr><td colSpan={8} style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>Total drawback{rows.filter(x => x.val === null).length > 0 ? ` - ${rows.filter(x => x.val === null).length} row(s) not worked out` : ''}</td><td style={{ ...right, fontWeight: 700 }}>{fmt(rows.reduce((a, x) => a + (x.val === null ? 0 : x.val), 0))}</td><td style={cell} /></tr>
-        </tbody>
-      </table>
-      <Note>Drawback ₹ as worked out on the Scheme tab (estimate); Customs works out the amount from DBK Sr No and quantity.</Note>
-    </Wrap>
+    <ReportSheet title="Drawback Particulars" d={d}>
+      <ExportGrid
+        headings={['Inv/Item', 'Description', 'DBK Sr No', 'DBK Qty', 'Unit', 'FOB ₹', 'Rate %', 'Cap ₹/unit', 'DBK ₹', 'Avail.']}
+        rows={rows.map(({ row, item, value }) => [
+          `${row.invNo}/${row.itemNo}`, item.desc || '', row.dbkNo, right(formatAmount(row.dbkQty, 3)), row.accUnit,
+          right(formatAmount(itemFobInr(item))), right(row.dbkRtAdv ? formatAmount(row.dbkRtAdv) : '-'), right(num(row.dbkCap) ? formatAmount(row.dbkCap) : '-'),
+          right(value === null ? 'qty?' : formatAmount(value), { title: value === null ? CAP_NEEDS_QTY : '' }), row.drawbackAvailable || 'Y',
+        ])}
+        emptyText="No drawback item (scheme 19) in this job"
+        totals={[[
+          right(`Total drawback${notWorkedOut > 0 ? ` - ${notWorkedOut} row(s) not worked out` : ''}`, { colSpan: 8 }),
+          right(formatAmount(rows.reduce((sum, line) => sum + (line.value === null ? 0 : line.value), 0))),
+          '',
+        ]]}
+      />
+      <ReportFootnote>Drawback ₹ as worked out on the Scheme tab (estimate); Customs works out the amount from DBK Sr No and quantity.</ReportFootnote>
+    </ReportSheet>
   );
 }
 
+const indigenousOrImported = (value) => (/^I/i.test(String(value || '')) && !/^IMP/i.test(String(value)) ? 'Indigenous' : 'Imported');
+
 export function LicenceReport({ d, licenseItems }) {
-  const rows = licenseItems || [];
   return (
-    <Wrap><ExportReportHeader title="Licence Particulars" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>Sr</th><th style={head}>Reg No</th><th style={head}>Reg Date</th><th style={head}>Sr Part E</th><th style={head}>Sr Part C</th><th style={head}>Qty</th><th style={head}>Export Qty</th><th style={head}>UQC</th><th style={head}>Ind/Imp</th><th style={head}>Licence No / Date</th><th style={head}>Type</th></tr></thead>
-        <tbody>
-          {rows.map((r, k) => <tr key={k}>
-            <td style={cell}>{r.invNo}/{r.itemNo}</td><td style={cell}>{r.srNo || 1}</td><td style={cell}>{r.regNo}</td><td style={cell}>{dmy(r.regDate)}</td><td style={cell}>{r.snE}</td><td style={cell}>{r.snC}</td>
-            <td style={right}>{fmt(r.qty, 3)}</td><td style={right}>{fmt(r.expQty, 3)}</td><td style={cell}>{r.uqc}</td><td style={cell}>{/^I/i.test(String(r.indImp || '')) && !/^IMP/i.test(String(r.indImp)) ? 'Indigenous' : 'Imported'}</td>
-            <td style={cell}>{[r.licNo, dmy(r.licDt)].filter(Boolean).join(' / ')}</td><td style={cell}>{r.licType}</td>
-          </tr>)}
-          {rows.length === 0 && <Empty cols={12} text="No licence row in this job" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Licence Particulars" d={d}>
+      <ExportGrid
+        headings={['Inv/Item', 'Sr', 'Reg No', 'Reg Date', 'Sr Part E', 'Sr Part C', 'Qty', 'Export Qty', 'UQC', 'Ind/Imp', 'Licence No / Date', 'Type']}
+        rows={(licenseItems || []).map((row) => [
+          `${row.invNo}/${row.itemNo}`, row.srNo || 1, row.regNo, toSlashDate(row.regDate), row.snE, row.snC,
+          right(formatAmount(row.qty, 3)), right(formatAmount(row.expQty, 3)), row.uqc, indigenousOrImported(row.indImp),
+          [row.licNo, toSlashDate(row.licDt)].filter(Boolean).join(' / '), row.licType,
+        ])}
+        emptyText="No licence row in this job"
+      />
+    </ReportSheet>
   );
 }
 
 export function Ar4Report({ d, items }) {
-  const rows = (items || []).map((it, i) => ({ it, i })).filter(({ it }) => /^Y/i.test(String(it.ar4 || '')));
+  const rows = (items || []).map((item, index) => ({ item, index })).filter(({ item }) => /^Y/i.test(String(item.ar4 || '')));
   return (
-    <Wrap><ExportReportHeader title="AR4 Particulars" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>Description</th><th style={head}>AR4 No</th><th style={head}>AR4 Date</th><th style={head}>Commissionerate</th><th style={head}>Division</th><th style={head}>Range</th><th style={head}>Remarks</th></tr></thead>
-        <tbody>
-          {rows.map(({ it, i }) => <tr key={i}><td style={cell}>{invOf(it)}/{itmOf(it, i)}</td><td style={cell}>{it.desc}</td><td style={cell}>{it.ar4No}</td><td style={cell}>{dmy(it.ar4Date)}</td><td style={cell}>{it.commissionerate}</td><td style={cell}>{it.division}</td><td style={cell}>{it.ar4Range}</td><td style={cell}>{it.ar4Remarks}</td></tr>)}
-          {rows.length === 0 && <Empty cols={8} text="No item with AR4 = Y" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="AR4 Particulars" d={d}>
+      <ExportGrid
+        headings={['Inv/Item', 'Description', 'AR4 No', 'AR4 Date', 'Commissionerate', 'Division', 'Range', 'Remarks']}
+        rows={rows.map(({ item, index }) => [itemTag(item, index), item.desc, item.ar4No, toSlashDate(item.ar4Date), item.commissionerate, item.division, item.ar4Range, item.ar4Remarks])}
+        emptyText="No item with AR4 = Y"
+      />
+    </ReportSheet>
   );
 }
 
 export function ReExportReport({ d, items }) {
-  const rows = (items || []).flatMap((it, i) => arr(it.reExports).map((r) => ({ it, i, r })));
+  const rows = (items || []).flatMap((item, index) => asList(item.reExports).map((reExport) => ({ item, index, reExport })));
   return (
-    <Wrap><ExportReportHeader title="Re-Export Particulars" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>SB Inv/Item</th><th style={head}>BE Site</th><th style={head}>BE No</th><th style={head}>BE Date</th><th style={head}>BE Inv/Item</th><th style={head}>Description</th><th style={head}>Qty Utilised</th><th style={head}>BE Qty</th><th style={head}>Assessed ₹</th><th style={head}>Duty ₹</th></tr></thead>
-        <tbody>
-          {rows.map(({ it, i, r }, k) => <tr key={k}>
-            <td style={cell}>{invOf(it)}/{itmOf(it, i)}</td><td style={cell}>{r.reExpField2}</td><td style={cell}>{r.reExpField3}</td><td style={cell}>{dmy(r.reExpField4)}</td><td style={cell}>{r.reExpField5}/{r.reExpField6}</td>
-            <td style={cell}>{r.reExpField9}</td><td style={right}>{fmt(r.reExpField8, 3)} {r.reExpField11 || ''}</td><td style={right}>{r.reExpField10 ? fmt(r.reExpField10, 3) : '-'}</td><td style={right}>{r.reExpField12 ? fmt(r.reExpField12) : '-'}</td><td style={right}>{r.reExpField13 ? fmt(r.reExpField13) : '-'}</td>
-          </tr>)}
-          {rows.length === 0 && <Empty cols={10} text="No re-export row in this job" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Re-Export Particulars" d={d}>
+      <ExportGrid
+        headings={['SB Inv/Item', 'BE Site', 'BE No', 'BE Date', 'BE Inv/Item', 'Description', 'Qty Utilised', 'BE Qty', 'Assessed ₹', 'Duty ₹']}
+        rows={rows.map(({ item, index, reExport }) => [
+          itemTag(item, index), reExport.reExpField2, reExport.reExpField3, toSlashDate(reExport.reExpField4), `${reExport.reExpField5}/${reExport.reExpField6}`,
+          reExport.reExpField9, right(`${formatAmount(reExport.reExpField8, 3)} ${reExport.reExpField11 || ''}`),
+          right(reExport.reExpField10 ? formatAmount(reExport.reExpField10, 3) : '-'), right(reExport.reExpField12 ? formatAmount(reExport.reExpField12) : '-'),
+          right(reExport.reExpField13 ? formatAmount(reExport.reExpField13) : '-'),
+        ])}
+        emptyText="No re-export row in this job"
+      />
+    </ReportSheet>
   );
 }
+
+// "2.50% USD 120.00" from the rate / currency / amount fields of one invoice charge
+const chargeText = (invoice, charge) => {
+  const rate = invoice[charge + 'Rate'], currency = invoice[charge + 'Curr'], amount = invoice[charge + 'Amount'];
+  if (![rate, currency, amount].some((value) => String(value || '').trim())) return '-';
+  return `${rate ? formatAmount(rate) + '% ' : ''}${amount ? (currency || invoice.currency || '') + ' ' + formatAmount(amount) : ''}`;
+};
 
 export function InvoiceParticularsReport({ d }) {
-  const invs = d?.invoices || [];
-  const ch = (inv, k) => [inv[k + 'Rate'], inv[k + 'Curr'], inv[k + 'Amount']].some(v => String(v || '').trim()) ? `${inv[k + 'Rate'] ? fmt(inv[k + 'Rate']) + '% ' : ''}${inv[k + 'Amount'] ? (inv[k + 'Curr'] || inv.currency || '') + ' ' + fmt(inv[k + 'Amount']) : ''}` : '-';
+  const invoices = d?.invoices || [];
   return (
-    <Wrap><ExportReportHeader title="Invoice Particulars" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Sr</th><th style={head}>Invoice No / Date</th><th style={head}>Value</th><th style={head}>Rate</th><th style={head}>Terms</th><th style={head}>Freight</th><th style={head}>Insurance</th><th style={head}>Commission</th><th style={head}>Discount</th><th style={head}>Payment</th><th style={head}>Buyer</th><th style={head}>FOB ₹</th></tr></thead>
-        <tbody>
-          {invs.map((inv, k) => <tr key={k}>
-            <td style={cell}>{k + 1}</td><td style={cell}>{invNo(inv)}<br />{dmy(inv.date || inv.invoiceDate)}</td><td style={right}>{inv.currency} {fmt(inv.value || inv.invoiceValue)}</td><td style={right} title={rateText(inv.currency, inv.exchRate || inv.exchangeRate, inv.unitInRs)}>{fmt(inv.exchRate || inv.exchangeRate, 4)}{Number(inv.unitInRs) > 1 ? '/' + Number(inv.unitInRs) : ''}</td>
-            <td style={cell}>{inv.contractType || inv.natureOfContract}{inv.addFreight ? ` (${inv.addFreight})` : ''}</td><td style={cell}>{ch(inv, 'freight')}</td><td style={cell}>{ch(inv, 'insurance')}</td><td style={cell}>{ch(inv, 'commission')}</td><td style={cell}>{ch(inv, 'discount')}</td>
-            <td style={cell}>{[inv.pymtNature, inv.pymtPeriod ? inv.pymtPeriod + ' days' : ''].filter(Boolean).join(' / ')}</td><td style={cell}>{inv.buyer || inv.buyerName || d?.consigneeName || ''}</td><td style={right}>{fmt(inv.invFobInr)}</td>
-          </tr>)}
-          {invs.length === 0 && <Empty cols={12} text="No invoice in this job" />}
-          <tr><td colSpan={11} style={{ ...cell, textAlign: 'right', fontWeight: 700 }}>Total FOB ₹</td><td style={{ ...right, fontWeight: 700 }}>{fmt(invs.reduce((a, i) => a + n(i.invFobInr), 0))}</td></tr>
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Invoice Particulars" d={d}>
+      <ExportGrid
+        headings={['Sr', 'Invoice No / Date', 'Value', 'Rate', 'Terms', 'Freight', 'Insurance', 'Commission', 'Discount', 'Payment', 'Buyer', 'FOB ₹']}
+        rows={invoices.map((invoice, index) => [
+          index + 1,
+          <>{invoiceNoOf(invoice)}<br />{invoiceDateOf(invoice)}</>,
+          right(`${invoice.currency} ${formatAmount(invoiceValueOf(invoice))}`),
+          right(`${formatAmount(invoice.exchRate || invoice.exchangeRate, 4)}${Number(invoice.unitInRs) > 1 ? '/' + Number(invoice.unitInRs) : ''}`,
+            { title: rateText(invoice.currency, invoice.exchRate || invoice.exchangeRate, invoice.unitInRs) }),
+          `${contractTypeOf(invoice)}${invoice.addFreight ? ` (${invoice.addFreight})` : ''}`,
+          chargeText(invoice, 'freight'), chargeText(invoice, 'insurance'), chargeText(invoice, 'commission'), chargeText(invoice, 'discount'),
+          [invoice.pymtNature, invoice.pymtPeriod ? invoice.pymtPeriod + ' days' : ''].filter(Boolean).join(' / '),
+          invoice.buyer || invoice.buyerName || d?.consigneeName || '',
+          right(formatAmount(invoice.invFobInr)),
+        ])}
+        emptyText="No invoice in this job"
+        totals={[[right('Total FOB ₹', { colSpan: 11 }), right(formatAmount(invoices.reduce((sum, invoice) => sum + num(invoice.invFobInr), 0)))]]}
+      />
+    </ReportSheet>
   );
 }
 
+const weightText = (weight, unit) => (weight ? `${weight} ${unit || 'KGS'}` : '');
+
 export function ShipmentReport({ d, containers }) {
-  const j = d || {};
-  const conts = (Array.isArray(j.Containers) && j.Containers.length ? j.Containers : (containers || []));
-  const rows = [
-    ['Mode', j.shipmentMode, 'Nature of Cargo', j.natureOfCargo || j.autoField_13],
-    ['Gross Wt', j.grossWeight || j.autoField_18 ? `${j.grossWeight || j.autoField_18} ${j.grWtUnit || 'KGS'}` : '', 'Net Wt', j.netWeight || j.autoField_19 ? `${j.netWeight || j.autoField_19} ${j.grWtUnit || 'KGS'}` : ''],
-    ['Total Packages', j.totalPackages || j.autoField_14, 'Loose Packets', j.loosePackets || j.autoField_17],
-    ['Marks & Nos', [j.autoField_15, j.autoField_16].filter(Boolean).join(' '), 'Containers', conts.length],
-    ['Consignee', j.consigneeName, 'Country', j.consigneeCountry || j.consigneeCountryCode],
-    ['Discharge Port', j.discPortName || j.discPortCode, 'Flight / Vessel', j.flightNo || j.vesselName || ''],
-  ];
+  const job = d || {};
+  const shipmentContainers = containersOf(job, containers);
+  const facts = [
+    ['Mode', job.shipmentMode, 'Nature of Cargo', job.natureOfCargo || job.autoField_13],
+    ['Gross Wt', weightText(job.grossWeight || job.autoField_18, job.grWtUnit), 'Net Wt', weightText(job.netWeight || job.autoField_19, job.grWtUnit)],
+    ['Total Packages', job.totalPackages || job.autoField_14, 'Loose Packets', job.loosePackets || job.autoField_17],
+    ['Marks & Nos', [job.autoField_15, job.autoField_16].filter(Boolean).join(' '), 'Containers', shipmentContainers.length],
+    ['Consignee', job.consigneeName, 'Country', job.consigneeCountry || job.consigneeCountryCode],
+    ['Discharge Port', job.discPortName || job.discPortCode, 'Flight / Vessel', job.flightNo || job.vesselName || ''],
+  ].map(([leftLabel, leftValue, rightLabel, rightValue]) => [leftLabel, leftValue || '', rightLabel, rightValue ?? '']);
   return (
-    <Wrap><ExportReportHeader title="Shipment & Container Details" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}><tbody>
-        {rows.map((r, i) => <tr key={i}><td style={{ ...cell, fontWeight: 700, width: '15%', background: '#f8fafc' }}>{r[0]}</td><td style={{ ...cell, width: '35%' }}>{r[1] || ''}</td><td style={{ ...cell, fontWeight: 700, width: '15%', background: '#f8fafc' }}>{r[2]}</td><td style={{ ...cell, width: '35%' }}>{r[3] ?? ''}</td></tr>)}
-      </tbody></table>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Sr</th><th style={head}>Container No</th><th style={head}>Size</th><th style={head}>Seal No</th><th style={head}>Seal Date</th><th style={head}>Seal Type</th><th style={head}>Pkgs Stuffed</th></tr></thead>
-        <tbody>
-          {conts.map((c, k) => <tr key={k}><td style={cell}>{k + 1}</td><td style={cell}>{c.ContainerNumber || c.containerNo}</td><td style={cell}>{c.ContainerSize || c.size}</td><td style={cell}>{c.ExciseSealNo || c.sealNo || c.exciseSealNo}</td><td style={cell}>{dmy(c.SealDate || c.sealDate)}</td><td style={cell}>{c.SealTypeIndicator || c.sealType}</td><td style={right}>{c.NoOfPktsStuffed || c.stuffedPkgs || ''}</td></tr>)}
-          {conts.length === 0 && <Empty cols={7} text="No container (air / loose cargo)" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Shipment & Container Details" d={d}>
+      <FactTable rows={facts} className="tw:mb-[8px]" />
+      <ExportGrid
+        headings={['Sr', 'Container No', 'Size', 'Seal No', 'Seal Date', 'Seal Type', 'Pkgs Stuffed']}
+        rows={shipmentContainers.map((container, index) => [
+          index + 1, container.ContainerNumber || container.containerNo, container.ContainerSize || container.size,
+          container.ExciseSealNo || container.sealNo || container.exciseSealNo, toSlashDate(container.SealDate || container.sealDate),
+          container.SealTypeIndicator || container.sealType, right(container.NoOfPktsStuffed || container.stuffedPkgs || ''),
+        ])}
+        emptyText="No container (air / loose cargo)"
+      />
+    </ReportSheet>
   );
 }
 
 export function SwInfoReport({ d, items }) {
-  const info = (items || []).flatMap((it, i) => arr(it.swInfos).map(r => ({ it, i, r })));
-  const stm = (items || []).flatMap((it, i) => arr(it.swStatements).map(r => ({ it, i, r })));
+  const infos = (items || []).flatMap((item, index) => asList(item.swInfos).map((row) => ({ item, index, row })));
+  const statements = (items || []).flatMap((item, index) => asList(item.swStatements).map((row) => ({ item, index, row })));
   return (
-    <Wrap><ExportReportHeader title="Single Window Information & Statements" d={d} />
-      <div style={{ fontWeight: 700, margin: '6px 0 3px' }}>SW Info</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>Type</th><th style={head}>Qualifier</th><th style={head}>Code</th><th style={head}>Text</th><th style={head}>Measure</th><th style={head}>UQC</th></tr></thead>
-        <tbody>
-          {info.map(({ it, i, r }, k) => <tr key={k}><td style={cell}>{invOf(it)}/{itmOf(it, i)}</td><td style={cell}>{r.swInfoField1 || r.type}</td><td style={cell}>{r.swInfoField2 || r.qual}</td><td style={cell}>{r.swInfoField3 || r.code}</td><td style={cell}>{r.swInfoField4 || r.text || ''}</td><td style={right}>{r.swInfoField5 || r.msr || ''}</td><td style={cell}>{r.swInfoField6 || r.uqc || ''}</td></tr>)}
-          {info.length === 0 && <Empty cols={7} text="No SW info row" />}
-        </tbody>
-      </table>
-      <div style={{ fontWeight: 700, margin: '6px 0 3px' }}>SW Statements</div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>Inv/Item</th><th style={head}>Type</th><th style={head}>Code</th><th style={head}>Text</th></tr></thead>
-        <tbody>
-          {stm.map(({ it, i, r }, k) => <tr key={k}><td style={cell}>{invOf(it)}/{itmOf(it, i)}</td><td style={cell}>{r.statementType || r.stmtType || r.type || ''}</td><td style={cell}>{r.statementCode || r.stmtCode || r.code || ''}</td><td style={cell}>{r.statementText || r.text || ''}</td></tr>)}
-          {stm.length === 0 && <Empty cols={4} text="No SW statement" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Single Window Information & Statements" d={d}>
+      <BlockTitle>SW Info</BlockTitle>
+      <ExportGrid
+        className="tw:mb-[8px]"
+        headings={['Inv/Item', 'Type', 'Qualifier', 'Code', 'Text', 'Measure', 'UQC']}
+        rows={infos.map(({ item, index, row }) => [
+          itemTag(item, index), row.swInfoField1 || row.type, row.swInfoField2 || row.qual, row.swInfoField3 || row.code, row.swInfoField4 || row.text || '',
+          right(row.swInfoField5 || row.msr || ''), row.swInfoField6 || row.uqc || '',
+        ])}
+        emptyText="No SW info row"
+      />
+      <BlockTitle>SW Statements</BlockTitle>
+      <ExportGrid
+        headings={['Inv/Item', 'Type', 'Code', 'Text']}
+        rows={statements.map(({ item, index, row }) => [
+          itemTag(item, index), row.statementType || row.stmtType || row.type || '', row.statementCode || row.stmtCode || row.code || '', row.statementText || row.text || '',
+        ])}
+        emptyText="No SW statement"
+      />
+    </ReportSheet>
   );
 }
 
 export function SupportingDocsReport({ d, items }) {
   const rows = [
-    ...arr(d?.eSanchitList).map(r => ({ lvl: 'Whole SB', r })),
-    ...(items || []).flatMap((it, i) => arr(it.eSanchitList).map(r => ({ lvl: `Item ${invOf(it)}/${itmOf(it, i)}`, r }))),
+    ...asList(d?.eSanchitList).map((doc) => ({ level: 'Whole SB', doc })),
+    ...(items || []).flatMap((item, index) => asList(item.eSanchitList).map((doc) => ({ level: `Item ${itemTag(item, index)}`, doc }))),
   ];
   return (
-    <Wrap><ExportReportHeader title="Supporting Documents (e-Sanchit)" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr><th style={head}>For</th><th style={head}>IRN</th><th style={head}>Doc Code</th><th style={head}>Ref No</th><th style={head}>Issued By</th><th style={head}>Beneficiary</th><th style={head}>Place</th><th style={head}>Issue Date</th><th style={head}>File</th></tr></thead>
-        <tbody>
-          {rows.map(({ lvl, r }, k) => <tr key={k}><td style={cell}>{lvl}</td><td style={cell}>{r.irn || r.imageRefNo || ''}</td><td style={cell}>{r.docCode || r.documentCode || ''}</td><td style={cell}>{r.refNo || r.drn || ''}</td><td style={cell}>{r.issuerName || r.issuingParty || ''}</td><td style={cell}>{r.beneficiaryName || r.beneficiaryParty || ''}</td><td style={cell}>{r.placeOfIssue || ''}</td><td style={cell}>{dmy(r.issueDate)}</td><td style={cell}>{r.fileName || ''}</td></tr>)}
-          {rows.length === 0 && <Empty cols={9} text="No supporting document in this job" />}
-        </tbody>
-      </table>
-    </Wrap>
+    <ReportSheet title="Supporting Documents (e-Sanchit)" d={d}>
+      <ExportGrid
+        headings={['For', 'IRN', 'Doc Code', 'Ref No', 'Issued By', 'Beneficiary', 'Place', 'Issue Date', 'File']}
+        rows={rows.map(({ level, doc }) => [
+          level, doc.irn || doc.imageRefNo || '', doc.docCode || doc.documentCode || '', doc.refNo || doc.drn || '', doc.issuerName || doc.issuingParty || '',
+          doc.beneficiaryName || doc.beneficiaryParty || '', doc.placeOfIssue || '', toSlashDate(doc.issueDate), doc.fileName || '',
+        ])}
+        emptyText="No supporting document in this job"
+      />
+    </ReportSheet>
   );
 }
 
-// Annexure to the S/B (29-Oct-2026): all items invoice by invoice with value, FOB, PMV, drawback and RoDTEP,
-// invoice sub-totals and a grand total - the continuation sheet when the items do not fit on the checklist.
+const igstFlag = (item) => {
+  const status = String(item.igstPayStatus || '');
+  if (/\(P\)/.test(status)) return 'P';
+  if (/LUT/.test(status)) return 'LUT';
+  return /NA/.test(status) ? 'NA' : '';
+};
+
+// Annexure to the S/B: all items invoice by invoice with value, FOB, PMV, drawback and RoDTEP, invoice sub-totals and
+// a grand total - the continuation sheet when the items do not fit on the checklist.
 export function AnnexureReport({ d, items, dbkItems }) {
-  const invs = (d?.invoices || []).length ? d.invoices : [{}];
-  const dbkRows = (it, i) => (dbkItems || []).filter(r => String(r.invNo || r.invSr) === invOf(it) && String(r.itemNo || r.itemSr) === itmOf(it, i))
-    .map(r => (String(r.dbkVal || '').trim() !== '' ? n(r.dbkVal) : dbkAmount({ fob: itemFobInr(it), qty: r.dbkQty, rateAdv: r.dbkRtAdv, rateSpe: r.dbkRtSpe, cap: r.dbkCap })));
-  const dbkOf = (it, i) => dbkRows(it, i).reduce((a, v) => a + (v === null ? 0 : v), 0);
-  // a row whose drawback could not be worked out (cap per unit, no quantity) must not read as 0 in the annexure
-  const dbkPending = (it, i) => dbkRows(it, i).some(v => v === null);
-  const igst = (it) => { const s = String(it.igstPayStatus || ''); return /\(P\)/.test(s) ? 'P' : /LUT/.test(s) ? 'LUT' : /NA/.test(s) ? 'NA' : ''; };
-  const grand = { fc: 0, fob: 0, pmv: 0, dbk: 0, n: 0 };
+  const invoices = (d?.invoices || []).length ? d.invoices : [{}];
+  const dbkValuesOf = (item, index) => (dbkItems || [])
+    .filter((row) => String(row.invNo || row.invSr) === invoiceSrOf(item) && String(row.itemNo || row.itemSr) === itemSrOf(item, index))
+    .map((row) => dbkValueOf(row, item));
+  const dbkOf = (item, index) => dbkValuesOf(item, index).reduce((sum, value) => sum + (value === null ? 0 : value), 0);
+  // a row whose drawback could not be worked out (cap per unit, no quantity) must not read as 0
+  const dbkPending = (item, index) => dbkValuesOf(item, index).some((value) => value === null);
+  const groups = invoices.map((invoice, invoiceIndex) => {
+    const rows = itemsOfInvoice(items, invoiceIndex);
+    const totals = rows.reduce((sum, { item, index }) => ({
+      fc: sum.fc + num(item.totalFc || item.total), fob: sum.fob + itemFobInr(item), pmv: sum.pmv + itemTotalPmv(item), dbk: sum.dbk + dbkOf(item, index),
+    }), { fc: 0, fob: 0, pmv: 0, dbk: 0 });
+    return { invoice, invoiceIndex, rows, totals };
+  });
+  const grandOf = (key) => groups.reduce((sum, group) => sum + group.totals[key], 0);
+  const itemCount = groups.reduce((sum, group) => sum + group.rows.length, 0);
+
+  const dbkCell = (item, index) => {
+    if (dbkPending(item, index)) return right('qty?', { title: CAP_NEEDS_QTY });
+    const value = dbkOf(item, index);
+    return right(value ? formatAmount(value) : '-', { title: '' });
+  };
+
   return (
-    <Wrap><ExportReportHeader title="Annexure to Shipping Bill - Invoice & Item Details" d={d} />
-      {invs.map((inv, k) => {
-        const rows = (items || []).map((it, i) => ({ it, i })).filter(({ it }) => invOf(it) === String(k + 1));
-        const t = rows.reduce((a, { it, i }) => ({ fc: a.fc + n(it.totalFc || it.total), fob: a.fob + itemFobInr(it), pmv: a.pmv + itemTotalPmv(it), dbk: a.dbk + dbkOf(it, i) }), { fc: 0, fob: 0, pmv: 0, dbk: 0 });
-        grand.fc += t.fc; grand.fob += t.fob; grand.pmv += t.pmv; grand.dbk += t.dbk; grand.n += rows.length;
-        return (
-          <div key={k} style={{ marginBottom: '10px' }}>
-            <div style={{ fontWeight: 700, margin: '6px 0 3px' }}>Invoice {k + 1}: {invNo(inv) || '-'} dt {dmy(inv.date || inv.invoiceDate)} · {inv.currency || ''} · {inv.contractType || inv.natureOfContract || ''} · Buyer: {inv.buyer || inv.buyerName || d?.consigneeName || ''}</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Item', 'Scheme', 'RITC', 'Description', 'Qty', 'UQC', 'Rate', `Value (${inv.currency || 'FC'})`, 'FOB ₹', 'PMV ₹', 'DBK ₹', 'RoDTEP', 'IGST', 'End Use'].map(h => <th key={h} style={head}>{h}</th>)}</tr></thead>
-              <tbody>
-                {rows.map(({ it, i }) => <tr key={i} style={{ breakInside: 'avoid' }}>
-                  <td style={cell}>{itmOf(it, i)}</td><td style={cell}>{String(it.scheme || '').split(/[\s-]/)[0]}</td><td style={cell}>{it.ritc}</td><td style={cell}>{it.desc || it.description}</td>
-                  <td style={right}>{fmt(it.qty, 3)}</td><td style={cell}>{it.unit || it.uqc}</td><td style={right}>{fmt(it.rate || it.price, 4)}</td><td style={right}>{fmt(it.totalFc || it.total)}</td>
-                  <td style={right}>{fmt(itemFobInr(it))}</td><td style={right}>{itemTotalPmv(it) ? fmt(itemTotalPmv(it)) : '-'}</td><td style={right} title={dbkPending(it, i) ? CAP_NEEDS_QTY : ''}>{dbkPending(it, i) ? 'qty?' : (dbkOf(it, i) ? fmt(dbkOf(it, i)) : '-')}</td>
-                  <td style={cell}>{claimsRodtep(it) ? 'Y' : 'N'}</td><td style={cell}>{igst(it)}</td><td style={cell}>{String(it.endUse || '').split(/[\s|]/)[0]}</td>
-                </tr>)}
-                {rows.length === 0 && <Empty cols={14} text="No item in this invoice" />}
-                <tr style={{ fontWeight: 700 }}><td colSpan={7} style={{ ...cell, textAlign: 'right' }}>Invoice {k + 1} total ({rows.length} item{rows.length === 1 ? '' : 's'})</td>
-                  <td style={right}>{fmt(t.fc)}</td><td style={right}>{fmt(t.fob)}</td><td style={right}>{fmt(t.pmv)}</td><td style={right}>{fmt(t.dbk)}</td><td colSpan={3} style={cell} /></tr>
-              </tbody>
-            </table>
-          </div>
-        );
-      })}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody>
-        <tr style={{ fontWeight: 700 }}><td style={{ ...cell, background: '#f8fafc' }}>Grand total: {invs.length} invoice(s), {grand.n} item(s)</td><td style={right}>FOB ₹ {fmt(grand.fob)}</td><td style={right}>PMV ₹ {fmt(grand.pmv)}</td><td style={right}>Drawback ₹ {fmt(grand.dbk)}</td></tr>
-      </tbody></table>
-      <Note>FOB / drawback are the screen estimates; Customs works out the final figures. Value in invoice currency is not totalled across invoices.</Note>
-    </Wrap>
+    <ReportSheet title="Annexure to Shipping Bill - Invoice & Item Details" d={d}>
+      {groups.map(({ invoice, invoiceIndex, rows, totals }) => (
+        <div key={invoiceIndex} className="tw:mb-[10px]">
+          <BlockTitle>
+            Invoice {invoiceIndex + 1}: {invoiceNoOf(invoice) || '-'} dt {invoiceDateOf(invoice)} · {invoice.currency || ''} · {contractTypeOf(invoice)} · Buyer: {invoice.buyer || invoice.buyerName || d?.consigneeName || ''}
+          </BlockTitle>
+          <ExportGrid
+            headings={[...ITEM_GRID_HEADINGS(invoice.currency), 'FOB ₹', 'PMV ₹', 'DBK ₹', 'RoDTEP', 'IGST', 'End Use']}
+            rowClassName="tw:break-inside-avoid"
+            rows={rows.map(({ item, index }) => [
+              ...itemGridCells(item, index),
+              right(formatAmount(itemFobInr(item))), right(itemTotalPmv(item) ? formatAmount(itemTotalPmv(item)) : '-'), dbkCell(item, index),
+              claimsRodtep(item) ? 'Y' : 'N', igstFlag(item), String(item.endUse || '').split(/[\s|]/)[0],
+            ])}
+            emptyText="No item in this invoice"
+            totals={[[
+              right(`Invoice ${invoiceIndex + 1} total (${rows.length} item${rows.length === 1 ? '' : 's'})`, { colSpan: 7 }),
+              right(formatAmount(totals.fc)), right(formatAmount(totals.fob)), right(formatAmount(totals.pmv)), right(formatAmount(totals.dbk)), { value: '', colSpan: 3 },
+            ]]}
+          />
+        </div>
+      ))}
+      <ReportTable>
+        <ReportBody>
+          <ReportRow className={BOLD}>
+            <ReportCell className="tw:bg-[#f8fafc]">Grand total: {invoices.length} invoice(s), {itemCount} item(s)</ReportCell>
+            <ReportCell align="right">FOB ₹ {formatAmount(grandOf('fob'))}</ReportCell>
+            <ReportCell align="right">PMV ₹ {formatAmount(grandOf('pmv'))}</ReportCell>
+            <ReportCell align="right">Drawback ₹ {formatAmount(grandOf('dbk'))}</ReportCell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      <ReportFootnote>FOB / drawback are the screen estimates; Customs works out the final figures. Value in invoice currency is not totalled across invoices.</ReportFootnote>
+    </ReportSheet>
   );
 }
 
-// Container annexure (29-Oct-2026): container-wise stuffing and seal details with the S/B summary, for factory
-// stuffed (self-sealed) cargo and the port. Data sheet only - check the annexure format your port asks for.
+// Container annexure: container-wise stuffing and seal details with the S/B summary, for factory stuffed (self-sealed)
+// cargo and the port. Data sheet only - check the annexure format your port asks for.
 export function ContainerAnnexureReport({ d, containers }) {
-  const j = d || {};
-  const conts = (Array.isArray(j.Containers) && j.Containers.length ? j.Containers : (containers || []));
-  const stuffedTot = conts.reduce((a, c) => a + n(c.NoOfPktsStuffed || c.stuffedPkgs), 0);
-  const factory = /^Y/i.test(String(j.factoryStuffed || ''));
-  const rows = [
-    ['Stuffing', factory ? 'Factory stuffed (self-sealed)' : 'Dock / CFS stuffed', 'Invoice No(s)', (j.invoices || []).map(invNo).filter(Boolean).join(', ')],
-    ['Factory / stuffing address', j.factoryAddress || '', 'Total Packages', [j.totalPackages || j.autoField_14, j.packageUnit || j.autoField_16].filter(Boolean).join(' ')],
-    ['Gross Wt', j.autoField_18 || j.grossWeight ? `${j.autoField_18 || j.grossWeight} ${j.grWtUnit || 'KGS'}` : '', 'Net Wt', j.autoField_19 || j.netWeight ? `${j.autoField_19 || j.netWeight} ${j.grWtUnit || 'KGS'}` : ''],
-    ['Marks & Nos', j.autoField_15 || '', 'Port of Discharge / Destination', [j.discPortCode || j.discPortName, j.destPortCode || j.destPortName].filter(Boolean).join(' / ')],
+  const job = d || {};
+  const shipmentContainers = containersOf(job, containers);
+  const stuffedTotal = shipmentContainers.reduce((sum, container) => sum + num(container.NoOfPktsStuffed || container.stuffedPkgs), 0);
+  const totalPackages = job.totalPackages || job.autoField_14;
+  const isFactoryStuffed = /^Y/i.test(String(job.factoryStuffed || ''));
+  const facts = [
+    ['Stuffing', isFactoryStuffed ? 'Factory stuffed (self-sealed)' : 'Dock / CFS stuffed', 'Invoice No(s)', (job.invoices || []).map(invoiceNoOf).filter(Boolean).join(', ')],
+    ['Factory / stuffing address', job.factoryAddress || '', 'Total Packages', [totalPackages, job.packageUnit || job.autoField_16].filter(Boolean).join(' ')],
+    ['Gross Wt', weightText(job.autoField_18 || job.grossWeight, job.grWtUnit), 'Net Wt', weightText(job.autoField_19 || job.netWeight, job.grWtUnit)],
+    ['Marks & Nos', job.autoField_15 || '', 'Port of Discharge / Destination', [job.discPortCode || job.discPortName, job.destPortCode || job.destPortName].filter(Boolean).join(' / ')],
   ];
+  const signatureCell = 'tw:w-1/2 tw:border-t tw:border-solid tw:border-black tw:pt-[30px] tw:text-center';
   return (
-    <Wrap><ExportReportHeader title="Container Annexure - Stuffing & Sealing Details" d={d} />
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}><tbody>
-        {rows.map((r, i) => <tr key={i}><td style={{ ...cell, fontWeight: 700, width: '18%', background: '#f8fafc' }}>{r[0]}</td><td style={{ ...cell, width: '32%' }}>{r[1] || ''}</td><td style={{ ...cell, fontWeight: 700, width: '18%', background: '#f8fafc' }}>{r[2]}</td><td style={{ ...cell, width: '32%' }}>{r[3] || ''}</td></tr>)}
-      </tbody></table>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{['Sr', 'Container No', 'Size / Type', 'Seal No (e-seal)', 'Seal Date', 'Seal Type', 'Seal Device ID', 'Pkgs Stuffed', 'VGM Kgs'].map(h => <th key={h} style={head}>{h}</th>)}</tr></thead>
-        <tbody>
-          {conts.map((c, k) => <tr key={k} style={{ breakInside: 'avoid' }}>
-            <td style={cell}>{k + 1}</td><td style={{ ...cell, fontWeight: 700 }}>{c.ContainerNumber || c.containerNo}</td><td style={cell}>{[c.ContainerSize || c.size, c.ContainerType || c.type].filter(Boolean).join(' ')}</td>
-            <td style={cell}>{c.ExciseSealNo || c.exciseSealNo || c.sealNo}</td><td style={cell}>{dmy(c.SealDate || c.sealDate)}</td><td style={cell}>{c.SealTypeIndicator || c.sealType}</td>
-            <td style={cell}>{c.SealDeviceID || c.deviceId}</td><td style={right}>{c.NoOfPktsStuffed || c.stuffedPkgs || ''}</td><td style={right}>{c.VGM || c.vgmWeight || ''}</td>
-          </tr>)}
-          {conts.length === 0 && <Empty cols={9} text="No container in this job (SB Header > Container Details)" />}
-          {conts.length > 0 && <tr style={{ fontWeight: 700 }}><td colSpan={7} style={{ ...cell, textAlign: 'right' }}>{conts.length} container(s) - packages stuffed</td><td style={right}>{stuffedTot || ''}</td><td style={cell} /></tr>}
-        </tbody>
-      </table>
-      {conts.length > 0 && stuffedTot > 0 && n(j.totalPackages || j.autoField_14) && stuffedTot !== n(j.totalPackages || j.autoField_14) && <Note><b>Check:</b> packages stuffed ({stuffedTot}) differ from the S/B total packages ({j.totalPackages || j.autoField_14}).</Note>}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '28px' }}><tbody><tr>
-        <td style={{ width: '50%', paddingTop: '30px', borderTop: '1px solid #000', textAlign: 'center' }}>Exporter / Authorised Signatory (name, date)</td>
-        <td style={{ width: '50%', paddingTop: '30px', borderTop: '1px solid #000', textAlign: 'center' }}>Customs Broker (name, licence no, date)</td>
-      </tr></tbody></table>
-      <Note>Data sheet built from the job. For factory stuffed cargo use the annexure format and declarations your port / CBIC circular prescribes.</Note>
-    </Wrap>
+    <ReportSheet title="Container Annexure - Stuffing & Sealing Details" d={d}>
+      <FactTable rows={facts} labelWidth="tw:w-[18%]" valueWidth="tw:w-[32%]" className="tw:mb-[8px]" />
+      <ExportGrid
+        headings={['Sr', 'Container No', 'Size / Type', 'Seal No (e-seal)', 'Seal Date', 'Seal Type', 'Seal Device ID', 'Pkgs Stuffed', 'VGM Kgs']}
+        rowClassName="tw:break-inside-avoid"
+        rows={shipmentContainers.map((container, index) => [
+          index + 1, { value: container.ContainerNumber || container.containerNo, className: BOLD },
+          [container.ContainerSize || container.size, container.ContainerType || container.type].filter(Boolean).join(' '),
+          container.ExciseSealNo || container.exciseSealNo || container.sealNo, toSlashDate(container.SealDate || container.sealDate),
+          container.SealTypeIndicator || container.sealType, container.SealDeviceID || container.deviceId,
+          right(container.NoOfPktsStuffed || container.stuffedPkgs || ''), right(container.VGM || container.vgmWeight || ''),
+        ])}
+        emptyText="No container in this job (SB Header > Container Details)"
+        totals={shipmentContainers.length ? [[right(`${shipmentContainers.length} container(s) - packages stuffed`, { colSpan: 7 }), right(stuffedTotal || ''), '']] : []}
+      />
+      {shipmentContainers.length > 0 && stuffedTotal > 0 && num(totalPackages) > 0 && stuffedTotal !== num(totalPackages) && (
+        <ReportFootnote><b>Check:</b> packages stuffed ({stuffedTotal}) differ from the S/B total packages ({totalPackages}).</ReportFootnote>
+      )}
+      <ReportTable className="tw:mt-[28px]">
+        <ReportBody>
+          <ReportRow>
+            <ReportCell look="bare" className={signatureCell}>Exporter / Authorised Signatory (name, date)</ReportCell>
+            <ReportCell look="bare" className={signatureCell}>Customs Broker (name, licence no, date)</ReportCell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      <ReportFootnote>Data sheet built from the job. For factory stuffed cargo use the annexure format and declarations your port / CBIC circular prescribes.</ReportFootnote>
+    </ReportSheet>
   );
 }

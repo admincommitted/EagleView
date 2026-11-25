@@ -1,166 +1,310 @@
-// ADC sheet and Stamp duty sheet for Import > Reports & Submission (14-Nov-2026).
-// No office sample was available, so both follow a standard layout:
+// ADC sheet and Stamp duty sheet. No office sample was available, so both follow a standard layout:
 //  - ADC sheet: the particulars the Assistant Drugs Controller (CDSCO port office) asks for to give the NOC for drugs /
 //    cosmetics / medical devices - importer, BE, AWB / BL, invoices, and per item the product, CTH, manufacturer and the
 //    batch / mfg / expiry rows of 4. Items > SW production details. Licence numbers are not kept in EagleView: they are
 //    typed on the sheet (click the dotted box) before printing.
-//  - Stamp duty sheet: office rule (user, 14-Nov-2026): (assessable value + total duty) x 0.1 %, rounded up to the next
-//    Rs 10 (their B/E: 2,76,80,235.00 + 76,77,113.20 = 3,53,57,348.20 -> 35,357.35 -> Rs 35,360). Rate / basis /
+//  - Stamp duty sheet: office rule: (assessable value + total duty) x 0.1 %, rounded up to the next Rs 10
+//    (their B/E: 2,76,80,235.00 + 76,77,113.20 = 3,53,57,348.20 -> 35,357.35 -> Rs 35,360). Rate / basis /
 //    rounding can still be changed on the sheet; the choice is kept in this browser.
 // Values (assessable value, duty) are the same estimate as the Duty Sheet (computeItemDuty).
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { computeItemDuty } from '../../ItemGridTabParts/helpers';
-import { ReportHeader } from './SimpleReports';
+import { cn } from '@/lib/utils';
+import { Input, SelectBox } from '@/components/ui';
+import { ReportJobHeader } from './SimpleReports';
+import {
+  formatAmount, invoiceSrOf, itemCthOf, itemDescriptionOf, itemInvoiceSr, itemQtyOf, itemTagOf, itemUqcOf, parseJsonList,
+  parseNumber,
+} from './reportFormat';
+import {
+  ReportBody, ReportCell, ReportColumnGrid, ReportFootnote, ReportLabelCell, ReportNote, ReportPage, ReportRow,
+  ReportTable, ReportTitle,
+} from '../reportTable';
 
-const F = { fontFamily: 'Helvetica, Arial, sans-serif', fontSize: '9pt', color: '#000' };
-const cell = { border: '1px solid #475569', padding: '3px 5px', verticalAlign: 'top' };
-const head = { ...cell, background: '#e2e8f0', fontWeight: 700, textAlign: 'left' };
-const lab = { ...cell, fontWeight: 700, background: '#f8fafc', width: '22%' };
-const num = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0;
-const fmt = (v, d = 2) => num(v).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
-const dmy = (v) => { const s = String(v || '').trim(); let m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(s); if (m) return `${m[3]}/${m[2]}/${m[1]}`; return s; };
-const itemInvSr = (it) => String(it.invSrNo || it.invoiceSrNo || 1);
-const invSrOf = (inv, i) => String(inv.invoiceSrNo || inv.invSrNo || i + 1);
-const asArr = (v) => { if (Array.isArray(v)) return v; if (typeof v === 'string' && v.trim()) { try { const x = JSON.parse(v); return Array.isArray(x) ? x : []; } catch (e) { return []; } } return []; };
-const join = (...a) => a.map(x => String(x || '').trim()).filter(Boolean).join(', ');
+// also takes the compact YYYYMMDD form
+const toDmy = (value) => {
+  const text = String(value || '').trim();
+  const match = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(text);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : text;
+};
+const joinParts = (...parts) => parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
+const datedText = (no, date) => `${no || ''} ${date ? 'Dt. ' + toDmy(date) : ''}`;
 
 // a box the operator types into before printing (its text goes into the print and the mail; inputs would not)
-function Fill({ minWidth = '160px' }) {
-  return <span contentEditable suppressContentEditableWarning style={{ display: 'inline-block', minWidth, minHeight: '14px', borderBottom: '1px dotted #64748b', outline: 'none' }} />;
-}
-
-export function AdcSheetReport({ jobData, items }) {
-  const j = jobData || {};
-  const invoices = j.invoices || [];
-  const port = j.portName || j.locationName || j.autoField_1 || j.portCode || j.customHouseCode || '';
-  const invText = invoices.map(inv => [inv.invNo || inv.invoiceNo, inv.invDate || inv.invoiceDate ? 'Dt. ' + dmy(inv.invDate || inv.invoiceDate) : ''].filter(Boolean).join(' ')).filter(Boolean).join('; ');
-  const rows = [];
-  (items || []).forEach((it, i) => {
-    const d = computeItemDuty(it, invoices, j);
-    const qty = num(it.qty || it.quantity); const uqc = it.uqc || it.unit || '';
-    const batches = asArr(it.swProdData).filter(b => b && (b.batch || b.mnfDate || b.expDate));
-    const base = { inv: itemInvSr(it) + '/' + (it.itemSrNo || it.itemNo || i + 1), desc: it.desc || it.productDescription || '', generic: it.genericDesc || '',
-      cth: it.ritc || it.hsCode || it.cth || '', mfr: join(it.manufacturerName || it.manufacturer, it.itemManufacturerCity), av: d.av || 0 };
-    if (!batches.length) { rows.push({ ...base, batch: '', mfg: '', exp: '', qty, uqc, value: base.av }); return; }
-    const bq = batches.reduce((s, b) => s + num(b.qty), 0);
-    batches.forEach((b, k) => {
-      const q = num(b.qty);
-      // the item's value is shared by batch quantity when the batch quantities add up to the item; else it stays on the first row
-      const value = bq > 0 && Math.abs(bq - qty) < 1e-6 ? base.av * q / bq : (k === 0 ? base.av : 0);
-      rows.push({ ...base, batch: b.batch || '', mfg: b.mnfDate || '', exp: b.expDate || b.bestBefore || '', qty: q || (k === 0 ? qty : 0), uqc: b.uqc || uqc, value, more: k > 0 });
-    });
-  });
-  const total = rows.reduce((s, r) => s + r.value, 0);
-  const noBatch = (items || []).length > 0 && rows.some(r => !r.batch);
+function Fill({ className }) {
   return (
-    <div style={F}>
-      <div style={{ textAlign: 'center', fontWeight: 700, fontSize: '12pt', textTransform: 'uppercase' }}>ADC Sheet</div>
-      <div style={{ textAlign: 'center', fontSize: '9pt', marginBottom: '6px' }}>Particulars for the NOC of the Assistant Drugs Controller (India), Port Office{port ? ' - ' + port : ''}<br />Drugs / Cosmetics / Medical Devices</div>
-      <div className="no-print" style={{ border: '1px solid #93c5fd', background: '#eff6ff', color: '#1e3a8a', padding: '4px 8px', marginBottom: '6px' }}>
-        Click the dotted boxes to type the licence / registration details before printing. Batch, Mfg and Expiry come from 4. Items &gt; SW production details{noBatch ? ' - some items have none (blank on the sheet).' : '.'}
-      </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}><tbody>
-        <tr><td style={lab}>Importer</td><td style={cell} colSpan={3}><b>{j.nameOfImporter || j.autoField_4 || ''}</b><br />{join(j.address1 || j.autoField_6, j.address2 || j.autoField_7, j.city || j.autoField_8, j.state || j.autoField_9, j.pin || j.autoField_10)}</td></tr>
-        <tr><td style={lab}>IEC</td><td style={cell}>{j.iecCode || j.autoField_5 || ''}</td><td style={lab}>GSTIN</td><td style={cell}>{j.commercialTaxRegistrationNo || j.autoField_13 || ''}</td></tr>
-        <tr><td style={lab}>Job No / Date</td><td style={cell}>{j.jobNo && j.jobNo !== 'DRAFT' ? j.jobNo : 'DRAFT'} {j.jobDate ? 'Dt. ' + dmy(j.jobDate) : ''}</td><td style={lab}>B/E No / Date</td><td style={cell}>{j.beNo || ''} {j.beDate ? 'Dt. ' + dmy(j.beDate) : ''}</td></tr>
-        <tr><td style={lab}>MAWB / BL</td><td style={cell}>{j.mawbNo || j.mawbblNo || ''} {j.mawbDate ? 'Dt. ' + dmy(j.mawbDate) : ''}</td><td style={lab}>HAWB / HBL</td><td style={cell}>{j.hawbNo || j.hawbhblNo || ''} {j.hawbDate ? 'Dt. ' + dmy(j.hawbDate) : ''}</td></tr>
-        <tr><td style={lab}>IGM No / Date</td><td style={cell}>{j.igmNumber || j.igmNo || ''} {j.igmDate ? 'Dt. ' + dmy(j.igmDate) : ''}</td><td style={lab}>Packages / Gross Wt</td><td style={cell}>{j.totalPkg || ''} {j.pkg || ''} / {j.grossWt || ''} {j.grossWtUnit || ''}</td></tr>
-        <tr><td style={lab}>Supplier</td><td style={cell}>{j.supplierName || ''}</td><td style={lab}>Country of Origin / Consignment</td><td style={cell}>{j.countryOfOriginName || j.countryOfOrigin || ''} / {j.countryOfConsignmentName || j.countryOfConsignment || ''}</td></tr>
-        <tr><td style={lab}>Invoice No / Date</td><td style={cell} colSpan={3}>{invText}</td></tr>
-        <tr><td style={lab}>Import Licence / Registration No (Form 10 / 10A / 41 / MD-15)</td><td style={cell}><Fill /></td><td style={lab}>Valid up to</td><td style={cell}><Fill minWidth="90px" /></td></tr>
-        <tr><td style={lab}>Importer's Drug Licence No (Form 20B / 21B) / other</td><td style={cell}><Fill /></td><td style={lab}>Valid up to</td><td style={cell}><Fill minWidth="90px" /></td></tr>
-      </tbody></table>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead><tr>{['Sr', 'Inv/Item', 'Name of the Product', 'CTH', 'Manufacturer', 'Batch No', 'Mfg Date', 'Expiry Date', 'Quantity', 'Value (Rs)'].map(h => <th key={h} style={{ ...head, textAlign: ['Quantity', 'Value (Rs)'].includes(h) ? 'right' : 'left' }}>{h}</th>)}</tr></thead>
-        <tbody>
-          {rows.map((r, i) => <tr key={i}>
-            <td style={cell}>{i + 1}</td>
-            <td style={cell}>{r.more ? '' : r.inv}</td>
-            <td style={cell}>{r.more ? '' : <>{r.desc}{r.generic && r.generic !== r.desc ? <div style={{ color: '#334155' }}>{r.generic}</div> : null}</>}</td>
-            <td style={cell}>{r.more ? '' : r.cth}</td>
-            <td style={cell}>{r.more ? '' : r.mfr}</td>
-            <td style={cell}>{r.batch}</td>
-            <td style={cell}>{dmy(r.mfg)}</td>
-            <td style={cell}>{dmy(r.exp)}</td>
-            <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>{r.qty ? fmt(r.qty, 3) + ' ' + r.uqc : ''}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{r.value ? fmt(r.value) : ''}</td>
-          </tr>)}
-          {rows.length === 0 && <tr><td colSpan={10} style={{ ...cell, textAlign: 'center' }}>No items in this job</td></tr>}
-        </tbody>
-        {rows.length > 0 && <tfoot><tr style={{ fontWeight: 700, background: '#f1f5f9' }}><td style={cell} colSpan={9}>TOTAL ({(items || []).length} items)</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(total)}</td></tr></tfoot>}
-      </table>
-      <div style={{ marginTop: '10px', breakInside: 'avoid' }}>
-        <div>We declare that the above particulars are true and correct, and that the goods are imported under the licence / registration stated above.</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '28px' }}><tbody><tr>
-          <td style={{ width: '50%', paddingTop: '4px', borderTop: '1px solid #000' }}>Signature of the Importer / Authorised Signatory<br />Place: ............ &nbsp; Date: ............</td>
-          <td style={{ width: '5%' }} />
-          <td style={{ width: '45%', paddingTop: '4px', borderTop: '1px solid #000' }}>Customs Broker {j.chaCode ? '(' + j.chaCode + ')' : ''}</td>
-        </tr></tbody></table>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px' }}><tbody><tr><td style={{ ...cell, height: '60px' }}><b>For the Port Office (ADC) - remarks / NOC</b></td></tr></tbody></table>
-      </div>
-      <div style={{ marginTop: '6px', fontSize: '8pt', color: '#475569' }}>Value = assessable value (estimate, as the Duty Sheet). Final values are as assessed by Customs (ICES).</div>
-    </div>
+    <span
+      contentEditable
+      suppressContentEditableWarning
+      className={cn('tw:inline-block tw:min-h-[14px] tw:min-w-[160px] tw:border-b tw:border-dotted tw:border-[#64748b] tw:outline-none', className)}
+    />
   );
 }
 
-const CFG_KEY = 'stamp_duty_sheet_cfg_v2'; // v2: office defaults (AV + duty, 0.10 %, up to the next Rs 10)
-const readCfg = () => { try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } };
+const SheetLabel = ({ className, ...props }) => <ReportLabelCell className={cn('tw:w-[22%]', className)} {...props} />;
+
+const adcRowsOf = (items, invoices, job) => (items || []).flatMap((item, index) => {
+  const duty = computeItemDuty(item, invoices, job);
+  const qty = parseNumber(itemQtyOf(item));
+  const uqc = itemUqcOf(item);
+  const batches = parseJsonList(item.swProdData).filter((batch) => batch && (batch.batch || batch.mnfDate || batch.expDate));
+  const base = {
+    tag: itemTagOf(item, index),
+    description: itemDescriptionOf(item),
+    generic: item.genericDesc || '',
+    cth: itemCthOf(item),
+    manufacturer: joinParts(item.manufacturerName || item.manufacturer, item.itemManufacturerCity),
+    assessableValue: duty.av || 0,
+  };
+  if (!batches.length) return [{ ...base, batch: '', mfg: '', exp: '', qty, uqc, value: base.assessableValue }];
+  const batchQty = batches.reduce((sum, batch) => sum + parseNumber(batch.qty), 0);
+  return batches.map((batch, batchIndex) => {
+    const thisQty = parseNumber(batch.qty);
+    // the item's value is shared by batch quantity when the batch quantities add up to the item; else it stays on the first row
+    const value = batchQty > 0 && Math.abs(batchQty - qty) < 1e-6
+      ? base.assessableValue * thisQty / batchQty
+      : (batchIndex === 0 ? base.assessableValue : 0);
+    return {
+      ...base,
+      batch: batch.batch || '',
+      mfg: batch.mnfDate || '',
+      exp: batch.expDate || batch.bestBefore || '',
+      qty: thisQty || (batchIndex === 0 ? qty : 0),
+      uqc: batch.uqc || uqc,
+      value,
+      continued: batchIndex > 0,
+    };
+  });
+});
+
+export function AdcSheetReport({ jobData, items }) {
+  const job = jobData || {};
+  const invoices = job.invoices || [];
+  const port = job.portName || job.locationName || job.autoField_1 || job.portCode || job.customHouseCode || '';
+  const invoiceText = invoices
+    .map((invoice) => [invoice.invNo || invoice.invoiceNo, invoice.invDate || invoice.invoiceDate ? 'Dt. ' + toDmy(invoice.invDate || invoice.invoiceDate) : ''].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join('; ');
+  const rows = adcRowsOf(items, invoices, job);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const noBatch = (items || []).length > 0 && rows.some((row) => !row.batch);
+  const itemCell = (row, value) => (row.continued ? '' : value);
+  return (
+    <ReportPage>
+      <ReportTitle className="tw:uppercase">ADC Sheet</ReportTitle>
+      <div className="tw:mb-[6px] tw:text-center tw:text-[9pt]">
+        Particulars for the NOC of the Assistant Drugs Controller (India), Port Office{port ? ' - ' + port : ''}<br />Drugs / Cosmetics / Medical Devices
+      </div>
+      <ReportNote tone="info">
+        Click the dotted boxes to type the licence / registration details before printing. Batch, Mfg and Expiry come from 4. Items &gt; SW production details{noBatch ? ' - some items have none (blank on the sheet).' : '.'}
+      </ReportNote>
+      <ReportTable className="tw:mb-[8px]">
+        <ReportBody>
+          <ReportRow>
+            <SheetLabel>Importer</SheetLabel>
+            <ReportCell colSpan={3}>
+              <b>{job.nameOfImporter || job.autoField_4 || ''}</b><br />
+              {joinParts(job.address1 || job.autoField_6, job.address2 || job.autoField_7, job.city || job.autoField_8, job.state || job.autoField_9, job.pin || job.autoField_10)}
+            </ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>IEC</SheetLabel><ReportCell>{job.iecCode || job.autoField_5 || ''}</ReportCell>
+            <SheetLabel>GSTIN</SheetLabel><ReportCell>{job.commercialTaxRegistrationNo || job.autoField_13 || ''}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Job No / Date</SheetLabel><ReportCell>{datedText(job.jobNo && job.jobNo !== 'DRAFT' ? job.jobNo : 'DRAFT', job.jobDate)}</ReportCell>
+            <SheetLabel>B/E No / Date</SheetLabel><ReportCell>{datedText(job.beNo, job.beDate)}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>MAWB / BL</SheetLabel><ReportCell>{datedText(job.mawbNo || job.mawbblNo, job.mawbDate)}</ReportCell>
+            <SheetLabel>HAWB / HBL</SheetLabel><ReportCell>{datedText(job.hawbNo || job.hawbhblNo, job.hawbDate)}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>IGM No / Date</SheetLabel><ReportCell>{datedText(job.igmNumber || job.igmNo, job.igmDate)}</ReportCell>
+            <SheetLabel>Packages / Gross Wt</SheetLabel><ReportCell>{job.totalPkg || ''} {job.pkg || ''} / {job.grossWt || ''} {job.grossWtUnit || ''}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Supplier</SheetLabel><ReportCell>{job.supplierName || ''}</ReportCell>
+            <SheetLabel>Country of Origin / Consignment</SheetLabel>
+            <ReportCell>{job.countryOfOriginName || job.countryOfOrigin || ''} / {job.countryOfConsignmentName || job.countryOfConsignment || ''}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Invoice No / Date</SheetLabel><ReportCell colSpan={3}>{invoiceText}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Import Licence / Registration No (Form 10 / 10A / 41 / MD-15)</SheetLabel><ReportCell><Fill /></ReportCell>
+            <SheetLabel>Valid up to</SheetLabel><ReportCell><Fill className="tw:min-w-[90px]" /></ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Importer&apos;s Drug Licence No (Form 20B / 21B) / other</SheetLabel><ReportCell><Fill /></ReportCell>
+            <SheetLabel>Valid up to</SheetLabel><ReportCell><Fill className="tw:min-w-[90px]" /></ReportCell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      <ReportColumnGrid
+        columns={['Sr', 'Inv/Item', 'Name of the Product', 'CTH', 'Manufacturer', 'Batch No', 'Mfg Date', 'Expiry Date', 'Quantity', 'Value (Rs)']}
+        rightAligned={['Quantity', 'Value (Rs)']}
+        rows={rows.map((row, index) => [
+          index + 1,
+          itemCell(row, row.tag),
+          itemCell(row, <>{row.description}{row.generic && row.generic !== row.description ? <div className="tw:text-[#334155]">{row.generic}</div> : null}</>),
+          itemCell(row, row.cth),
+          itemCell(row, row.manufacturer),
+          row.batch,
+          toDmy(row.mfg),
+          toDmy(row.exp),
+          { value: row.qty ? formatAmount(row.qty, 3) + ' ' + row.uqc : '', className: 'tw:whitespace-nowrap' },
+          row.value ? formatAmount(row.value) : '',
+        ])}
+        emptyText="No items in this job"
+        footer={[{ value: `TOTAL (${(items || []).length} items)`, colSpan: 9 }, formatAmount(total)]}
+      />
+      <div className="tw:mt-[10px] tw:break-inside-avoid">
+        <div>We declare that the above particulars are true and correct, and that the goods are imported under the licence / registration stated above.</div>
+        <ReportTable className="tw:mt-[28px]">
+          <ReportBody>
+            <ReportRow>
+              <ReportCell look="bare" className="tw:w-1/2 tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
+                Signature of the Importer / Authorised Signatory<br />Place: ............ &nbsp; Date: ............
+              </ReportCell>
+              <ReportCell look="bare" className="tw:w-[5%]" />
+              <ReportCell look="bare" className="tw:w-[45%] tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
+                Customs Broker {job.chaCode ? '(' + job.chaCode + ')' : ''}
+              </ReportCell>
+            </ReportRow>
+          </ReportBody>
+        </ReportTable>
+        <ReportTable className="tw:mt-[12px]">
+          <ReportBody>
+            <ReportRow><ReportCell className="tw:h-[60px]"><b>For the Port Office (ADC) - remarks / NOC</b></ReportCell></ReportRow>
+          </ReportBody>
+        </ReportTable>
+      </div>
+      <ReportFootnote>Value = assessable value (estimate, as the Duty Sheet). Final values are as assessed by Customs (ICES).</ReportFootnote>
+    </ReportPage>
+  );
+}
+
+const CONFIG_KEY = 'stamp_duty_sheet_cfg_v2';
+const DEFAULT_CONFIG = { rate: '0.10', basis: 'avduty', round: 'up10' };
+
+const readSavedConfig = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
+    const config = saved && typeof saved === 'object' ? saved : {};
+    return {
+      rate: config.rate != null ? String(config.rate) : DEFAULT_CONFIG.rate,
+      basis: config.basis || DEFAULT_CONFIG.basis,
+      round: config.round || DEFAULT_CONFIG.round,
+    };
+  } catch {
+    return DEFAULT_CONFIG;
+  }
+};
+
+const BASIS_OPTIONS = [
+  { value: 'av', label: 'Assessable value' },
+  { value: 'avduty', label: 'Assessable value + duty' },
+];
+const ROUNDING_OPTIONS = [
+  { value: 'up10', label: '%, rounded up to the next Rs 10' },
+  { value: 'exact', label: '%, rounded to the rupee' },
+  { value: 'per1000', label: 'Per Rs 1,000 or part' },
+];
+
+const STAMP_RIGHT_COLUMNS = ['Invoice Value', 'Items', 'Assessable Value (Rs)', 'Duty (Rs)'];
 
 export function StampDutySheetReport({ jobData, items }) {
-  const j = jobData || {};
-  const invoices = j.invoices || [];
-  const saved = readCfg();
-  const [rate, setRate] = React.useState(saved.rate != null ? String(saved.rate) : '0.10');
-  const [basis, setBasis] = React.useState(saved.basis || 'avduty');
-  const [round, setRound] = React.useState(saved.round || 'up10');
-  React.useEffect(() => { try { localStorage.setItem(CFG_KEY, JSON.stringify({ rate, basis, round })); } catch (e) { /* storage blocked */ } }, [rate, basis, round]);
+  const job = jobData || {};
+  const invoices = job.invoices || [];
+  const [config, setConfig] = useState(readSavedConfig);
+  const { rate, basis, round } = config;
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({ rate, basis, round }));
+    } catch { /* storage blocked */ }
+  }, [rate, basis, round]);
+  const updateConfig = (key) => (value) => setConfig((current) => ({ ...current, [key]: value }));
 
-  const lines = (items || []).map(it => ({ sr: itemInvSr(it), d: computeItemDuty(it, invoices, j) }));
-  const groups = (invoices.length ? invoices : [{}]).map((inv, i) => {
-    const sr = invoices.length ? invSrOf(inv, i) : '1';
-    const mine = lines.filter(l => !invoices.length || l.sr === sr);
-    return { inv, sr, av: mine.reduce((s, l) => s + (l.d.av || 0), 0), duty: mine.reduce((s, l) => s + (l.d.total || 0), 0), n: mine.length };
+  const lines = (items || []).map((item) => ({ sr: itemInvoiceSr(item), duty: computeItemDuty(item, invoices, job) }));
+  const groups = (invoices.length ? invoices : [{}]).map((invoice, index) => {
+    const sr = invoices.length ? invoiceSrOf(invoice, index) : '1';
+    const own = lines.filter((line) => !invoices.length || line.sr === sr);
+    return {
+      invoice,
+      sr,
+      assessableValue: own.reduce((sum, line) => sum + (line.duty.av || 0), 0),
+      duty: own.reduce((sum, line) => sum + (line.duty.total || 0), 0),
+      itemCount: own.length,
+    };
   });
-  const av = groups.reduce((s, g) => s + g.av, 0); const duty = groups.reduce((s, g) => s + g.duty, 0);
-  const value = basis === 'avduty' ? av + duty : av;
-  const r = Math.max(0, num(rate));
-  const exact = value * r / 100;
+  const assessableValue = groups.reduce((sum, group) => sum + group.assessableValue, 0);
+  const duty = groups.reduce((sum, group) => sum + group.duty, 0);
+  const value = basis === 'avduty' ? assessableValue + duty : assessableValue;
+  const ratePercent = Math.max(0, parseNumber(rate));
+  const exact = value * ratePercent / 100;
   // up10: up to the next Rs 10 (a tiny tolerance so 35,360.00 itself is not pushed to 35,370)
-  const stamp = round === 'per1000' ? Math.ceil(value / 1000) * (r * 10) : round === 'up10' ? Math.ceil(exact / 10 - 1e-9) * 10 : Math.round(exact);
+  const stamp = round === 'per1000'
+    ? Math.ceil(value / 1000) * (ratePercent * 10)
+    : round === 'up10' ? Math.ceil(exact / 10 - 1e-9) * 10 : Math.round(exact);
   const basisText = basis === 'avduty' ? 'Assessable value + duty' : 'Assessable value';
-  const ruleText = round === 'per1000' ? `Rs ${fmt(r * 10)} per Rs 1,000 or part` : round === 'up10' ? `${fmt(r, 2)} % of the value (${fmt(exact)}), rounded up to the next Rs 10` : `${fmt(r, 2)} % of the value, rounded to the rupee`;
-  const sel = { height: '24px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '0 4px' };
+  const ruleText = round === 'per1000'
+    ? `Rs ${formatAmount(ratePercent * 10)} per Rs 1,000 or part`
+    : round === 'up10'
+      ? `${formatAmount(ratePercent, 2)} % of the value (${formatAmount(exact)}), rounded up to the next Rs 10`
+      : `${formatAmount(ratePercent, 2)} % of the value, rounded to the rupee`;
+  const invoiceValueOf = (invoice) => invoice.value || invoice.invValue || invoice.invoiceValue;
   return (
-    <div style={F}>
-      <ReportHeader title="Stamp Duty Sheet" jobData={j} />
-      <div className="no-print" style={{ border: '1px solid #f59e0b', background: '#fffbeb', color: '#78350f', padding: '6px 8px', marginBottom: '6px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span><b>Rate %</b> <input aria-label="Stamp duty rate %" style={{ ...sel, width: '64px' }} value={rate} onChange={e => setRate(e.target.value.replace(/[^\d.]/g, ''))} /></span>
-        <span><b>On</b> <select aria-label="Stamp duty basis" style={sel} value={basis} onChange={e => setBasis(e.target.value)}><option value="av">Assessable value</option><option value="avduty">Assessable value + duty</option></select></span>
-        <span><b>Worked out</b> <select aria-label="Stamp duty rounding" style={sel} value={round} onChange={e => setRound(e.target.value)}><option value="up10">%, rounded up to the next Rs 10</option><option value="exact">%, rounded to the rupee</option><option value="per1000">Per Rs 1,000 or part</option></select></span>
-        <span style={{ flexBasis: '100%', fontSize: '10px' }}>Office rule: (assessable value + total duty) x 0.10 %, rounded up to the next Rs 10. Duty here is the estimate; after assessment check it with the assessed B/E. This setting is kept in this browser.</span>
-      </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
-        <thead><tr>{['Inv', 'Invoice No', 'Date', 'Currency', 'Invoice Value', 'Items', 'Assessable Value (Rs)', 'Duty (Rs)'].map(h => <th key={h} style={{ ...head, textAlign: ['Invoice Value', 'Items', 'Assessable Value (Rs)', 'Duty (Rs)'].includes(h) ? 'right' : 'left' }}>{h}</th>)}</tr></thead>
-        <tbody>
-          {groups.map((g, i) => <tr key={i}>
-            <td style={cell}>{g.sr}</td>
-            <td style={cell}>{g.inv.invNo || g.inv.invoiceNo || ''}</td>
-            <td style={cell}>{dmy(g.inv.invDate || g.inv.invoiceDate)}</td>
-            <td style={cell}>{g.inv.currency || j.currency || ''}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{g.inv.value || g.inv.invValue || g.inv.invoiceValue ? fmt(g.inv.value || g.inv.invValue || g.inv.invoiceValue) : ''}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{g.n}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{fmt(g.av)}</td>
-            <td style={{ ...cell, textAlign: 'right' }}>{fmt(g.duty)}</td>
-          </tr>)}
-        </tbody>
-        <tfoot><tr style={{ fontWeight: 700, background: '#f1f5f9' }}><td style={cell} colSpan={6}>TOTAL</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(av)}</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(duty)}</td></tr></tfoot>
-      </table>
-      <table style={{ width: '60%', borderCollapse: 'collapse', marginLeft: 'auto' }}><tbody>
-        <tr><td style={lab}>Value for stamp duty</td><td style={cell}>{basisText}</td><td style={{ ...cell, textAlign: 'right' }}>{fmt(value)}</td></tr>
-        <tr><td style={lab}>Rate</td><td style={cell} colSpan={2}>{ruleText}</td></tr>
-        <tr style={{ fontWeight: 700, background: '#f1f5f9' }}><td style={lab}>Stamp duty (Rs)</td><td style={cell} /><td style={{ ...cell, textAlign: 'right', fontSize: '11pt' }}>{fmt(stamp)}</td></tr>
-      </tbody></table>
-      <div style={{ marginTop: '6px', fontSize: '8pt', color: '#475569' }}>Assessable value and duty are the estimate of the Duty Sheet; after assessment use the values of the assessed B/E.</div>
-    </div>
+    <ReportPage>
+      <ReportJobHeader title="Stamp Duty Sheet" jobData={job} />
+      <ReportNote className="tw:flex tw:flex-wrap tw:items-center tw:gap-[10px] tw:py-[6px] tw:text-[#78350f]">
+        <span className="tw:inline-flex tw:items-center tw:gap-1">
+          <b>Rate %</b>
+          <Input aria-label="Stamp duty rate %" className="tw:h-6 tw:w-[64px] tw:text-[11px]" value={rate}
+            onChange={(event) => updateConfig('rate')(event.target.value.replace(/[^\d.]/g, ''))} />
+        </span>
+        <span className="tw:inline-flex tw:items-center tw:gap-1">
+          <b>On</b>
+          <SelectBox options={BASIS_OPTIONS} value={basis} onValueChange={updateConfig('basis')} className="tw:w-auto tw:text-[11px]" />
+        </span>
+        <span className="tw:inline-flex tw:items-center tw:gap-1">
+          <b>Worked out</b>
+          <SelectBox options={ROUNDING_OPTIONS} value={round} onValueChange={updateConfig('round')} className="tw:w-auto tw:text-[11px]" />
+        </span>
+        <span className="tw:basis-full tw:text-[10px]">
+          Office rule: (assessable value + total duty) x 0.10 %, rounded up to the next Rs 10. Duty here is the estimate; after assessment check it with the assessed B/E. This setting is kept in this browser.
+        </span>
+      </ReportNote>
+      <ReportColumnGrid
+        className="tw:mb-[8px]"
+        columns={['Inv', 'Invoice No', 'Date', 'Currency', 'Invoice Value', 'Items', 'Assessable Value (Rs)', 'Duty (Rs)']}
+        rightAligned={STAMP_RIGHT_COLUMNS}
+        rows={groups.map((group) => [
+          group.sr,
+          group.invoice.invNo || group.invoice.invoiceNo || '',
+          toDmy(group.invoice.invDate || group.invoice.invoiceDate),
+          group.invoice.currency || job.currency || '',
+          invoiceValueOf(group.invoice) ? formatAmount(invoiceValueOf(group.invoice)) : '',
+          group.itemCount,
+          formatAmount(group.assessableValue),
+          formatAmount(group.duty),
+        ])}
+        footer={[{ value: 'TOTAL', colSpan: 6 }, formatAmount(assessableValue), formatAmount(duty)]}
+      />
+      <ReportTable className="tw:ml-auto tw:w-[60%]">
+        <ReportBody>
+          <ReportRow>
+            <SheetLabel>Value for stamp duty</SheetLabel><ReportCell>{basisText}</ReportCell><ReportCell align="right">{formatAmount(value)}</ReportCell>
+          </ReportRow>
+          <ReportRow>
+            <SheetLabel>Rate</SheetLabel><ReportCell colSpan={2}>{ruleText}</ReportCell>
+          </ReportRow>
+          <ReportRow tone="total">
+            <SheetLabel>Stamp duty (Rs)</SheetLabel><ReportCell /><ReportCell align="right" className="tw:text-[11pt]">{formatAmount(stamp)}</ReportCell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      <ReportFootnote>Assessable value and duty are the estimate of the Duty Sheet; after assessment use the values of the assessed B/E.</ReportFootnote>
+    </ReportPage>
   );
 }

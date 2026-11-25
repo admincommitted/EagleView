@@ -1,8 +1,7 @@
 import { createPortal } from 'react-dom';
 
-// Renders a popup at the end of <body>. The export / import screens sit inside panels with backdrop-filter and
-// overflow:hidden; a position:fixed popup inside such a panel is placed and clipped by the panel, not by the window
-// (the e-Sanchit window went off the screen on the Items tab). 29-Oct-2026
+// A position:fixed popup inside a panel with backdrop-filter / overflow:hidden is placed and clipped by that panel,
+// not by the window, so popups of the entry screens are drawn at the end of <body>.
 export default function BodyPortal({ children }) {
   if (typeof document === 'undefined' || !document.body) return children;
   return createPortal(children, document.body);

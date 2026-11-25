@@ -1,82 +1,155 @@
-// Field Tracking > Phone access (14-Nov-2026): the office code a phone needs to register, "old field app allowed",
-// and which phones use the new app (own device token) or the old one. Admin changes; others only see.
-import React from 'react';
-import { createPortal } from 'react-dom';
+// Field Tracking > Phone access: the office code a phone needs to register, "old field app allowed", and which phones
+// use the new app (own device token) or the old one. Admin changes; others only see.
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ShieldCheck, X, RefreshCw } from 'lucide-react';
-import { apiFetch } from '../helpers';
+import { RefreshCw, ShieldCheck } from 'lucide-react';
+import { Button, Checkbox, DataTable, Input, Modal } from '@/components/ui';
+import askConfirm from '@/components/common/askConfirm';
+import { cn } from '@/lib/utils';
+import { fieldTrackingApi } from '../fieldTrackingApi';
 
-const dt = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? '' : d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
-const newCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; const r = crypto.getRandomValues(new Uint32Array(8)); for (const n of r) s += A[n % A.length]; return s; };
-const btn = (bg, fg, bd) => ({ padding: '6px 12px', background: bg, color: fg, border: '1px solid ' + (bd || bg), borderRadius: '6px', fontWeight: 600, fontSize: '12px', cursor: 'pointer' });
+const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 8;
+const MIN_CODE_LENGTH = 6;
+
+const shortTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
+const randomCode = () => [...crypto.getRandomValues(new Uint32Array(CODE_LENGTH))].map((number) => CODE_LETTERS[number % CODE_LETTERS.length]).join('');
+
+const cleanCode = (text) => text.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
 
 export default function PhoneAccessModal({ onClose }) {
-  const [d, setD] = React.useState(null);
-  const [code, setCode] = React.useState('');
-  const [busy, setBusy] = React.useState(false);
-  const load = React.useCallback(() => apiFetch('/device/settings').then(r => { setD(r.data); setCode(r.data.code || ''); }).catch(e => toast.error(e.message)), []);
-  React.useEffect(() => { load(); }, [load]);
-  const save = async (body, msg) => {
+  const [settings, setSettings] = useState(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const answer = await fieldTrackingApi.deviceSettings();
+      setSettings(answer.data);
+      setCode(answer.data.code || '');
+    } catch (error) {
+      toast.error(error.message);
+    }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (change, message) => {
     setBusy(true);
-    try { await apiFetch('/device/settings', { method: 'PUT', body: JSON.stringify(body) }); toast.success(msg); await load(); }
-    catch (e) { toast.error(e.message); } finally { setBusy(false); }
+    try {
+      await fieldTrackingApi.saveDeviceSettings(change);
+      toast.success(message);
+      await load();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
   };
-  const disconnect = async (a) => {
-    if (!window.confirm(`Disconnect ${a.name}'s phone? It must register again with the office code.`)) return;
-    try { await apiFetch(`/agents/${encodeURIComponent(a.id)}/disconnect`, { method: 'POST' }); toast.success('Phone disconnected'); load(); } catch (e) { toast.error(e.message); }
+
+  const disconnect = async (agent) => {
+    const goAhead = await askConfirm({
+      title: 'Disconnect phone',
+      message: `Disconnect ${agent.name}'s phone? It must register again with the office code.`,
+      okLabel: 'Disconnect',
+      tone: 'danger',
+    });
+    if (!goAhead) return;
+    try {
+      await fieldTrackingApi.disconnectPhone(agent.id);
+      toast.success('Phone disconnected');
+      load();
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
-  const admin = d && d.isAdmin;
-  const oldCount = d ? d.agents.filter(a => !a.phoneSecure).length : 0;
-  return createPortal(
-    <div role="dialog" aria-label="Phone access" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 9010, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: '#fff', borderRadius: '10px', width: 720, maxWidth: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
-          <ShieldCheck size={18} color="#2563eb" /><h3 style={{ margin: 0, fontSize: '15px', color: '#0f172a' }}>Phone access</h3>
-          <button type="button" aria-label="Refresh" onClick={load} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' }}><RefreshCw size={15} /></button>
-          <button type="button" aria-label="Close" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
-        </div>
-        {!d ? <div style={{ padding: '20px', fontSize: '12px', color: '#64748b' }}>Loading…</div> : (
-          <div style={{ overflow: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '12.5px', color: '#334155' }}>
-            <section>
-              <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>Office code</div>
-              <div style={{ color: '#64748b', marginBottom: '8px' }}>A field boy opens the new field app, enters his mobile number and this code once. His phone then gets its own key and can send only his location and tasks.</div>
-              {admin ? (
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <input aria-label="Office code" value={code} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20))} placeholder="6-20 letters / digits"
-                    style={{ padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', fontFamily: 'monospace', letterSpacing: '1px', width: '220px' }} />
-                  <button type="button" style={btn('#fff', '#334155', '#cbd5e1')} onClick={() => setCode(newCode())}>New random code</button>
-                  <button type="button" disabled={busy || code.length < 6} style={btn('#2563eb', '#fff')} onClick={() => save({ code }, 'Office code saved')}>Save code</button>
-                  {d.codeSet && <span style={{ color: '#64748b' }}>Changing it does not disconnect phones already registered.</span>}
-                </div>
-              ) : <div>{d.codeSet ? 'Set (ask the admin for it).' : <b style={{ color: '#b91c1c' }}>Not set yet - ask the admin.</b>}</div>}
-            </section>
-            <section style={{ background: d.legacy ? '#fffbeb' : '#f0fdf4', border: '1px solid ' + (d.legacy ? '#fde68a' : '#bbf7d0'), borderRadius: '8px', padding: '10px 12px' }}>
-              <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: admin ? 'pointer' : 'default' }}>
-                <input type="checkbox" checked={!!d.legacy} disabled={!admin || busy} onChange={e => save({ legacy: e.target.checked }, e.target.checked ? 'Old field app allowed' : 'Old field app stopped')} style={{ marginTop: '2px' }} />
-                <span><b>Allow the old field app</b> (no office code)<br />
-                  <span style={{ color: '#64748b' }}>Keep this on until every field boy has the new app ({oldCount} of {d.agents.length} not registered yet). While on, old phones keep working but get no one's location or phone number; turn it off after the switch.</span></span>
-              </label>
-            </section>
-            <section>
-              <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>Phones</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>{['Field staff', 'Mobile', 'App', 'Old app last used', ''].map(h => <th key={h} style={{ textAlign: 'left', fontSize: '11px', color: '#64748b', padding: '6px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>{h}</th>)}</tr></thead>
-                <tbody>{d.agents.map(a => (
-                  <tr key={a.id}>
-                    <td style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}><b>{a.name}</b> <span style={{ color: '#94a3b8' }}>{a.id}</span></td>
-                    <td style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>{a.phone}</td>
-                    <td style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>{a.phoneSecure
-                      ? <span style={{ color: '#15803d', fontWeight: 700 }}>New app (registered {dt(a.deviceIssuedAt)})</span>
-                      : <span style={{ color: '#b45309', fontWeight: 700 }}>Old app / not registered</span>}</td>
-                    <td style={{ padding: '6px', borderBottom: '1px solid #f1f5f9', color: '#64748b' }}>{dt(a.lastLegacyAt) || '-'}</td>
-                    <td style={{ padding: '6px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>{admin && a.phoneSecure && <button type="button" style={btn('#fff', '#b91c1c', '#fca5a5')} onClick={() => disconnect(a)}>Disconnect phone</button>}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </section>
-          </div>
-        )}
-      </div>
-    </div>, document.body);
+
+  const isAdmin = settings?.isAdmin;
+  const oldAppCount = settings ? settings.agents.filter((agent) => !agent.phoneSecure).length : 0;
+
+  const columns = [
+    { key: 'name', header: 'Field staff', cell: (agent) => <><b>{agent.name}</b> <span className="tw:text-muted-foreground">{agent.id}</span></> },
+    { key: 'phone', header: 'Mobile' },
+    {
+      key: 'app',
+      header: 'App',
+      cell: (agent) => (agent.phoneSecure
+        ? <span className="tw:font-bold tw:text-success">New app (registered {shortTime(agent.deviceIssuedAt)})</span>
+        : <span className="tw:font-bold tw:text-warning">Old app / not registered</span>),
+    },
+    { key: 'lastLegacyAt', header: 'Old app last used', className: 'tw:text-muted-foreground', cell: (agent) => shortTime(agent.lastLegacyAt) || '-' },
+    {
+      key: 'disconnect',
+      header: '',
+      align: 'right',
+      cell: (agent) => isAdmin && agent.phoneSecure && <Button size="sm" variant="destructive" onClick={() => disconnect(agent)}>Disconnect phone</Button>,
+    },
+  ];
+
+  const title = (
+    <span className="tw:flex tw:items-center tw:gap-2">
+      <ShieldCheck className="tw:size-[18px] tw:text-primary" /> Phone access
+      <Button variant="ghost" size="icon-sm" aria-label="Refresh" onClick={load}><RefreshCw className="tw:size-[15px]" /></Button>
+    </span>
+  );
+
+  return (
+    <Modal open width={720} title={title} onClose={onClose} className="tw:max-h-[90vh]" bodyClassName="tw:gap-3.5 tw:text-[12.5px]">
+      {!settings ? (
+        <span className="tw:text-entry tw:text-muted-foreground">Loading…</span>
+      ) : (
+        <>
+          <section className="tw:flex tw:flex-col tw:gap-2">
+            <b className="tw:text-foreground">Office code</b>
+            <span className="tw:text-muted-foreground">
+              A field boy opens the new field app, enters his mobile number and this code once. His phone then gets its own key and can send only his location and tasks.
+            </span>
+            {isAdmin ? (
+              <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+                <Input
+                  data-allow-text
+                  aria-label="Office code"
+                  value={code}
+                  onChange={(event) => setCode(cleanCode(event.target.value))}
+                  placeholder="6-20 letters / digits"
+                  className="tw:h-8 tw:w-[220px] tw:font-mono tw:text-[14px] tw:tracking-wider"
+                />
+                <Button onClick={() => setCode(randomCode())}>New random code</Button>
+                <Button variant="default" disabled={busy || code.length < MIN_CODE_LENGTH} onClick={() => save({ code }, 'Office code saved')}>Save code</Button>
+                {settings.codeSet && <span className="tw:text-muted-foreground">Changing it does not disconnect phones already registered.</span>}
+              </div>
+            ) : (
+              <div>{settings.codeSet ? 'Set (ask the admin for it).' : <b className="tw:text-destructive">Not set yet - ask the admin.</b>}</div>
+            )}
+          </section>
+
+          <section className={cn('tw:rounded-lg tw:border tw:px-3 tw:py-2.5', settings.legacy ? 'tw:border-warning/40 tw:bg-warning/10' : 'tw:border-success/40 tw:bg-success/10')}>
+            <label className={cn('tw:m-0 tw:flex tw:items-start tw:gap-2', isAdmin ? 'tw:cursor-pointer' : 'tw:cursor-default')}>
+              <Checkbox
+                className="tw:mt-0.5"
+                checked={Boolean(settings.legacy)}
+                disabled={!isAdmin || busy}
+                onCheckedChange={(checked) => save({ legacy: checked === true }, checked === true ? 'Old field app allowed' : 'Old field app stopped')}
+              />
+              <span>
+                <b>Allow the old field app</b> (no office code)<br />
+                <span className="tw:text-muted-foreground">
+                  Keep this on until every field boy has the new app ({oldAppCount} of {settings.agents.length} not registered yet). While on, old phones keep working but get no one's location or phone number; turn it off after the switch.
+                </span>
+              </span>
+            </label>
+          </section>
+
+          <section className="tw:flex tw:flex-col tw:gap-1.5">
+            <b className="tw:text-foreground">Phones</b>
+            <DataTable columns={columns} rows={settings.agents} emptyText="No field staff" />
+          </section>
+        </>
+      )}
+    </Modal>
+  );
 }

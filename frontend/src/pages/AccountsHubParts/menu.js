@@ -1,6 +1,5 @@
-// 04-Nov-2026 (v3): every accounts screen, grouped the way iCAFFE's Accounts menu is - Masters, Voucher, Purchase,
-// Other Transactions, Reports - plus the books and GST screens EagleView already had.
-// Used by the Accounts menu in the navbar, the Accounts page and the search (Ctrl+K).
+// Every accounts screen, grouped the way iCAFFE's Accounts menu is - Masters, Voucher, Purchase, Other Transactions,
+// Reports - plus the books and GST screens. Used by the navbar Accounts menu, the Accounts page and the accounts search.
 // item: { id, label, desc, route | master | report | view | desk, keywords, group }
 import { Layers, Receipt, FileText, Repeat, BarChart3, Scale } from 'lucide-react';
 
@@ -98,8 +97,8 @@ export const SECTIONS = [
   ] },
 ];
 
-export const ALL_ITEMS = SECTIONS.flatMap(s => s.items.map(i => ({ ...i, section: s })));
-export const hrefOf = (i) => i.route || '/accounts-hub?item=' + i.id;
+export const ALL_ITEMS = SECTIONS.flatMap((section) => section.items.map((item) => ({ ...item, section })));
+export const hrefOf = (item) => item.route || '/accounts-hub?item=' + item.id;
 export const QUICK = [
   { id: 'receipt', label: 'Receipt' }, { id: 'payment', label: 'Payment' }, { id: 'journal', label: 'Journal' },
   { id: 'trade', label: 'Trade Invoice' }, { id: 'nontrade', label: 'Non Trade Invoice' },

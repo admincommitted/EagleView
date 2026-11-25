@@ -1,139 +1,88 @@
-// Screen section: RODTEP DETAILS
-// Split out of ExportReportTab.jsx (28-Oct-2026).
-// 12-Nov-2026: only the items that claim RoDTEP, with the rate / cap of the RoDTEP master and the amount (every item
-// was listed with rate 0 and the item value as FOB); totals labelled (an unlabelled "Total" was the first invoice's
-// value); the RoDTEP declaration only when RoDTEP is claimed, the RoSCTL declaration for scheme 60.
-import React from 'react';
+// S/B checklist, last part: RoDTEP claims, the totals, the declarations and "Prepared By".
+import { ReportBody, ReportRow } from '../../../../JobEntry/Tabs/ReportTabParts/reportTable';
+import { CheckCell, CheckListSection, CheckRule, CheckTable, KEEP_TOGETHER } from '../checklistParts';
 
-const f2 = (v) => (parseFloat(v) || 0).toFixed(2);
+const amountText = (value) => (parseFloat(value) || 0).toFixed(2);
 
-export default function RodtepDetailsSection({ ctx }) {
-  const { ck, displayTotalIgst, displayTotalPmv, displayTotalTaxable, exportData, hrStyle, tdStyle } = ctx;
+const rodtepRateText = (row) => {
+  const rate = row.noRate ? 'NOT IN MASTER' : (row.rsPerUqc && !row.rate ? `RS ${row.rsPerUqc}/${row.unit}` : row.rate.toFixed(3));
+  return rate + (row.appendix === '4RE' ? ' (4RE)' : '');
+};
+
+const rodtepCells = (row) => [
+  row.invSr, row.itemSr, amountText(row.fob), row.qty, row.unit, rodtepRateText(row), row.cap ? row.cap.toFixed(3) : '',
+  row.amt === null || row.noQty ? 'QTY?' : amountText(row.amt),
+];
+
+function Declaration({ number, scheme }) {
   return (
     <>
-    <div className="section-avoid-break">
-            <div style={{ color: '#000', fontWeight: 'bold', fontSize: '11px', borderBottom: '1px dashed #000', paddingBottom: '2px', marginBottom: '5px', marginTop: '15px', textTransform: 'capitalize' }}>RODTEP DETAILS</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #000', borderTop: '1px solid #000' }}>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Inv Sr No.</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Item Sr No.</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>FOB Value(INR)</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Quantity</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Unit</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Rate %</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>Amount(Cap)</th>
-                  <th style={{ border: 'none', padding: '6px', textAlign: 'left', background: 'transparent' }}>RODTEP Amount In(INR)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ck.rodtepRows.length > 0 ? (
-                  ck.rodtepRows.map((r, idx) => (
-                    <tr key={idx}>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.invSr}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.itemSr}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{f2(r.fob)}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.qty}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.unit}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.noRate ? 'NOT IN MASTER' : (r.rsPerUqc && !r.rate ? `RS ${r.rsPerUqc}/${r.unit}` : r.rate.toFixed(3))}{r.appendix === '4RE' ? ' (4RE)' : ''}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.cap ? r.cap.toFixed(3) : ''}</td>
-                      <td style={{ border: 'none', padding: '6px' }}>{r.amt === null || r.noQty ? 'QTY?' : f2(r.amt)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr><td colSpan="8" style={{...tdStyle, textAlign: 'center', padding: '8px', color: '#64748b'}}>NO RODTEP CLAIM</td></tr>
-                )}
-                <tr>
-                  <td colSpan="8" style={{ textAlign: 'right', fontWeight: 'bold', padding: '1px 10px', borderTop: '1px solid #000' }}>
-                    TOTAL RODTEP (INR) : {f2(ck.rodtepTotal)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <p className="tw:my-[4px]">{number}. I / We, in regard to my/our claim under {scheme} scheme made in this Shipping Bill or Bill of Export, hereby declare that:</p>
+      <p className="tw:my-[4px]">I. I / We undertake to abide by the provisions, including conditions, restrictions, exclusions and time-limits as provided under {scheme} scheme, and relevant notifications, regulations, etc., as amended from time to time.</p>
+      <p className="tw:my-[4px]">II. Any claim made in this shipping bill or bill of export is not with respect to any duties or taxes or levies which are exempted or remitted or credited under any other mechanism outside {scheme}.</p>
+      <p className="tw:my-[4px]">III. I / We undertake to preserve and make available relevant documents relating to the exported goods for the purposes of audit in the manner and for the time period prescribed in the Customs Audit Regulations, 2018.</p>
+    </>
+  );
+}
 
-            <div style={{ display: 'flex', marginTop: '16px', marginBottom: '16px' }}>
-              <div style={{ width: '150px' }}></div>
-              <div style={{ width: '400px' }}>
-                <table style={{ width: '100%' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold', width: '200px' }}>Factory Stuffed</td>
-                      <td style={{ ...tdStyle, textAlign: 'center', width: '20px' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{/^Y/i.test(String(exportData?.factoryStuffed || '')) ? 'YES' : 'NO'}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total Inv. Value (FC)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{ck.invTotal}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total FOB (INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{ck.fobTotal}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total DBK(INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{f2(ck.dbkTotal)}</td>
-                    </tr>
-                    {ck.hasRosctl && <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total RoSCTL(INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{f2(ck.rosctlTotal)}</td>
-                    </tr>}
-                    {ck.hasRodtep && <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total RoDTEP(INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{f2(ck.rodtepTotal)}</td>
-                    </tr>}
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total CESS(INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{exportData?.cessAmount || '0.00'}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total PMV(INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{displayTotalPmv}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total Taxable Amt (INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{displayTotalTaxable}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ ...tdStyle, fontWeight: 'bold' }}>Total IGST Amt (INR)</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>:</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>{displayTotalIgst}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+export default function RodtepDetailsSection({ ctx }) {
+  const { checklist, totals, exportData } = ctx;
+  const claimedSchemes = [checklist.hasRodtep && 'RoDTEP', checklist.hasRosctl && 'RoSCTL'].filter(Boolean);
+  const totalLines = [
+    ['Factory Stuffed', /^Y/i.test(String(exportData?.factoryStuffed || '')) ? 'YES' : 'NO'],
+    ['Total Inv. Value (FC)', checklist.invTotal],
+    ['Total FOB (INR)', checklist.fobTotal],
+    ['Total DBK(INR)', amountText(checklist.dbkTotal)],
+    checklist.hasRosctl && ['Total RoSCTL(INR)', amountText(checklist.rosctlTotal)],
+    checklist.hasRodtep && ['Total RoDTEP(INR)', amountText(checklist.rodtepTotal)],
+    ['Total CESS(INR)', exportData?.cessAmount || '0.00'],
+    ['Total PMV(INR)', totals.pmv],
+    ['Total Taxable Amt (INR)', totals.taxable],
+    ['Total IGST Amt (INR)', totals.igst],
+  ].filter(Boolean);
 
-            <hr style={hrStyle} />
-            <div className="section-avoid-break" style={{ padding: '8px', marginBottom: '8px' }}>
-            {(ck.hasRodtep || ck.hasRosctl) && (<>
-              <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '8px' }}>DECLARATION</div>
-              {[ck.hasRodtep && 'RoDTEP', ck.hasRosctl && 'RoSCTL'].filter(Boolean).map((sch, n) => (
-                <React.Fragment key={sch}>
-                  <p style={{ margin: '4px 0' }}>{n + 1}. I / We, in regard to my/our claim under {sch} scheme made in this Shipping Bill or Bill of Export, hereby declare that:</p>
-                  <p style={{ margin: '4px 0' }}>I. I / We undertake to abide by the provisions, including conditions, restrictions, exclusions and time-limits as provided under {sch} scheme, and relevant notifications, regulations, etc., as amended from time to time.</p>
-                  <p style={{ margin: '4px 0' }}>II. Any claim made in this shipping bill or bill of export is not with respect to any duties or taxes or levies which are exempted or remitted or credited under any other mechanism outside {sch}.</p>
-                  <p style={{ margin: '4px 0' }}>III. I / We undertake to preserve and make available relevant documents relating to the exported goods for the purposes of audit in the manner and for the time period prescribed in the Customs Audit Regulations, 2018.</p>
-                </React.Fragment>
+  return (
+    <>
+      <CheckListSection
+        title="RODTEP DETAILS"
+        headings={['Inv Sr No.', 'Item Sr No.', 'FOB Value(INR)', 'Quantity', 'Unit', 'Rate %', 'Amount(Cap)', 'RODTEP Amount In(INR)']}
+        rows={checklist.rodtepRows.map(rodtepCells)}
+        emptyText="NO RODTEP CLAIM"
+        totalText={`TOTAL RODTEP (INR) : ${amountText(checklist.rodtepTotal)}`}
+      />
+
+      <div className="tw:my-[16px] tw:flex">
+        <div className="tw:w-[150px]" />
+        <div className="tw:w-[400px]">
+          <CheckTable className="tw:mb-0">
+            <ReportBody>
+              {totalLines.map(([label, value], index) => (
+                <ReportRow key={label}>
+                  <CheckCell look="line" className={index === 0 ? 'tw:w-[200px] tw:font-bold' : 'tw:font-bold'}>{label}</CheckCell>
+                  <CheckCell look="line" align="center" className={index === 0 ? 'tw:w-[20px]' : undefined}>:</CheckCell>
+                  <CheckCell look="line" align="right">{value}</CheckCell>
+                </ReportRow>
               ))}
-            </>)}
-              {/* 12-Nov-2026: the exporter's declaration printed on every iCAFFE checklist */}
-              <p style={{ margin: '10px 0 4px 0' }}>I / We declare that the particulars given herein are true and are correct. I / We undertake to abide by the provisions of Foreign Exchange Management Act, 1999, as amended from time to time, including realisation / repatriation of foreign exchange to / from India.</p>
-              <p style={{ margin: '16px 0 4px 0', textAlign: 'right' }}>Signature of Exporter/CHA With Date</p>
-            </div>
+            </ReportBody>
+          </CheckTable>
+        </div>
+      </div>
 
-            
-            <div style={{ marginTop: '20px', fontSize: '11px', fontWeight: 'bold' }}>
-              Prepared By : {String(ck.preparedBy || '').toUpperCase()}
-            </div>
+      <CheckRule />
+      <div className={`${KEEP_TOGETHER} tw:mb-[8px] tw:p-[8px]`}>
+        {claimedSchemes.length > 0 && (
+          <>
+            <div className="tw:mb-[8px] tw:font-bold tw:underline">DECLARATION</div>
+            {claimedSchemes.map((scheme, index) => <Declaration key={scheme} number={index + 1} scheme={scheme} />)}
+          </>
+        )}
+        <p className="tw:mt-[10px] tw:mb-[4px]">I / We declare that the particulars given herein are true and are correct. I / We undertake to abide by the provisions of Foreign Exchange Management Act, 1999, as amended from time to time, including realisation / repatriation of foreign exchange to / from India.</p>
+        <p className="tw:mt-[16px] tw:mb-[4px] tw:text-right">Signature of Exporter/CHA With Date</p>
+      </div>
+
+      <div className="tw:mt-[20px] tw:text-[11px] tw:font-bold">
+        Prepared By : {String(checklist.preparedBy || '').toUpperCase()}
+      </div>
     </>
   );
 }

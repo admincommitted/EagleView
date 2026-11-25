@@ -1,83 +1,115 @@
-// Air cargo weights (IATA), one place for the AWB / MAWB / HAWB screens and the rate line / dimension windows. 29-Oct-2026
-// - Volumetric (dimensional) weight = volume in cm3 / divisor; IATA standard divisor 6000 cm3 per kg (1 cbm = 166.67 kg);
-//   inches are converted to cm3 (1 in3 = 16.387064 cm3). The screens used 167 kg per cbm and, worse, picked the divisor
-//   from the cargo's own density (1:8 = 125 kg per cbm for light cargo), so light cargo was charged on too low a weight.
+// Air cargo weights (IATA), shared by the AWB / MAWB / HAWB screens and the rate line / dimension windows.
+// - Volumetric weight = volume in cm3 / divisor; IATA standard divisor 6000 cm3 per kg (1 cbm = 166.67 kg);
+//   inches are converted to cm3 (1 in3 = 16.387064 cm3).
 // - Chargeable weight = higher of gross and volumetric weight, rounded UP to the next 0.5 kg (or the next whole lb when
-//   the weight is in pounds); the rounding was off unless a box was ticked, and a lb gross weight was compared with a kg
-//   volumetric weight.
+//   the weight is in pounds).
 export const DIVISORS = { '1:6': 6000, '1:5': 5000, '1:7': 7000, '1:8': 8000 }; // cm3 per kg
 export const divisorOf = (group) => DIVISORS[String(group || '').trim()] || 6000;
 export const KG_PER_LB = 0.45359237;
-const num = (v) => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return isNaN(x) ? 0 : x; };
+const CM3_PER_IN3 = 16.387064;
+const CBM_PER_CF = 0.028316846592;
+
+const toNumber = (value) => {
+  const parsed = parseFloat(String(value ?? '').replace(/,/g, ''));
+  return isNaN(parsed) ? 0 : parsed;
+};
 
 // 'K' / 'L' as the AWB uses them ('KG', 'LB', 'LBS' from the windows / old saves)
-export const unitKL = (u) => (/^L/i.test(String(u || '').trim()) ? 'L' : 'K');
+export const unitKL = (unit) => (/^L/i.test(String(unit || '').trim()) ? 'L' : 'K');
 
 // volume of the screen's Volume box in cbm (MC cubic metres, CC cubic centimetres, CF cubic feet)
-export const cbmOf = (vol, mcUnit) => {
-  const v = num(vol); const u = String(mcUnit || 'MC').toUpperCase();
-  return u === 'CC' ? v / 1e6 : u === 'CF' ? v * 0.028316846592 : v;
+export const cbmOf = (volume, mcUnit) => {
+  const amount = toNumber(volume);
+  const unit = String(mcUnit || 'MC').toUpperCase();
+  if (unit === 'CC') return amount / 1e6;
+  if (unit === 'CF') return amount * CBM_PER_CF;
+  return amount;
 };
-// cm3 of one dimension line (L x W x H x pieces), CM or INCH
-export const dimCm3 = (d) => {
-  const L = num(d.length ?? d.len), W = num(d.width ?? d.wid), H = num(d.height ?? d.ht);
-  const p = parseInt(d.pkgs ?? d.pcs ?? d.pieces ?? d.noOfUnits, 10) || 1;
-  if (!(L > 0 && W > 0 && H > 0)) return 0;
-  const inch = /^IN/i.test(String(d.unit || d.cmIn || ''));
-  return L * W * H * p * (inch ? 16.387064 : 1);
-};
-export const volWtFromCm3 = (cm3, group) => cm3 / divisorOf(group);
-export const volWtFromCbm = (cbm, group) => (num(cbm) * 1e6) / divisorOf(group);
-export const volWtFromDims = (dims, group) => volWtFromCm3((dims || []).reduce((a, d) => a + dimCm3(d), 0), group);
-export const cbmFromDims = (dims) => (dims || []).reduce((a, d) => a + dimCm3(d), 0) / 1e6;
 
-export const roundUpHalf = (x) => Math.ceil(num(x) * 2 - 1e-9) / 2;
+const isInch = (dimension) => /^IN/i.test(String(dimension.unit || dimension.cmIn || ''));
+const piecesOf = (dimension) => dimension.pkgs ?? dimension.pcs ?? dimension.pieces ?? dimension.noOfUnits;
+
+// cm3 of one dimension line (L x W x H x pieces), CM or INCH
+export const dimCm3 = (dimension) => {
+  const length = toNumber(dimension.length ?? dimension.len);
+  const width = toNumber(dimension.width ?? dimension.wid);
+  const height = toNumber(dimension.height ?? dimension.ht);
+  const pieces = parseInt(piecesOf(dimension), 10) || 1;
+  if (!(length > 0 && width > 0 && height > 0)) return 0;
+  return length * width * height * pieces * (isInch(dimension) ? CM3_PER_IN3 : 1);
+};
+
+const totalCm3 = (dimensions) => (dimensions || []).reduce((sum, dimension) => sum + dimCm3(dimension), 0);
+
+export const volWtFromCm3 = (cm3, group) => cm3 / divisorOf(group);
+export const volWtFromCbm = (cbm, group) => (toNumber(cbm) * 1e6) / divisorOf(group);
+export const volWtFromDims = (dimensions, group) => volWtFromCm3(totalCm3(dimensions), group);
+export const cbmFromDims = (dimensions) => totalCm3(dimensions) / 1e6;
+
+export const roundUpHalf = (weight) => Math.ceil(toNumber(weight) * 2 - 1e-9) / 2;
+
 // chargeable weight in the unit of the gross weight; volumetric weight is always kg
-export function chargeableOf(gross, volKg, unit = 'K', round = true) {
-  const g = num(gross); const lb = unitKL(unit) === 'L';
-  const v = lb ? num(volKg) / KG_PER_LB : num(volKg);
-  let c = Math.max(g, v);
-  if (!(c > 0)) return 0;
-  if (round) c = lb ? Math.ceil(c - 1e-9) : roundUpHalf(c);
-  return c;
+export function chargeableOf(gross, volumetricKg, unit = 'K', round = true) {
+  const grossWeight = toNumber(gross);
+  const inPounds = unitKL(unit) === 'L';
+  const volumetric = inPounds ? toNumber(volumetricKg) / KG_PER_LB : toNumber(volumetricKg);
+  const chargeable = Math.max(grossWeight, volumetric);
+  if (!(chargeable > 0)) return 0;
+  if (!round) return chargeable;
+  return inPounds ? Math.ceil(chargeable - 1e-9) : roundUpHalf(chargeable);
 }
-export const fix = (v, d = 2) => (num(v) ? num(v).toFixed(d) : '');
+
+export const fix = (value, decimals = 2) => (toNumber(value) ? toNumber(value).toFixed(decimals) : '');
+
+const CHARGEABLE_SOURCES = ['grossWeight', 'volumetricWeight', 'isRounded', 'gwUnit', 'dims'];
+const TOTAL_SOURCES = ['rateCharge', 'rateClassCode', 'chargeableWeight', ...CHARGEABLE_SOURCES];
 
 // One rate line after a change of `field`: chargeable weight follows gross / volumetric weight / unit / rounding
 // unless the user typed it; total = chargeable x rate. isRounded defaults to on (IATA).
 export function recalcRow(row, field) {
-  const r = { ...row };
-  // 11-Nov-2026: the grid's rate class select changes rateClassCode; rateClass kept the old letter and was what got saved
-  if (field === 'rateClassCode') r.rateClass = String(r.rateClassCode || '').trim().toUpperCase().charAt(0);
-  r.gwUnit = unitKL(r.gwUnit);
-  const rounded = r.isRounded !== false;
+  const line = { ...row };
+  if (field === 'rateClassCode') line.rateClass = String(line.rateClassCode || '').trim().toUpperCase().charAt(0);
+  line.gwUnit = unitKL(line.gwUnit);
+  const rounded = line.isRounded !== false;
+  const chargeableUntouched = !line.cwManual && field !== 'rateCharge' && field !== 'totalAmount' && !toNumber(line.chargeableWeight);
   if (field === 'chargeableWeight') {
-    r.cwManual = true;
-  } else if (['grossWeight', 'volumetricWeight', 'isRounded', 'gwUnit', 'dims'].includes(field) || (!r.cwManual && field !== 'rateCharge' && field !== 'totalAmount' && !num(r.chargeableWeight))) {
-    const c = chargeableOf(r.grossWeight, r.volumetricWeight, r.gwUnit, rounded);
-    r.chargeableWeight = c ? c.toFixed(2) : '';
-    r.cwManual = false;
+    line.cwManual = true;
+  } else if (CHARGEABLE_SOURCES.includes(field) || chargeableUntouched) {
+    const chargeable = chargeableOf(line.grossWeight, line.volumetricWeight, line.gwUnit, rounded);
+    line.chargeableWeight = chargeable ? chargeable.toFixed(2) : '';
+    line.cwManual = false;
   }
-  if (['rateCharge', 'rateClassCode', 'chargeableWeight', 'grossWeight', 'volumetricWeight', 'isRounded', 'gwUnit', 'dims'].includes(field)) {
-    const cw = num(r.chargeableWeight), rate = num(r.rateCharge);
+  if (TOTAL_SOURCES.includes(field)) {
+    const chargeable = toNumber(line.chargeableWeight);
+    const rate = toNumber(line.rateCharge);
     // M (minimum) / B (basic) charge: the amount is the charge itself, not weight x rate
-    if (rate > 0 && /^(M|B)$/i.test(String(r.rateClassCode || r.rateClass || '').charAt(0))) r.totalAmount = rate.toFixed(2);
-    else if (cw > 0 && rate > 0) r.totalAmount = (cw * rate).toFixed(2);
+    if (rate > 0 && /^(M|B)$/i.test(String(line.rateClassCode || line.rateClass || '').charAt(0))) line.totalAmount = rate.toFixed(2);
+    else if (chargeable > 0 && rate > 0) line.totalAmount = (chargeable * rate).toFixed(2);
   }
-  return r;
+  return line;
 }
+
 // the volumetric weight (kg) and chargeable weight of the first rate line from a new volumetric weight
-export function withVolWt(lines, volKg) {
+export function withVolWt(lines, volumetricKg) {
   const list = Array.isArray(lines) ? [...lines] : [];
-  const v = num(volKg) ? +num(volKg).toFixed(2) : '';
+  const volumetric = toNumber(volumetricKg) ? +toNumber(volumetricKg).toFixed(2) : '';
   if (!list.length) list.push({ id: 1, noOfPcs: '', grossWeight: '', isRounded: true });
-  list[0] = recalcRow({ ...list[0], volumetricWeight: v }, 'volumetricWeight');
+  list[0] = recalcRow({ ...list[0], volumetricWeight: volumetric }, 'volumetricWeight');
   return list;
 }
+
+const DIMENSION_LINE = /^\s*\d+\s*PCS-[\d.]+X[\d.]+X[\d.]+/i;
+const VOLUME_WEIGHT_LINE = /^\s*VOL WT\.?:/i;
+
 // dimension lines in the goods description: earlier "n PCS-LxWxH" / "VOL WT.:" lines are replaced, not added again
-export function goodsWithDims(text, dims, volKg) {
-  const keep = String(text || '').split('\n').filter((l) => !/^\s*\d+\s*PCS-[\d.]+X[\d.]+X[\d.]+/i.test(l) && !/^\s*VOL WT\.?:/i.test(l)).join('\n').replace(/\n+$/, '');
-  const lines = (dims || []).filter((d) => dimCm3(d) > 0).map((d) => `${d.pkgs ?? d.pcs ?? d.pieces ?? d.noOfUnits} PCS-${num(d.length ?? d.len)}X${num(d.width ?? d.wid)}X${num(d.height ?? d.ht)} ${/^IN/i.test(String(d.unit || d.cmIn || '')) ? 'INCH' : 'CMS'}`);
-  if (!lines.length) return keep;
-  return [keep, ...lines, `VOL WT.: ${num(volKg).toFixed(2)} KGS`].filter(Boolean).join('\n');
+export function goodsWithDims(text, dimensions, volumetricKg) {
+  const kept = String(text || '').split('\n')
+    .filter((line) => !DIMENSION_LINE.test(line) && !VOLUME_WEIGHT_LINE.test(line))
+    .join('\n')
+    .replace(/\n+$/, '');
+  const dimensionLines = (dimensions || [])
+    .filter((dimension) => dimCm3(dimension) > 0)
+    .map((dimension) => `${piecesOf(dimension)} PCS-${toNumber(dimension.length ?? dimension.len)}X${toNumber(dimension.width ?? dimension.wid)}X${toNumber(dimension.height ?? dimension.ht)} ${isInch(dimension) ? 'INCH' : 'CMS'}`);
+  if (!dimensionLines.length) return kept;
+  return [kept, ...dimensionLines, `VOL WT.: ${toNumber(volumetricKg).toFixed(2)} KGS`].filter(Boolean).join('\n');
 }

@@ -1,185 +1,142 @@
-// Screen section: Search
-// Split out of ItemGridTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import { CheckSquare, X } from 'lucide-react';
-import React from 'react';
+import { Button, DataTable, DateInput, Field, Input, Modal, NumberInput, SelectBox } from '@/components/ui';
 
+const REIMPORT_TYPES = [{ value: 'Y', label: 'Y - Yes' }, { value: 'N', label: 'N - No' }];
+const RSP_DUTY_FLAGS = [
+  { value: 'Y', label: 'Y - Yes RSP applicable' },
+  { value: 'S', label: 'S - Scheme (exempted)' },
+  { value: 'N', label: 'N - Not applicable' },
+  { value: 'Q', label: 'Q - Quantitative restriction' },
+  { value: 'T', label: 'T - Temporary exemption' },
+  { value: 'D', label: 'D - Deemed import' },
+];
+const NCD_FLAGS = [{ value: 'A', label: 'A - Advalorem' }, { value: 'S', label: 'S - Specific' }, { value: 'B', label: 'B - Both' }];
+
+// Re-import = goods exported earlier and brought back: ICEGATE wants the export Shipping Bill details
+// (reimportModel). Values saved under the older previous-BE keys are shown in the Shipping Bill boxes.
+const REIMPORT_FIELDS = [
+  { key: 'shippingBillNo', label: 'Shipping Bill No', legacyKey: 'prevBeNo' },
+  { key: 'shippingBillDate', label: 'Shipping Bill Date', legacyKey: 'prevBeDate', kind: 'date' },
+  { key: 'portOfExport', label: 'Port of Export', legacyKey: 'prevCustomHouseCode' },
+  { key: 'invoiceNoSb', label: 'Invoice Sr No in SB' },
+  { key: 'itemNoSb', label: 'Item Sr No in SB' },
+  { key: 'notificationNo', label: 'Re-import Notification No' },
+  { key: 'notificationSrNo', label: 'Notification Sr No' },
+  { key: 'exportFreight', label: 'Export Freight', kind: 'number' },
+  { key: 'exportInsurance', label: 'Export Insurance', kind: 'number' },
+  { key: 'customsDuty', label: 'Drawback / Customs Duty availed', kind: 'number' },
+  { key: 'exciseDuty', label: 'Excise Duty / IGST refund availed', kind: 'number' },
+  { key: 'reasonForReimport', label: 'Reason for Re-import' },
+];
+
+const NCD_FIELDS = [
+  { key: 'ncdNotificationNo', label: 'NCD Notification No' },
+  { key: 'ncdSrNo', label: 'NCD Sr No' },
+  { key: 'ncdRate', label: 'NCD Rate', kind: 'number' },
+  { key: 'ncdFlag', label: 'NCD Flag', kind: 'select', options: NCD_FLAGS },
+  { key: 'ncdAmount', label: 'NCD Amount', kind: 'number' },
+  { key: 'ncdUnit', label: 'NCD Unit' },
+];
+
+const RSP_FIELDS = [
+  { key: 'rspValue', label: 'RSP Value', kind: 'number' },
+  { key: 'rspQty', label: 'Quantity at this RSP', kind: 'number' },
+  { key: 'rspNotificationNo', label: 'RSP Notification No' },
+  { key: 'rspSrNo', label: 'RSP Sr No' },
+  { key: 'rspRate', label: 'RSP Rate', kind: 'number' },
+  { key: 'rspAmount', label: 'RSP Amount', kind: 'number' },
+];
+
+function PopupField({ field, value, onChange, placeholder }) {
+  const { kind, options } = field;
+  let control;
+  if (kind === 'date') control = <DateInput value={value} onValueChange={onChange} />;
+  else if (kind === 'number') control = <NumberInput value={value} placeholder={placeholder} onValueChange={onChange} />;
+  else if (kind === 'select') control = <SelectBox options={options} value={value} onValueChange={onChange} clearable clearLabel="Select..." className="tw:w-full" />;
+  else control = <Input data-allow-text value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />;
+  return <Field label={field.label} layout="col">{control}</Field>;
+}
+
+const rspColumns = ({ editRspRow, removeRspRow }) => [
+  { key: 'rspValue', header: 'RSP', align: 'right' },
+  { key: 'rspQty', header: 'Qty', align: 'right', cell: (row) => row.rspQty || 'all' },
+  { key: 'rspNotificationNo', header: 'Notification' },
+  { key: 'rspSrNo', header: 'Sr No' },
+  { key: 'rspRate', header: 'Rate', align: 'right' },
+  { key: 'rspAmount', header: 'Amount', align: 'right' },
+  {
+    key: 'actions', header: '', align: 'center', width: 60,
+    cell: (row, index) => (
+      <>
+        <Button variant="link" size="sm" title="Edit" onClick={() => editRspRow(index)}>edit</Button>
+        <Button variant="link" size="sm" title="Remove" className="tw:ml-2 tw:text-destructive" onClick={() => removeRspRow(index)}>x</Button>
+      </>
+    ),
+  },
+];
+
+// Re-Import, RSP and NCD popups of the selected item
 export default function SearchSection2({ ctx }) {
-  const { saveReimportModal, saveRspModal, saveNcdModal, masters, setShowNcdModal, setShowReimportModal, setShowRspModal, setTempNcdData, setTempReimportData, setTempRspData, showNcdModal, showReimportModal, showRspModal, tempNcdData, tempReimportData, tempRspData , addRspRow, editRspRow, removeRspRow, tempRspRows, rspEditIdx, selectedItem} = ctx;
+  const {
+    saveReimportModal, saveRspModal, saveNcdModal, setShowNcdModal, setShowReimportModal, setShowRspModal, setTempNcdData, setTempReimportData, setTempRspData,
+    showNcdModal, showReimportModal, showRspModal, tempNcdData, tempReimportData, tempRspData, addRspRow, editRspRow, removeRspRow, tempRspRows, rspEditIdx, selectedItem,
+  } = ctx;
+  const rspRows = tempRspRows || [];
+  const editingRspRow = rspEditIdx !== null ? rspRows[rspEditIdx] : null;
+  const rspRowKey = (row, index) => row.id || index;
+  const reimportValue = ({ key, legacyKey }) => tempReimportData?.[key] ?? (legacyKey ? tempReimportData?.[legacyKey] : '') ?? '';
+
   return (
     <>
-    {/* 30-Oct-2026: the "Search" popup that stood here was a shell - its radio buttons did nothing, its
-        result was never written anywhere and nothing could open it (openPortSearchModal was never wired).
-        The working code searches are the CTH / CETH / RITC / Scheme windows above. */}
-
-    
-      {masters && (
-        <>
-          <datalist id="country-list">{masters.countries?.map(c => <option key={c.id} value={c.code}>{c.name}</option>)}</datalist>
-          <datalist id="currency-list">{masters.currencies?.map(c => <option key={c.id} value={c.currencyCode}>{c.currencyName}</option>)}</datalist>
-          <datalist id="uqc-list">{masters.uqcs?.map(c => <option key={c.id} value={c.uqcCode}>{c.description}</option>)}</datalist>
-          <datalist id="scheme-list">{masters.schemeCodes?.map(c => <option key={c.code} value={c.code}>{c.desc}</option>)}</datalist>
-          <datalist id="state-list">{masters.states?.map(c => <option key={c.id} value={c.stateName}>{c.stateCode} - GST {c.taxCode}</option>)}</datalist>
-          <datalist id="state-taxcode-list">{masters.states?.map(c => <option key={c.id} value={c.taxCode}>{c.stateName}</option>)}</datalist>
-        </>
-      )}
-
-      {showReimportModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', padding: '1.5rem', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h4 style={{marginTop:0}}>Re-Import Details</h4>
-            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:'10px'}}>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>Re-Import Type</label>
-                <select className="input-field" value={tempReimportData?.type || ''} onChange={e => setTempReimportData({...tempReimportData, type: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}}>
-                  <option value="">Select...</option>
-                  <option value="Y">Y - Yes</option>
-                  <option value="N">N - No</option>
-                </select>
-              </div>
-              {/* Re-import = goods exported earlier and brought back: ICEGATE wants the export Shipping Bill details (reimportModel).
-                  The old boxes asked for a "previous BE". Old saved values (prevBeNo...) are shown in the SB boxes. 28-Oct-2026 */}
-              {[
-                ['shippingBillNo', 'Shipping Bill No', 'prevBeNo'], ['shippingBillDate', 'Shipping Bill Date', 'prevBeDate', 'date'],
-                ['portOfExport', 'Port of Export', 'prevCustomHouseCode'], ['invoiceNoSb', 'Invoice Sr No in SB'], ['itemNoSb', 'Item Sr No in SB'],
-                ['notificationNo', 'Re-import Notification No'], ['notificationSrNo', 'Notification Sr No'],
-                ['exportFreight', 'Export Freight'], ['exportInsurance', 'Export Insurance'], ['customsDuty', 'Drawback / Customs Duty availed'], ['exciseDuty', 'Excise Duty / IGST refund availed'],
-                ['reasonForReimport', 'Reason for Re-import'],
-              ].map(([k, label, old, type]) => (
-                <div key={k}>
-                  <label style={{display:'block', fontSize:'12px'}}>{label}</label>
-                  <input type={type || 'text'} className="input-field" value={tempReimportData?.[k] ?? (old ? tempReimportData?.[old] : '') ?? ''}
-                    onChange={e => setTempReimportData({...tempReimportData, [k]: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', justifyContent:'flex-end' }}>
-              <button className="btn btn-success" onClick={saveReimportModal} style={{background:'#22c55e', color:'#fff', padding:'6px 12px', border:'none', borderRadius:'4px'}}>Save</button>
-              <button className="btn btn-danger" onClick={() => setShowReimportModal(false)} style={{background:'#fff', color:'#334155', border:'1px solid #cbd5e1', padding:'6px 12px', borderRadius:'4px'}}>Cancel</button>
-            </div>
-          </div>
+      <Modal open={showReimportModal} onClose={() => setShowReimportModal(false)} title="Re-Import Details" width={640} onOk={saveReimportModal} okLabel="Save" closeOnOutside={false}>
+        <div className="tw:grid tw:grid-cols-1 tw:gap-2.5 tw:sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+          <PopupField field={{ label: 'Re-Import Type', kind: 'select', options: REIMPORT_TYPES }} value={tempReimportData?.type || ''} onChange={(value) => setTempReimportData({ ...tempReimportData, type: value })} />
+          {REIMPORT_FIELDS.map((field) => (
+            <PopupField key={field.key} field={field} value={reimportValue(field)} onChange={(value) => setTempReimportData({ ...tempReimportData, [field.key]: value })} />
+          ))}
         </div>
-      )}
+      </Modal>
 
-      {showRspModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', padding: '1.5rem', width: '680px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h4 style={{marginTop:0}}>RSP Duty Details <span style={{ fontSize: '11px', fontWeight: 400, color: '#64748b' }}>one line per retail sale price (MRP slab) of this item</span></h4>
-            <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Duty Flag</label>
-                <select className="input-field" value={tempRspData?.rspDutyFlag || ''} onChange={e => setTempRspData({...tempRspData, rspDutyFlag: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}}>
-                  <option value="">Select...</option>
-                  <option value="Y">Y - Yes RSP applicable</option>
-                  <option value="S">S - Scheme (exempted)</option>
-                  <option value="N">N - Not applicable</option>
-                  <option value="Q">Q - Quantitative restriction</option>
-                  <option value="T">T - Temporary exemption</option>
-                  <option value="D">D - Deemed import</option>
-                </select>
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Value</label>
-                <input type="number" className="input-field" value={tempRspData?.rspValue || ''} onChange={e => setTempRspData({...tempRspData, rspValue: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>Quantity at this RSP</label>
-                <input type="number" className="input-field" placeholder={selectedItem?.qty ? ('blank = all ' + selectedItem.qty) : 'blank = whole item quantity'} value={tempRspData?.rspQty || ''} onChange={e => setTempRspData({...tempRspData, rspQty: e.target.value})} style={{width:'100%'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Notification No</label>
-                <input type="text" className="input-field" value={tempRspData?.rspNotificationNo || ''} onChange={e => setTempRspData({...tempRspData, rspNotificationNo: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Sr No</label>
-                <input type="text" className="input-field" value={tempRspData?.rspSrNo || ''} onChange={e => setTempRspData({...tempRspData, rspSrNo: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Rate</label>
-                <input type="number" className="input-field" value={tempRspData?.rspRate || ''} onChange={e => setTempRspData({...tempRspData, rspRate: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>RSP Amount</label>
-                <input type="number" className="input-field" value={tempRspData?.rspAmount || ''} onChange={e => setTempRspData({...tempRspData, rspAmount: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-              <button type="button" onClick={addRspRow} style={{ background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', padding: '5px 12px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {rspEditIdx !== null ? 'Update line ' + (rspEditIdx + 1) : '+ Add line'}
-              </button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginTop: '8px', border: '1px solid #cbd5e1' }}>
-              <thead style={{ background: '#f1f5f9' }}>
-                <tr><th style={{ padding: '4px', textAlign: 'right' }}>RSP</th><th style={{ padding: '4px', textAlign: 'right' }}>Qty</th><th style={{ padding: '4px', textAlign: 'left' }}>Notification</th><th style={{ padding: '4px', textAlign: 'left' }}>Sr No</th><th style={{ padding: '4px', textAlign: 'right' }}>Rate</th><th style={{ padding: '4px', textAlign: 'right' }}>Amount</th><th style={{ padding: '4px', width: '60px' }} /></tr>
-              </thead>
-              <tbody>
-                {(tempRspRows || []).length === 0 ? (
-                  <tr><td colSpan={7} style={{ padding: '10px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>No RSP line yet - fill the boxes above and press "Add line"</td></tr>
-                ) : (tempRspRows || []).map((r, i) => (
-                  <tr key={r.id || i} style={{ borderTop: '1px solid #e2e8f0', background: rspEditIdx === i ? '#fef9c3' : '#fff' }}>
-                    <td style={{ padding: '4px', textAlign: 'right' }}>{r.rspValue}</td>
-                    <td style={{ padding: '4px', textAlign: 'right' }}>{r.rspQty || 'all'}</td>
-                    <td style={{ padding: '4px' }}>{r.rspNotificationNo}</td>
-                    <td style={{ padding: '4px' }}>{r.rspSrNo}</td>
-                    <td style={{ padding: '4px', textAlign: 'right' }}>{r.rspRate}</td>
-                    <td style={{ padding: '4px', textAlign: 'right' }}>{r.rspAmount}</td>
-                    <td style={{ padding: '4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <button type="button" title="Edit" onClick={() => editRspRow(i)} style={{ border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer' }}>edit</button>
-                      <button type="button" title="Remove" onClick={() => removeRspRow(i)} style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer' }}>x</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', justifyContent:'flex-end' }}>
-              <button className="btn btn-success" onClick={saveRspModal} style={{background:'#22c55e', color:'#fff', padding:'6px 12px', border:'none', borderRadius:'4px'}}>Save</button>
-              <button className="btn btn-danger" onClick={() => setShowRspModal(false)} style={{background:'#fff', color:'#334155', border:'1px solid #cbd5e1', padding:'6px 12px', borderRadius:'4px'}}>Cancel</button>
-            </div>
+      <Modal
+        open={showRspModal}
+        onClose={() => setShowRspModal(false)}
+        title="RSP Duty Details"
+        description="One line per retail sale price (MRP slab) of this item"
+        width={680}
+        onOk={saveRspModal}
+        okLabel="Save"
+        closeOnOutside={false}
+      >
+        <div className="tw:flex tw:flex-col tw:gap-2.5">
+          <PopupField field={{ label: 'RSP Duty Flag', kind: 'select', options: RSP_DUTY_FLAGS }} value={tempRspData?.rspDutyFlag || ''} onChange={(value) => setTempRspData({ ...tempRspData, rspDutyFlag: value })} />
+          {RSP_FIELDS.map((field) => (
+            <PopupField
+              key={field.key}
+              field={field}
+              value={tempRspData?.[field.key] || ''}
+              placeholder={field.key === 'rspQty' ? (selectedItem?.qty ? 'blank = all ' + selectedItem.qty : 'blank = whole item quantity') : undefined}
+              onChange={(value) => setTempRspData({ ...tempRspData, [field.key]: value })}
+            />
+          ))}
+          <div className="tw:flex tw:justify-end">
+            <Button variant="default" onClick={addRspRow}>{rspEditIdx !== null ? 'Update line ' + (rspEditIdx + 1) : '+ Add line'}</Button>
           </div>
+          <DataTable
+            columns={rspColumns({ editRspRow, removeRspRow })}
+            rows={rspRows}
+            rowKey={rspRowKey}
+            selectedKey={editingRspRow ? rspRowKey(editingRspRow, rspEditIdx) : undefined}
+            emptyText='No RSP line yet - fill the boxes above and press "Add line"'
+          />
         </div>
-      )}
+      </Modal>
 
-      {showNcdModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', padding: '1.5rem', width: '400px' }}>
-            <h4 style={{marginTop:0}}>NCD Custom Duty Details</h4>
-            <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Notification No</label>
-                <input type="text" className="input-field" value={tempNcdData?.ncdNotificationNo || ''} onChange={e => setTempNcdData({...tempNcdData, ncdNotificationNo: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Sr No</label>
-                <input type="text" className="input-field" value={tempNcdData?.ncdSrNo || ''} onChange={e => setTempNcdData({...tempNcdData, ncdSrNo: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Rate</label>
-                <input type="number" className="input-field" value={tempNcdData?.ncdRate || ''} onChange={e => setTempNcdData({...tempNcdData, ncdRate: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Flag</label>
-                <select className="input-field" value={tempNcdData?.ncdFlag || ''} onChange={e => setTempNcdData({...tempNcdData, ncdFlag: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}}>
-                  <option value="">Select...</option>
-                  <option value="A">A - Advalorem</option>
-                  <option value="S">S - Specific</option>
-                  <option value="B">B - Both</option>
-                </select>
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Amount</label>
-                <input type="number" className="input-field" value={tempNcdData?.ncdAmount || ''} onChange={e => setTempNcdData({...tempNcdData, ncdAmount: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-              <div>
-                <label style={{display:'block', fontSize:'12px'}}>NCD Unit</label>
-                <input type="text" className="input-field" value={tempNcdData?.ncdUnit || ''} onChange={e => setTempNcdData({...tempNcdData, ncdUnit: e.target.value})} style={{width:'100%', border:'1px solid #cbd5e1'}} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', justifyContent:'flex-end' }}>
-              <button className="btn btn-success" onClick={saveNcdModal} style={{background:'#22c55e', color:'#fff', padding:'6px 12px', border:'none', borderRadius:'4px'}}>Save</button>
-              <button className="btn btn-danger" onClick={() => setShowNcdModal(false)} style={{background:'#fff', color:'#334155', border:'1px solid #cbd5e1', padding:'6px 12px', borderRadius:'4px'}}>Cancel</button>
-            </div>
-          </div>
+      <Modal open={showNcdModal} onClose={() => setShowNcdModal(false)} title="NCD Custom Duty Details" width={400} onOk={saveNcdModal} okLabel="Save" closeOnOutside={false}>
+        <div className="tw:flex tw:flex-col tw:gap-2.5">
+          {NCD_FIELDS.map((field) => (
+            <PopupField key={field.key} field={field} value={tempNcdData?.[field.key] || ''} onChange={(value) => setTempNcdData({ ...tempNcdData, [field.key]: value })} />
+          ))}
         </div>
-      )}
+      </Modal>
     </>
   );
 }

@@ -1,5 +1,5 @@
 // Code lists for the Job Header search popups, taken from the ICEGATE / CBIC material collected for this project
-// (project notes "icegate-site-study.md" 8A + 6, "icegate-json-filing-notes.md"). 28-Oct-2026
+// (project notes "icegate-site-study.md" 8A + 6, "icegate-json-filing-notes.md").
 // - BE BOND table, bond code column: e-Bond purpose code (CBIC Circular 04/2025-Customs, Annexure F). "EB" is invalid
 //   (ICEGATE error 553); an e-Bond not tagged to a purpose code gives error 539. IGCR keeps its separate EI bond.
 // - BE CERT table: for IGCR the IIN goes in with certificate type EI. No other certificate type code is listed in the

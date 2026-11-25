@@ -1,23 +1,35 @@
 import * as XLSX from 'xlsx';
 
-// Excel export for the Air Export grids (Search, Track Shipments) - 29-Oct-2026.
-// columns: [[key, header, (row) => value?], ...]; numbers stay numbers so Excel can add them up.
+const MAX_COLUMN_WIDTH = 40;
+const ROWS_SAMPLED_FOR_WIDTH = 200;
+
+const pad2 = (number) => String(number).padStart(2, '0');
+
+const fileStamp = (date = new Date()) =>
+  `${date.getFullYear()}${pad2(date.getMonth() + 1)}${pad2(date.getDate())}_${pad2(date.getHours())}${pad2(date.getMinutes())}`;
+
+// Numbers stay numbers so Excel can add them up; long digit strings and leading zeros (codes, AWB numbers) stay text.
+function excelCell(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return value;
+  const text = String(value);
+  return /^-?\d+(\.\d+)?$/.test(text) && text.length < 12 && !/^0\d/.test(text) ? Number(text) : text;
+}
+
+const columnWidth = (header, body, columnIndex) => Math.min(
+  MAX_COLUMN_WIDTH,
+  Math.max(String(header).length, ...body.slice(0, ROWS_SAMPLED_FOR_WIDTH).map((row) => String(row[columnIndex] ?? '').length)) + 2,
+);
+
+// columns: [[key, header, (row) => value?], ...]
 export function exportRowsToExcel(fileBase, sheetName, columns, rows) {
-  const head = columns.map((c) => c[1]);
-  const body = rows.map((r) => columns.map(([key, , fn]) => {
-    const v = fn ? fn(r) : r[key];
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'number') return v;
-    const s = String(v);
-    return /^-?\d+(\.\d+)?$/.test(s) && s.length < 12 && !/^0\d/.test(s) ? Number(s) : s;
-  }));
-  const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
-  ws['!cols'] = head.map((h, i) => ({ wch: Math.min(40, Math.max(String(h).length, ...body.slice(0, 200).map((r) => String(r[i] ?? '').length)) + 2) }));
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: body.length, c: head.length - 1 } }) };
-  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-  const d = new Date();
-  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
-  XLSX.writeFile(wb, `${fileBase}_${stamp}.xlsx`);
+  const headers = columns.map((column) => column[1]);
+  const body = rows.map((row) => columns.map(([key, , readValue]) => excelCell(readValue ? readValue(row) : row[key])));
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
+  sheet['!cols'] = headers.map((header, columnIndex) => ({ wch: columnWidth(header, body, columnIndex) }));
+  sheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: body.length, c: headers.length - 1 } }) };
+  sheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, sheetName.slice(0, 31));
+  XLSX.writeFile(workbook, `${fileBase}_${fileStamp()}.xlsx`);
 }

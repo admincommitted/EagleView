@@ -1,219 +1,332 @@
 // Sales > quotation: header (validity, carrier, transit, cargo), charge lines from GST Charges with basis, buy / sell,
 // minimum, currency and rate of exchange, the margin, terms; Print / PDF / Mail, Mark sent, Revise, Won (docket), Lost.
-// A draft is edited directly; a sent quotation is changed through Revise (R1, R2 …). 14-Nov-2026.
-import React from 'react';
+// A draft is edited directly; a sent quotation is changed through Revise (R1, R2 …).
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Printer, FileDown, Mail, Send, Copy, Trophy, XCircle, RotateCcw, Trash2, Plus, X } from 'lucide-react';
-import { api, C, inr, dmy, inp, btn, Field, Section, grid, Modal } from './salesUi';
-import { DealChip, QT_STYLE } from './EnquiriesTab';
+import { Copy, FileDown, Mail, Plus, Printer, RotateCcw, Save, Send, Trash2, Trophy, XCircle } from 'lucide-react';
+import { Button, DateInput, Input, Modal, NumberInput, SelectBox, Textarea } from '@/components/ui';
+import askConfirm from '@/components/common/askConfirm';
+import { blobErrorMessage, downloadBlob } from '@/lib/download';
+import { cn } from '@/lib/utils';
+import { salesHubApi } from './salesApi';
+import { dmy, inr, labelsOf } from './salesFormat';
+import { DealBadge, FormField, FormSection, Muted, Notice } from './salesWidgets';
+import { FORM_GRID, QUOTE_STATUS } from './salesStyles';
+import { autoQty, newLine, newLineKey, pdfFileName, round2, workLine } from './quoteMath';
 import { quoteHtml } from './quotePrint';
+import QuoteChargesTable from './QuoteChargesTable';
+import { LostDialog, MailDialog, WonDialog } from './QuoteDialogs';
 
-const num = (v) => { const n = Number(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : 0; };
-const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const count = (s) => String(s || '').split(/[,+]/).reduce((a, p) => { const m = /(\d+)\s*[Xx×*]/.exec(p); return a + (m ? Number(m[1]) : 0); }, 0);
-// same working as the server (routes/salesDeals.js workLine)
-function autoQty(basis, h) {
-  return basis === 'KG' ? num(h.chargeableWt) || num(h.grossWt) : basis === 'CBM' ? num(h.cbm) : basis === 'CONTAINER' ? count(h.containers) : basis === 'PKG' ? num(h.pkgs) : basis === 'PCT' ? num(h.cargoValue) : 1;
+const DEFAULT_MARGIN_WARN_PCT = 10;
+const PRINT_DELAY_MS = 400;
+const PICK = { clearable: true, clearLabel: '-', placeholder: '-' };
+
+function mailDraft(quote, serviceLabel) {
+  return {
+    to: quote.email || '',
+    cc: quote.spEmail || '',
+    subject: `Quotation ${quote.quoteNo} - ${serviceLabel || ''} ${[quote.origin, quote.destination].filter(Boolean).join(' to ')}`,
+    body: `Dear ${quote.contactPerson || 'Sir / Madam'},\n\nThank you for your enquiry. Please find our quotation ${quote.quoteNo} attached, valid until ${dmy(quote.validUntil)}.\n\nWe look forward to handling your shipment.\n\nRegards,\n${quote.salesPerson || ''}${quote.spMobile ? `\n${quote.spMobile}` : ''}`,
+  };
 }
-function work(l, h) {
-  const qty = l.autoQty ? autoQty(l.basis, h) : num(l.qty);
-  const f = l.basis === 'PCT' ? qty / 100 : qty;
-  const sell = r2(Math.max(num(l.sellRate) * f, num(l.minSell)));
-  const buy = r2(Math.max(num(l.buyRate) * f, num(l.minBuy)));
-  const roe = l.currency === 'INR' ? 1 : num(l.roe);
-  return { qty, sell, buy, roe, sellInr: r2(sell * roe), buyInr: r2(buy * roe) };
+
+async function pdfErrorText(error) {
+  if (!error.response) return error.message;
+  const text = await blobErrorMessage(error);
+  return text === error.message ? 'PDF not made' : text;
+}
+
+function Revisions({ quote, openQuote }) {
+  return (
+    <span className="tw:flex tw:flex-wrap tw:items-center tw:gap-1 tw:sm:ml-auto">
+      Revisions:
+      {quote.revisions.map((revision) => {
+        const label = revision.quoteNo.split('/').pop();
+        return revision.id === quote.id
+          ? <b key={revision.id} className="tw:ml-1.5">{label}</b>
+          : <Button key={revision.id} variant="ghost" size="sm" onClick={() => openQuote(revision.id)}>{label}</Button>;
+      })}
+    </span>
+  );
 }
 
 export default function QuoteForm({ id, meta, deal, onClose, onChanged, openQuote }) {
-  const [qt, setQt] = React.useState(null);
-  const [lines, setLines] = React.useState([]);
-  const [busy, setBusy] = React.useState(false);
-  const [dirty, setDirty] = React.useState(false);
-  const [dlg, setDlg] = React.useState(null); // { kind: 'mail' | 'won' | 'lost', ... }
-  const svc = Object.fromEntries((meta.services || []).map(s => [s[0], s[1]]));
-  const charges = deal.charges || [];
-  const byName = React.useMemo(() => new Map(charges.map(c => [String(c.chargeName).toUpperCase(), c])), [charges]);
-  const exp = /EXP/.test(String(qt && qt.serviceType || ''));
-  const rateOf = React.useCallback((cur) => { const c = (deal.currencies || []).find(x => x.code === cur); return c ? (exp ? (c.exportRate || c.importRate) : (c.importRate || c.exportRate)) : null; }, [deal.currencies, exp]);
-  const load = React.useCallback(async () => {
-    try { const d = await api('/quotes/' + id); setQt(d.data); setLines((d.data.lines || []).map(l => ({ ...l, key: Math.random(), autoQty: false }))); setDirty(false); }
-    catch (e) { toast.error(e.message); onClose(); }
-  }, [id]); // eslint-disable-line
-  React.useEffect(() => { load(); }, [load]);
-  if (!qt) return <Modal title="Quotation" onClose={onClose} width={600}><div style={{ color: C.mute }}>Loading…</div></Modal>;
+  const [quote, setQuote] = useState(null);
+  const [lines, setLines] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [dialog, setDialog] = useState(null);
+  const serviceLabels = labelsOf(meta.services);
+  const charges = deal.charges;
+  const chargesByName = useMemo(() => new Map((charges || []).map((charge) => [String(charge.chargeName).toUpperCase(), charge])), [charges]);
+  const isExport = /EXP/.test(String(quote?.serviceType || ''));
+  const rateOf = useCallback((code) => {
+    const currency = (deal.currencies || []).find((candidate) => candidate.code === code);
+    if (!currency) return null;
+    return isExport ? (currency.exportRate || currency.importRate) : (currency.importRate || currency.exportRate);
+  }, [deal.currencies, isExport]);
 
-  const draft = qt.status === 'DRAFT';
-  const setH = (k, v) => { setQt(o => ({ ...o, [k]: v })); setDirty(true); };
-  const setL = (key, patch) => { setLines(ls => ls.map(l => (l.key === key ? { ...l, ...patch } : l))); setDirty(true); };
-  const add = (section) => { setLines(ls => [...ls, { key: Math.random(), section, basis: section === 'FREIGHT' ? (String(qt.serviceType).includes('FCL') ? 'CONTAINER' : String(qt.serviceType).startsWith('AIR') ? 'KG' : 'CBM') : 'FLAT', currency: section === 'FREIGHT' && !/CUSTOMS|TRANSPORT/.test(qt.serviceType) ? 'USD' : 'INR', roe: section === 'FREIGHT' && !/CUSTOMS|TRANSPORT/.test(qt.serviceType) ? rateOf('USD') : 1, autoQty: true, head: '', chargeId: null }]); setDirty(true); };
-  const worked = lines.map(l => ({ ...l, w: work(l, qt) }));
-  const sell = r2(worked.reduce((s, l) => s + l.w.sellInr, 0)), buy = r2(worked.reduce((s, l) => s + l.w.buyInr, 0));
-  const margin = r2(sell - buy), pct = sell ? r2(100 * margin / sell) : null;
-  const warn = deal.marginWarnPct || 10;
-  const body = () => ({ ...qt, lines: lines.map((l, i) => ({ ...l, qty: l.autoQty ? autoQty(l.basis, qt) : l.qty, sortOrder: i })) });
+  const load = useCallback(async () => {
+    try {
+      const saved = (await salesHubApi.quote(id)).data;
+      setQuote(saved);
+      setLines((saved.lines || []).map((line) => ({ ...line, key: newLineKey(), autoQty: false })));
+      setDirty(false);
+    } catch (error) {
+      toast.error(error.message);
+      onClose();
+    }
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const run = async (fn, okMsg) => { setBusy(true); try { const r = await fn(); if (okMsg) toast.success(okMsg); onChanged && onChanged(); return r; } catch (e) { if (e.askReplace) throw e; toast.error(e.message); return null; } finally { setBusy(false); } };
-  const save = () => run(async () => { await api('/quotes/' + id, { method: 'PUT', body: body() }); await load(); return true; }, 'Quotation saved');
+  useEffect(() => { load(); }, [load]);
+
+  if (!quote) return <Modal open title="Quotation" onClose={onClose} width={600}><Muted className="tw:text-entry">Loading…</Muted></Modal>;
+
+  const draft = quote.status === 'DRAFT';
+  const editable = draft && !busy;
+  const setHeader = (field, value) => { setQuote((current) => ({ ...current, [field]: value })); setDirty(true); };
+  const changeLine = (key, patch) => { setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line))); setDirty(true); };
+  const removeLine = (key) => { setLines((current) => current.filter((line) => line.key !== key)); setDirty(true); };
+  const addLine = (section) => { setLines((current) => [...current, newLine(section, quote.serviceType, rateOf)]); setDirty(true); };
+
+  const worked = lines.map((line) => ({ ...line, w: workLine(line, quote) }));
+  const sell = round2(worked.reduce((sum, line) => sum + line.w.sellInr, 0));
+  const buy = round2(worked.reduce((sum, line) => sum + line.w.buyInr, 0));
+  const margin = round2(sell - buy);
+  const marginPct = sell ? round2((100 * margin) / sell) : null;
+  const marginWarnPct = deal.marginWarnPct || DEFAULT_MARGIN_WARN_PCT;
+  const lowMargin = marginPct != null && marginPct < marginWarnPct;
+  const statusLabels = labelsOf(deal.quoteStatus);
+  const saveBody = () => ({ ...quote, lines: lines.map((line, index) => ({ ...line, qty: line.autoQty ? autoQty(line.basis, quote) : line.qty, sortOrder: index })) });
+  const printHtml = () => quoteHtml(
+    { ...quote, lines: worked.map((line) => ({ ...line, qty: line.w.qty, sellAmount: line.w.sell, sellInr: line.w.sellInr, roe: line.w.roe })) },
+    deal,
+    serviceLabels[quote.serviceType],
+  );
+
+  const run = async (action, doneMessage) => {
+    setBusy(true);
+    try {
+      const result = await action();
+      if (doneMessage) toast.success(doneMessage);
+      onChanged?.();
+      return result;
+    } catch (error) {
+      toast.error(error.message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () => run(async () => { await salesHubApi.updateQuote(id, saveBody()); await load(); return true; }, 'Quotation saved');
   const saveFirst = async () => (draft && dirty ? save() : true);
-  const html = () => quoteHtml({ ...qt, lines: worked.map(l => ({ ...l, qty: l.w.qty, sellAmount: l.w.sell, sellInr: l.w.sellInr, roe: l.w.roe })) }, deal, svc[qt.serviceType]);
+
   const print = async () => {
     if (!(await saveFirst())) return;
-    const w = window.open('', '_blank'); if (!w) { toast.error('Allow pop-ups to print'); return; }
-    w.document.write(html()); w.document.close(); setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* closed */ } }, 400);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { toast.error('Allow pop-ups to print'); return; }
+    printWindow.document.write(printHtml());
+    printWindow.document.close();
+    setTimeout(() => {
+      try { printWindow.focus(); printWindow.print(); } catch { /* the window was closed */ }
+    }, PRINT_DELAY_MS);
   };
-  const pdf = async () => {
+
+  const downloadPdf = async () => {
     if (!(await saveFirst())) return;
     setBusy(true);
     try {
-      const res = await fetch('/api/sales-hub/quotes/' + id + '/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ html: html() }) });
-      if (!res.ok) { let m = 'PDF not made'; try { m = (await res.json()).error || m; } catch (e) { /* not json */ } throw new Error(m); }
-      const b = await res.blob(); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = String(qt.quoteNo).replace(/[\\/]+/g, '-') + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 10000);
-    } catch (e) { toast.error(e.message); } finally { setBusy(false); }
+      downloadBlob(await salesHubApi.quotePdf(id, printHtml()), pdfFileName(quote.quoteNo));
+    } catch (error) {
+      toast.error(await pdfErrorText(error));
+    } finally {
+      setBusy(false);
+    }
   };
-  const mail = async () => {
-    if (!(await saveFirst())) return;
-    setDlg({ kind: 'mail', to: qt.email || '', cc: qt.spEmail || '', subject: `Quotation ${qt.quoteNo} - ${svc[qt.serviceType] || ''} ${[qt.origin, qt.destination].filter(Boolean).join(' to ')}`,
-      body: `Dear ${qt.contactPerson || 'Sir / Madam'},\n\nThank you for your enquiry. Please find our quotation ${qt.quoteNo} attached, valid until ${dmy(qt.validUntil)}.\n\nWe look forward to handling your shipment.\n\nRegards,\n${qt.salesPerson || ''}${qt.spMobile ? '\n' + qt.spMobile : ''}` });
-  };
-  const sendMail = () => run(async () => { await api('/quotes/' + id + '/mail', { method: 'POST', body: { to: dlg.to, cc: dlg.cc, subject: dlg.subject, body: dlg.body, html: html() } }); setDlg(null); await load(); return true; }, 'Quotation mailed and marked sent');
-  const markSent = async () => { if (!(await saveFirst())) return; run(async () => { await api('/quotes/' + id + '/sent', { method: 'POST', body: {} }); await load(); return true; }, 'Marked as sent'); };
-  const revise = () => run(async () => { const d = await api('/quotes/' + id + '/revise', { method: 'POST', body: {} }); toast.success('Revision ' + d.quoteNo + ' made'); openQuote(d.id); return true; });
-  const won = async (replace) => {
-    setBusy(true);
-    try { const d = await api('/quotes/' + id + '/won', { method: 'POST', body: { docketNo: dlg.docketNo, replace } }); toast.success(d.docketNo ? `Won - docket ${d.docketNo} now bills at these rates` : 'Marked as won'); setDlg(null); await load(); onChanged && onChanged(); }
-    catch (e) { if (e.askReplace && window.confirm(e.message + '\n\nReplace it with ' + qt.quoteNo + '?')) { setBusy(false); return won(true); } toast.error(e.message); }
-    finally { setBusy(false); }
-  };
-  const lost = () => run(async () => { await api('/quotes/' + id + '/lost', { method: 'POST', body: { reason: dlg.reason, lostTo: dlg.lostTo, lostRate: dlg.lostRate } }); setDlg(null); await load(); return true; }, 'Marked as lost');
-  const reopen = () => { if (window.confirm('Put ' + qt.quoteNo + ' back to "Sent"?' + (qt.docketNo ? ' Docket ' + qt.docketNo + ' loses this quotation no.' : ''))) run(async () => { await api('/quotes/' + id + '/reopen', { method: 'POST', body: {} }); await load(); return true; }, 'Back to sent'); };
-  const del = () => { if (window.confirm('Delete draft ' + qt.quoteNo + '?')) run(async () => { await api('/quotes/' + id, { method: 'DELETE' }); onClose(); return true; }, 'Draft deleted'); };
 
-  const H = (k, props = {}) => <input style={inp} value={qt[k] ?? ''} disabled={!draft || busy} onChange={e => setH(k, props.upper ? e.target.value.toUpperCase() : e.target.value)} {...props} upper={undefined} />;
-  const cell = { padding: '3px 4px', borderTop: '1px solid #f1f5f9', verticalAlign: 'top' };
-  const ci = { ...inp, padding: '4px 5px', fontSize: '11.5px' };
-  const labels = Object.fromEntries((deal.quoteStatus || []).map(s => [s[0], s[1]]));
-  const footer = <>
-    {draft && <button type="button" style={btn('danger')} disabled={busy} onClick={del}><Trash2 size={13} /> Delete</button>}
-    {['SENT', 'LOST'].includes(qt.status) && <button type="button" style={btn()} disabled={busy} onClick={revise}><Copy size={13} /> Revise</button>}
-    {['WON', 'LOST'].includes(qt.status) && <button type="button" style={btn()} disabled={busy} onClick={reopen}><RotateCcw size={13} /> Back to sent</button>}
-    <span style={{ flex: 1 }} />
-    <button type="button" style={btn()} disabled={busy || !lines.length} onClick={print}><Printer size={13} /> Print</button>
-    <button type="button" style={btn()} disabled={busy || !lines.length} onClick={pdf}><FileDown size={13} /> PDF</button>
-    {['DRAFT', 'SENT'].includes(qt.status) && <button type="button" style={btn()} disabled={busy || !lines.length} onClick={mail}><Mail size={13} /> Mail</button>}
-    {draft && <button type="button" style={btn()} disabled={busy || !lines.length} onClick={markSent} title="Sent some other way (WhatsApp, portal)"><Send size={13} /> Mark sent</button>}
-    {qt.status === 'SENT' && <button type="button" style={btn('danger')} disabled={busy} onClick={() => setDlg({ kind: 'lost' })}><XCircle size={13} /> Lost</button>}
-    {qt.status === 'SENT' && <button type="button" style={{ ...btn(), color: C.green, borderColor: '#86efac' }} disabled={busy} onClick={() => setDlg({ kind: 'won', docketNo: '' })}><Trophy size={13} /> Won</button>}
-    {draft && <button type="button" style={btn('primary')} disabled={busy || !dirty} onClick={save}><Save size={13} /> {busy ? 'Saving…' : 'Save'}</button>}
-  </>;
+  const openMail = async () => {
+    if (!(await saveFirst())) return;
+    setDialog({ kind: 'mail', mail: mailDraft(quote, serviceLabels[quote.serviceType]) });
+  };
+  const sendMail = () => run(async () => {
+    await salesHubApi.mailQuote(id, { ...dialog.mail, html: printHtml() });
+    setDialog(null);
+    await load();
+    return true;
+  }, 'Quotation mailed and marked sent');
+  const markSent = async () => {
+    if (!(await saveFirst())) return;
+    run(async () => { await salesHubApi.markQuoteSent(id); await load(); return true; }, 'Marked as sent');
+  };
+  const revise = () => run(async () => {
+    const revision = await salesHubApi.reviseQuote(id);
+    toast.success(`Revision ${revision.quoteNo} made`);
+    openQuote(revision.id);
+    return true;
+  });
+
+  const markWon = async (replace) => {
+    setBusy(true);
+    try {
+      const result = await salesHubApi.quoteWon(id, dialog.docketNo, replace);
+      toast.success(result.docketNo ? `Won - docket ${result.docketNo} now bills at these rates` : 'Marked as won');
+      setDialog(null);
+      await load();
+      onChanged?.();
+    } catch (error) {
+      if (error.askReplace && await askConfirm({ title: 'Docket has a quotation', message: `${error.message}\n\nReplace it with ${quote.quoteNo}?`, okLabel: 'Replace', tone: 'warn' })) {
+        await markWon(true);
+        return;
+      }
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markLost = () => run(async () => {
+    const { reason, lostTo, lostRate } = dialog.lost;
+    await salesHubApi.quoteLost(id, { reason, lostTo, lostRate });
+    setDialog(null);
+    await load();
+    return true;
+  }, 'Marked as lost');
+
+  const reopen = async () => {
+    const docketNote = quote.docketNo ? ` Docket ${quote.docketNo} loses this quotation no.` : '';
+    if (!await askConfirm({ title: 'Back to sent', message: `Put ${quote.quoteNo} back to "Sent"?${docketNote}`, okLabel: 'Back to sent', tone: 'warn' })) return;
+    run(async () => { await salesHubApi.reopenQuote(id); await load(); return true; }, 'Back to sent');
+  };
+
+  const remove = async () => {
+    if (!await askConfirm({ title: 'Delete draft', message: `Delete draft ${quote.quoteNo}?`, okLabel: 'Delete', tone: 'danger' })) return;
+    run(async () => { await salesHubApi.deleteQuote(id); onClose(); return true; }, 'Draft deleted');
+  };
+
+  const closeForm = async () => {
+    if (dirty && draft && !await askConfirm({ title: 'Changes not saved', message: 'Changes are not saved. Close anyway?', okLabel: 'Close anyway', tone: 'warn' })) return;
+    onClose();
+  };
+
+  const text = (field, { upper, ...props } = {}) => (
+    <Input value={quote[field] ?? ''} disabled={!editable} onChange={(event) => setHeader(field, upper ? event.target.value.toUpperCase() : event.target.value)} {...props} />
+  );
+  const number = (field) => <NumberInput value={quote[field]} disabled={!editable} onValueChange={(value) => setHeader(field, value)} />;
+  const date = (field) => <DateInput value={quote[field] || ''} disabled={!editable} onValueChange={(value) => setHeader(field, value)} />;
+  const salesPersons = (meta.persons || []).filter((person) => person.isActive !== 0 || person.id === quote.salesPersonId);
+  const noLines = !lines.length;
+
+  const footer = (
+    <>
+      {draft && <Button variant="destructive" disabled={busy} onClick={remove}><Trash2 /> Delete</Button>}
+      {['SENT', 'LOST'].includes(quote.status) && <Button disabled={busy} onClick={revise}><Copy /> Revise</Button>}
+      {['WON', 'LOST'].includes(quote.status) && <Button disabled={busy} onClick={reopen}><RotateCcw /> Back to sent</Button>}
+      <span className="tw:flex-1" />
+      <Button disabled={busy || noLines} onClick={print}><Printer /> Print</Button>
+      <Button disabled={busy || noLines} onClick={downloadPdf}><FileDown /> PDF</Button>
+      {['DRAFT', 'SENT'].includes(quote.status) && <Button disabled={busy || noLines} onClick={openMail}><Mail /> Mail</Button>}
+      {draft && <Button disabled={busy || noLines} onClick={markSent} title="Sent some other way (WhatsApp, portal)"><Send /> Mark sent</Button>}
+      {quote.status === 'SENT' && <Button variant="destructive" disabled={busy} onClick={() => setDialog({ kind: 'lost', lost: {} })}><XCircle /> Lost</Button>}
+      {quote.status === 'SENT' && <Button variant="success" disabled={busy} onClick={() => setDialog({ kind: 'won', docketNo: '' })}><Trophy /> Won</Button>}
+      {draft && <Button variant="default" disabled={busy || !dirty} onClick={save}><Save /> {busy ? 'Saving…' : 'Save'}</Button>}
+    </>
+  );
+
+  const addButtons = draft && (deal.sections || []).map(([section, label]) => (
+    <Button key={section} size="sm" onClick={() => addLine(section)}><Plus /> {label.replace(' charges', '')}</Button>
+  ));
+
   return (
-    <Modal title={`Quotation ${qt.quoteNo}`} onClose={() => { if (dirty && draft && !window.confirm('Changes are not saved. Close anyway?')) return; onClose(); }} width={1200} footer={footer}>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px', fontSize: '12px' }}>
-        <DealChip status={qt.status} map={QT_STYLE} labels={labels} />
-        {qt.expired && <span style={{ color: C.red, fontWeight: 700 }}>Validity over</span>}
-        <b>{qt.clientName}</b><span style={{ color: C.mute }}>{svc[qt.serviceType]} {[qt.origin, qt.destination].filter(Boolean).join(' > ')}</span>
-        <span style={{ color: C.mute }}>Enquiry {qt.enquiryNo}</span>
-        {qt.docketNo && <span>Docket <b>{qt.docketNo}</b></span>}
-        {qt.status === 'LOST' && <span style={{ color: C.red }}>{qt.rejectReason}{qt.lostTo ? ' (to ' + qt.lostTo + ')' : ''}{qt.lostRate ? ', their rate ' + qt.lostRate : ''}</span>}
-        {(qt.revisions || []).length > 1 && <span style={{ marginLeft: 'auto' }}>Revisions: {qt.revisions.map(r => r.id === qt.id ? <b key={r.id} style={{ marginLeft: 6 }}>{r.quoteNo.split('/').pop()}</b>
-          : <button key={r.id} type="button" style={{ ...btn('ghost'), padding: '0 4px' }} onClick={() => openQuote(r.id)}>{r.quoteNo.split('/').pop()}</button>)}</span>}
+    <Modal open title={`Quotation ${quote.quoteNo}`} onClose={closeForm} width={1200} footer={footer}>
+      <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-2.5 tw:text-entry">
+        <DealBadge status={quote.status} variants={QUOTE_STATUS} labels={statusLabels} />
+        {quote.expired && <span className="tw:font-bold tw:text-destructive">Validity over</span>}
+        <b>{quote.clientName}</b>
+        <span className="tw:text-muted-foreground">{serviceLabels[quote.serviceType]} {[quote.origin, quote.destination].filter(Boolean).join(' > ')}</span>
+        <span className="tw:text-muted-foreground">Enquiry {quote.enquiryNo}</span>
+        {quote.docketNo && <span>Docket <b>{quote.docketNo}</b></span>}
+        {quote.status === 'LOST' && (
+          <span className="tw:text-destructive">{quote.rejectReason}{quote.lostTo ? ` (to ${quote.lostTo})` : ''}{quote.lostRate ? `, their rate ${quote.lostRate}` : ''}</span>
+        )}
+        {(quote.revisions || []).length > 1 && <Revisions quote={quote} openQuote={openQuote} />}
       </div>
-      {!draft && qt.status !== 'SUPERSEDED' && <div style={{ fontSize: '11.5px', color: C.amber, background: C.amberBg, padding: '5px 8px', borderRadius: '4px', marginBottom: '8px' }}>This quotation is {String(labels[qt.status] || qt.status).toLowerCase()} - it is not changed any more. Use Revise for new rates.</div>}
-      {qt.status === 'SUPERSEDED' && <div style={{ fontSize: '11.5px', color: C.grey, background: C.greyBg, padding: '5px 8px', borderRadius: '4px', marginBottom: '8px' }}>An older revision - kept for the record.</div>}
-      <Section title="Quotation">
-        <div style={grid(150)}>
-          <Field label="Date">{H('date', { type: 'date' })}</Field>
-          <Field label="Valid until">{H('validUntil', { type: 'date' })}</Field>
-          <Field label="Attention">{H('contactPerson')}</Field>
-          <Field label="E-mail">{H('email')}</Field>
-          <Field label="Sales person"><select style={inp} value={qt.salesPersonId || ''} disabled={!draft || busy} onChange={e => setH('salesPersonId', e.target.value)}><option value="">-</option>{(meta.persons || []).filter(p => p.isActive !== 0 || p.id === qt.salesPersonId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-          <Field label="Incoterm"><select style={inp} value={qt.incoterms || ''} disabled={!draft || busy} onChange={e => setH('incoterms', e.target.value)}><option value="">-</option>{(meta.incoterms || []).map(t => <option key={t}>{t}</option>)}</select></Field>
-          <Field label="Carrier / line">{H('carrier')}</Field>
-          <Field label="Routing">{H('routing', { placeholder: 'e.g. via DXB' })}</Field>
-          <Field label="Transit time">{H('transitTime', { placeholder: 'e.g. 3-4 days' })}</Field>
-          <Field label="Frequency">{H('frequency', { placeholder: 'e.g. daily' })}</Field>
-          <Field label="Commodity" span={2}>{H('commodity')}</Field>
-        </div>
-        <div style={{ ...grid(120), marginTop: '8px' }}>
-          <Field label="Packages">{H('pkgs', { type: 'number' })}</Field>
-          <Field label="Gross wt (kg)">{H('grossWt', { type: 'number' })}</Field>
-          <Field label="Chargeable wt (kg)">{H('chargeableWt', { type: 'number' })}</Field>
-          <Field label="CBM">{H('cbm', { type: 'number' })}</Field>
-          <Field label="Containers">{H('containers', { upper: true, placeholder: '2x40HC' })}</Field>
-          <Field label="Cargo value">{H('cargoValue', { type: 'number' })}</Field>
-          <Field label="Value currency"><select style={inp} value={qt.cargoCurrency || ''} disabled={!draft || busy} onChange={e => setH('cargoCurrency', e.target.value)}><option value="">-</option><option>INR</option>{(meta.currencies || []).map(c => <option key={c}>{c}</option>)}</select></Field>
-        </div>
-      </Section>
-      <Section title="Charges" right={draft && (deal.sections || []).map(s => <button key={s[0]} type="button" style={{ ...btn(), padding: '3px 8px', fontSize: '11px' }} onClick={() => add(s[0])}><Plus size={11} /> {s[1].replace(' charges', '')}</button>)}>
-        <datalist id="qt-charges">{charges.map(c => <option key={c.id} value={c.chargeName} />)}</datalist>
-        <div style={{ overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px', minWidth: '1080px' }}>
-            <thead><tr>{['Section', 'Charge (GST Charges)', 'Basis', 'Qty', 'Cur', 'ROE', 'Buy rate', 'Min buy', 'Sell rate', 'Min sell', 'Sell', 'Sell Rs', 'Margin Rs', 'Vendor', ''].map(h => <th key={h} style={{ textAlign: 'left', padding: '4px', background: '#f1f5f9', color: C.grey, fontSize: '10.5px', whiteSpace: 'nowrap' }}>{h}</th>)}</tr></thead>
-            <tbody>
-              {worked.map(l => {
-                const known = l.chargeId || byName.get(String(l.head || '').toUpperCase());
-                const m = r2(l.w.sellInr - l.w.buyInr);
-                return (
-                  <tr key={l.key}>
-                    <td style={cell}><select style={{ ...ci, width: '92px' }} disabled={!draft} value={l.section || 'OTHER'} onChange={e => setL(l.key, { section: e.target.value })}>{(deal.sections || []).map(s => <option key={s[0]} value={s[0]}>{s[1].replace(' charges', '')}</option>)}</select></td>
-                    <td style={cell}><input list="qt-charges" style={{ ...ci, width: '210px', borderColor: known ? '#cbd5e1' : '#fca5a5' }} disabled={!draft} value={l.head || ''} title={l.sacCode ? `SAC ${l.sacCode}, GST ${l.gstRate}%` : 'Pick from the GST Charges list'}
-                      onChange={e => { const c = byName.get(e.target.value.toUpperCase()); setL(l.key, { head: e.target.value, chargeId: c ? c.id : null, sacCode: c ? c.sacCode : null, gstRate: c ? c.gstRate : null }); }} />
-                      <input style={{ ...ci, width: '210px', marginTop: '2px', fontSize: '10.5px' }} disabled={!draft} placeholder="note on the print (optional)" value={l.remarks || ''} onChange={e => setL(l.key, { remarks: e.target.value })} /></td>
-                    <td style={cell}><select style={{ ...ci, width: '110px' }} disabled={!draft} value={l.basis || 'FLAT'} onChange={e => setL(l.key, { basis: e.target.value, autoQty: true })}>{(deal.basis || []).map(b => <option key={b[0]} value={b[0]}>{b[1]}</option>)}</select></td>
-                    <td style={cell}><input style={{ ...ci, width: '70px', background: l.autoQty ? '#f0f9ff' : '#fff' }} disabled={!draft} title={l.autoQty ? 'From the cargo above - type to fix it' : 'Typed'} value={l.autoQty ? l.w.qty : (l.qty ?? '')} onChange={e => setL(l.key, { qty: e.target.value, autoQty: false })} /></td>
-                    <td style={cell}><select style={{ ...ci, width: '62px' }} disabled={!draft} value={l.currency || 'INR'} onChange={e => setL(l.key, { currency: e.target.value, roe: e.target.value === 'INR' ? 1 : rateOf(e.target.value) })}><option>INR</option>{(meta.currencies || []).filter(c => c !== 'INR').map(c => <option key={c}>{c}</option>)}</select></td>
-                    <td style={cell}><input style={{ ...ci, width: '62px' }} disabled={!draft || l.currency === 'INR'} value={l.currency === 'INR' ? 1 : (l.roe ?? '')} onChange={e => setL(l.key, { roe: e.target.value })} /></td>
-                    <td style={cell}><input style={{ ...ci, width: '72px' }} disabled={!draft} value={l.buyRate ?? ''} onChange={e => setL(l.key, { buyRate: e.target.value })} /></td>
-                    <td style={cell}><input style={{ ...ci, width: '64px' }} disabled={!draft} value={l.minBuy ?? ''} onChange={e => setL(l.key, { minBuy: e.target.value })} /></td>
-                    <td style={cell}><input style={{ ...ci, width: '72px', fontWeight: 600 }} disabled={!draft} value={l.sellRate ?? ''} onChange={e => setL(l.key, { sellRate: e.target.value })} /></td>
-                    <td style={cell}><input style={{ ...ci, width: '64px' }} disabled={!draft} value={l.minSell ?? ''} onChange={e => setL(l.key, { minSell: e.target.value })} /></td>
-                    <td style={{ ...cell, textAlign: 'right', whiteSpace: 'nowrap' }}>{l.w.sell.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                    <td style={{ ...cell, textAlign: 'right' }}>{inr(l.w.sellInr)}</td>
-                    <td style={{ ...cell, textAlign: 'right', color: m < 0 ? C.red : undefined }}>{inr(m)}</td>
-                    <td style={cell}><input style={{ ...ci, width: '100px' }} disabled={!draft} placeholder="airline / agent" value={l.vendor || ''} onChange={e => setL(l.key, { vendor: e.target.value })} /></td>
-                    <td style={cell}>{draft && <button type="button" aria-label="Remove line" style={{ border: 'none', background: 'none', cursor: 'pointer', color: C.red }} onClick={() => { setLines(ls => ls.filter(z => z.key !== l.key)); setDirty(true); }}><X size={14} /></button>}</td>
-                  </tr>
-                );
-              })}
-              {!lines.length && <tr><td colSpan={15} style={{ ...cell, color: C.mute, padding: '12px' }}>{draft ? 'Add charges with the buttons above (Freight, Origin, Destination, Customs …).' : 'No charges.'}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <div style={{ display: 'flex', gap: '18px', justifyContent: 'flex-end', marginTop: '8px', fontSize: '12.5px', flexWrap: 'wrap' }}>
-          <span>Sell <b>Rs {inr(sell)}</b></span><span>Buy Rs {inr(buy)}</span>
-          <span style={{ color: pct != null && pct < warn ? C.red : C.green }}>Margin <b>Rs {inr(margin)}</b>{pct != null ? ` (${pct}%)` : ''}{pct != null && pct < warn ? ` - below ${warn}%` : ''}</span>
-          <span style={{ color: C.mute }}>GST extra as per charge</span>
-        </div>
-      </Section>
-      <Section title="Terms and remarks">
-        <div style={grid(300)}>
-          <Field label="Terms & conditions (one per line)" span={2}><textarea style={{ ...inp, minHeight: '110px', fontSize: '11.5px' }} disabled={!draft || busy} value={qt.terms || ''} onChange={e => setH('terms', e.target.value)} /></Field>
-          <Field label="Remarks on the quotation"><textarea style={{ ...inp, minHeight: '110px' }} disabled={!draft || busy} value={qt.remarks || ''} onChange={e => setH('remarks', e.target.value)} /></Field>
-        </div>
-      </Section>
-      {dlg && dlg.kind === 'mail' && (
-        <Modal title={'Mail ' + qt.quoteNo} onClose={() => setDlg(null)} width={620} footer={<><button type="button" style={btn()} onClick={() => setDlg(null)}>Cancel</button><button type="button" style={btn('primary')} disabled={busy} onClick={sendMail}><Mail size={13} /> {busy ? 'Sending…' : 'Send with PDF'}</button></>}>
-          <div style={{ display: 'grid', gap: '8px' }}>
-            <Field label="To *"><input style={inp} value={dlg.to} onChange={e => setDlg({ ...dlg, to: e.target.value })} /></Field>
-            <Field label="Cc"><input style={inp} value={dlg.cc} onChange={e => setDlg({ ...dlg, cc: e.target.value })} /></Field>
-            <Field label="Subject"><input style={inp} value={dlg.subject} onChange={e => setDlg({ ...dlg, subject: e.target.value })} /></Field>
-            <Field label="Message"><textarea style={{ ...inp, minHeight: '140px' }} value={dlg.body} onChange={e => setDlg({ ...dlg, body: e.target.value })} /></Field>
-            <div style={{ fontSize: '11px', color: C.mute }}>Goes from the e-mail account in Settings &gt; Email, with {String(qt.quoteNo).replace(/[\\/]+/g, '-')}.pdf attached. The quotation is then marked sent.</div>
-          </div>
-        </Modal>
+      {!draft && quote.status !== 'SUPERSEDED' && (
+        <Notice tone="warning" className="tw:mb-2 tw:py-1 tw:text-[11.5px]">
+          This quotation is {String(statusLabels[quote.status] || quote.status).toLowerCase()} - it is not changed any more. Use Revise for new rates.
+        </Notice>
       )}
-      {dlg && dlg.kind === 'won' && (
-        <Modal title={'Won - ' + qt.quoteNo} onClose={() => setDlg(null)} width={480} footer={<><button type="button" style={btn()} onClick={() => setDlg(null)}>Cancel</button><button type="button" style={{ ...btn('primary'), background: C.green, borderColor: C.green }} disabled={busy} onClick={() => won(false)}><Trophy size={13} /> Mark won</button></>}>
-          <Field label="Docket no (if already registered)" hint="Freight > Shipment Registration. The docket gets this quotation no., and its Provisional Sheet then offers these charges at the quoted rates. Can be left blank."><input style={inp} value={dlg.docketNo} onChange={e => setDlg({ ...dlg, docketNo: e.target.value.toUpperCase() })} placeholder="e.g. DEL/AI/1001/26" /></Field>
-        </Modal>
+      {quote.status === 'SUPERSEDED' && <Notice tone="neutral" className="tw:mb-2 tw:py-1 tw:text-[11.5px]">An older revision - kept for the record.</Notice>}
+
+      <FormSection title="Quotation">
+        <div className={FORM_GRID.narrow}>
+          <FormField label="Date">{date('date')}</FormField>
+          <FormField label="Valid until">{date('validUntil')}</FormField>
+          <FormField label="Attention">{text('contactPerson')}</FormField>
+          <FormField label="E-mail">{text('email')}</FormField>
+          <FormField label="Sales person">
+            <SelectBox {...PICK} value={quote.salesPersonId} disabled={!editable} onValueChange={(value) => setHeader('salesPersonId', value)} options={salesPersons.map((person) => ({ value: person.id, label: person.name }))} />
+          </FormField>
+          <FormField label="Incoterm"><SelectBox {...PICK} value={quote.incoterms} disabled={!editable} onValueChange={(value) => setHeader('incoterms', value)} options={meta.incoterms || []} /></FormField>
+          <FormField label="Carrier / line">{text('carrier')}</FormField>
+          <FormField label="Routing">{text('routing', { placeholder: 'e.g. via DXB' })}</FormField>
+          <FormField label="Transit time">{text('transitTime', { placeholder: 'e.g. 3-4 days' })}</FormField>
+          <FormField label="Frequency">{text('frequency', { placeholder: 'e.g. daily' })}</FormField>
+          <FormField label="Commodity" span={2}>{text('commodity')}</FormField>
+        </div>
+        <div className={cn(FORM_GRID.narrow, 'tw:mt-2')}>
+          <FormField label="Packages">{number('pkgs')}</FormField>
+          <FormField label="Gross wt (kg)">{number('grossWt')}</FormField>
+          <FormField label="Chargeable wt (kg)">{number('chargeableWt')}</FormField>
+          <FormField label="CBM">{number('cbm')}</FormField>
+          <FormField label="Containers">{text('containers', { upper: true, placeholder: '2x40HC' })}</FormField>
+          <FormField label="Cargo value">{number('cargoValue')}</FormField>
+          <FormField label="Value currency">
+            <SelectBox {...PICK} value={quote.cargoCurrency} disabled={!editable} onValueChange={(value) => setHeader('cargoCurrency', value)} options={[...new Set(['INR', ...(meta.currencies || [])])]} />
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection title="Charges" actions={addButtons}>
+        <QuoteChargesTable
+          lines={worked}
+          deal={deal}
+          meta={meta}
+          editable={draft}
+          chargesByName={chargesByName}
+          onChange={changeLine}
+          onRemove={removeLine}
+          rateOf={rateOf}
+        />
+        <div className="tw:mt-2 tw:flex tw:flex-wrap tw:justify-end tw:gap-x-4.5 tw:gap-y-1 tw:text-[12.5px]">
+          <span>Sell <b>Rs {inr(sell)}</b></span>
+          <span>Buy Rs {inr(buy)}</span>
+          <span className={lowMargin ? 'tw:text-destructive' : 'tw:text-success'}>
+            Margin <b>Rs {inr(margin)}</b>{marginPct != null ? ` (${marginPct}%)` : ''}{lowMargin ? ` - below ${marginWarnPct}%` : ''}
+          </span>
+          <span className="tw:text-muted-foreground">GST extra as per charge</span>
+        </div>
+      </FormSection>
+
+      <FormSection title="Terms and remarks">
+        <div className="tw:grid tw:grid-cols-1 tw:gap-x-3 tw:gap-y-2 tw:md:grid-cols-3">
+          <FormField label="Terms & conditions (one per line)" className="tw:md:col-span-2">
+            <Textarea className="tw:min-h-[110px] tw:text-[11.5px]" disabled={!editable} value={quote.terms || ''} onChange={(event) => setHeader('terms', event.target.value)} />
+          </FormField>
+          <FormField label="Remarks on the quotation">
+            <Textarea className="tw:min-h-[110px]" disabled={!editable} value={quote.remarks || ''} onChange={(event) => setHeader('remarks', event.target.value)} />
+          </FormField>
+        </div>
+      </FormSection>
+
+      {dialog?.kind === 'mail' && (
+        <MailDialog quoteNo={quote.quoteNo} mail={dialog.mail} busy={busy} onChange={(mail) => setDialog({ ...dialog, mail })} onCancel={() => setDialog(null)} onSend={sendMail} />
       )}
-      {dlg && dlg.kind === 'lost' && (
-        <Modal title={'Lost - ' + qt.quoteNo} onClose={() => setDlg(null)} width={480} footer={<><button type="button" style={btn()} onClick={() => setDlg(null)}>Cancel</button><button type="button" style={btn('danger')} disabled={busy || !dlg.reason} onClick={lost}><XCircle size={13} /> Mark lost</button></>}>
-          <div style={grid(200)}>
-            <Field label="Reason *"><select style={inp} value={dlg.reason || ''} onChange={e => setDlg({ ...dlg, reason: e.target.value })}><option value="">- pick -</option>{((meta.lookups || {}).LOST_REASON || []).filter(r => r.isActive !== 0).map(r => <option key={r.id}>{r.value}</option>)}</select></Field>
-            <Field label="Lost to (competitor)"><input style={inp} value={dlg.lostTo || ''} onChange={e => setDlg({ ...dlg, lostTo: e.target.value })} /></Field>
-            <Field label="Their rate (if known)"><input style={inp} value={dlg.lostRate || ''} onChange={e => setDlg({ ...dlg, lostRate: e.target.value })} placeholder="e.g. USD 2.20/kg" /></Field>
-          </div>
-        </Modal>
+      {dialog?.kind === 'won' && (
+        <WonDialog quoteNo={quote.quoteNo} docketNo={dialog.docketNo} busy={busy} onChange={(docketNo) => setDialog({ ...dialog, docketNo })} onCancel={() => setDialog(null)} onMarkWon={() => markWon(false)} />
+      )}
+      {dialog?.kind === 'lost' && (
+        <LostDialog quoteNo={quote.quoteNo} lost={dialog.lost} meta={meta} busy={busy} onChange={(lost) => setDialog({ ...dialog, lost })} onCancel={() => setDialog(null)} onMarkLost={markLost} />
       )}
     </Modal>
   );

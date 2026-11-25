@@ -2,8 +2,7 @@ import { invoiceFobInr, invoiceRate, itemValueFc } from './exportFob';
 
 /**
  * Item FOB for the save (fobValue in the invoice currency, fobValueInr in rupees).
- * 12-Nov-2026: this used to work FOB out again on its own - an INR insurance was taken as dollars, the discount was
- * ADDED and commission / other deductions were ignored. It now uses the invoice FOB of the Invoices tab
+ * It uses the invoice FOB of the Invoices tab
  * (utils/exportFob.js): each item gets its share of the invoice FOB in proportion to its value.
  * @param {Array} invoices - invoice objects, each with an `items` array.
  * @param {Array} [currencies] - Currency master (rates of charges in a third currency).
@@ -32,7 +31,7 @@ export const validateFullJob = (jobData) => {
   const warnings = [];
 
   // 1. Check Mandatory Master Details
-  // field names as the export screens store them (customsPortCode, no/value, ritc/qty/rate); DB names kept as fallback. 28-Oct-2026
+  // field names as the export screens store them (customsPortCode, no/value, ritc/qty/rate); DB names kept as fallback
   if (!jobData.customsPortCode && !jobData.customsPort) errors.push("Customs Port is missing.");
   if (!jobData.shipperId && !jobData.shipperName) errors.push("Shipper details are missing.");
 
@@ -61,7 +60,7 @@ export const validateFullJob = (jobData) => {
       }
 
       items.forEach((item, j) => {
-        const hs = String(item.ritc || item.hsCode || '').trim(); // the screen box first (18-Nov-2026: hsCode is a saved copy)
+        const hs = String(item.ritc || item.hsCode || '').trim(); // the screen box first (hsCode is a saved copy)
         if (!hs) errors.push(`Invoice ${invNo || i+1}, Item ${j+1} is missing HS Code.`);
         else if (!/^[0-9]{8}$/.test(hs)) errors.push(`Invoice ${invNo || i+1}, Item ${j+1}: HS Code must be 8 digits.`);
         

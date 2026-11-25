@@ -1,228 +1,235 @@
-// Screen section: Edit
-// Split out of ItemGridTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
+import { useEffect, useMemo, useState } from 'react';
 import { Copy, Download, Edit, FileText, RefreshCw, Search, Upload } from 'lucide-react';
-import React from 'react';
 import toast from 'react-hot-toast';
+import { Button, DataTable, FileButton, Input, Label } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import askConfirm from '../../../../common/askConfirm';
 import { computeItemDuty } from '../helpers';
-import askConfirm from '../../../../common/askConfirm'; // EagleView question window, 20-Nov-2026
+import { getItemForm } from '../hooks/itemForm';
+import { asList } from '../hooks/popupValues';
 import QuickQtyWindow from './QuickQtyWindow';
 
+// boxes the screen fills by itself (defaults / computed) - they are not the operator's typing
+const SCREEN_FILLED_FIELDS = new Set(['swsRate', 'swsFlag', 'foc', 'rateTypeFlag', 'ceth', 'accessoryStatus', 'itemNo', 'invSrNo', 'enterFilter', 'searchBy']);
+// MODIFY stores these boxes in capitals, so a box typed in small letters is not a change
+const UPPERCASE_FIELDS = new Set(['brandName', 'model', 'endUse', 'genericDesc', 'manufacturer', 'countryOfOrigin', 'accessories', 'sourceCountry', 'transitCountry']);
+
+const toNumber = (value) => parseFloat(String(value ?? '').replace(/,/g, '')) || 0;
+const numberOrNull = (value) => { const number = parseFloat(String(value ?? '').replace(/,/g, '')); return Number.isFinite(number) ? number : null; };
+const sameText = (first, second) => String(first ?? '').trim() === String(second ?? '').trim();
+const itemValueOf = (item) => (toNumber(item.qty || item.quantity) * toNumber(item.price || item.unitPrice)) || toNumber(item.value);
+const itemLabel = (item) => (item && item.itemSrNo ? 'item ' + (item.invSrNo || 1) + '/' + item.itemSrNo : 'the other item');
+const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const warehouseLeft = (item) => {
+  const balance = numberOrNull(item._whBalanceQty);
+  return balance === null ? null : Math.round((balance - (numberOrNull(item.qty || item.quantity) || 0)) * 1e6) / 1e6;
+};
+const leftClass = (left) => cn('tw:font-bold', left !== null && (left < 0 ? 'tw:text-destructive' : left === 0 ? 'tw:text-success' : 'tw:text-warning'));
+const lineValue = (item) => {
+  const value = parseFloat(item.qty || item.quantity) * parseFloat(item.price || item.unitPrice);
+  return value ? value.toFixed(2) : (item.value || '');
+};
+
+const itemColumns = ({ isExBond, invoices, copyItemRow }) => [
+  { key: 'edit', header: 'Edit', align: 'center', width: 30, cell: () => <Edit className="tw:inline tw:size-3.5 tw:text-primary" /> },
+  {
+    key: 'copy', header: 'Copy', align: 'center', width: 30,
+    cell: (item) => (
+      <Button variant="ghost" size="icon-sm" title="Copy this item" onClick={(event) => { event.stopPropagation(); copyItemRow(item.id); }}>
+        <Copy className="tw:text-primary" />
+      </Button>
+    ),
+  },
+  { key: 'invSrNo', header: 'Inv Sr No', align: 'center', width: 60 },
+  { key: 'invNo', header: 'Inv No', width: 80, cell: (item) => item.invNo || invoices[parseInt(item.invSrNo) - 1]?.invNo || '' },
+  { key: 'itemSrNo', header: 'Item Sr No', align: 'center', width: 60 },
+  { key: 'desc', header: 'Item Desc' },
+  { key: 'ritc', header: 'RITC' },
+  { key: 'qty', header: 'Qty', align: 'right' },
+  ...(isExBond ? [
+    { key: 'whBalance', header: 'WH Bal', align: 'right', className: 'tw:text-muted-foreground', title: 'Quantity of this item still in the warehouse when the WH BE was linked (WH BE quantity less what earlier ex-bonds cleared)', cell: (item) => numberOrNull(item._whBalanceQty) ?? '' },
+    { key: 'whLeft', header: 'Left', align: 'right', title: 'WH balance less the quantity of this ex-bond', cell: (item) => { const left = warehouseLeft(item); return <span className={leftClass(left)}>{left ?? ''}</span>; } },
+  ] : []),
+  { key: 'unit', header: 'Unit', cell: (item) => item.unit || item.uqc },
+  { key: 'price', header: 'Price', align: 'right', cell: (item) => item.price || item.unitPrice },
+  { key: 'value', header: 'Value', align: 'right', cell: lineValue },
+  { key: 'foc', header: 'FOC', align: 'center' },
+  { key: 'scheme', header: 'Scheme', cell: (item) => asList(item.schemeCatData).map((row) => row.schemeCode).filter(Boolean).join(', ') },
+  { key: 'licence', header: 'Lic', cell: (item) => asList(item.licenceData).map((row) => row.licenceNo).filter(Boolean).join(', ') },
+];
+
+const MISMATCH_TITLE = { bad: 'Invoice and item totals differ - ICEGATE error 260. Fix the items or the invoice value.', ok: 'Invoice total minus item total, per invoice' };
+const REST_OF_WH_TITLE = 'Value of the warehouse BE invoice that is not in this ex-bond (still in the warehouse, or cleared by other ex-bonds). Not an error: an ex-bond file does not carry the invoice value.';
+
 export default function EditSection({ ctx }) {
-  const { copyItemRow, handleAiPdf, checkAll, checkedIds, fileInputRef, handleCopyFromOtherJob, handleCopyItem, handleDownloadSample, handleDownloadTemplate, handleFetchItem, handleReadFile, handleRecalculate, invoices, items, jobData, selectedRowId, setSelectedRowId, toggleCheck } = ctx;
-  const listOf = (v) => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } } return Array.isArray(v) ? v : []; };
-  const summary = React.useMemo(() => {
-    const invs = invoices || [];
-    const n = (v) => parseFloat(String(v ?? '').replace(/,/g, '')) || 0;
-    const itemVal = (it) => (n(it.qty || it.quantity) * n(it.price || it.unitPrice)) || n(it.value);
-    const curs = [...new Set(invs.map(iv => String(iv.currency || iv.invoiceCurrency || '').toUpperCase()).filter(Boolean))];
-    const terms = [...new Set(invs.map(iv => String(iv.terms || iv.termsOfInvoice || '').toUpperCase()).filter(Boolean))];
-    const invTotal = invs.reduce((s, iv) => s + n(iv.value || iv.invValue || iv.invoiceValue), 0);
-    const itemTotal = items.reduce((s, it) => s + itemVal(it), 0);
-    // mismatch per invoice (so two invoices in different currencies are not mixed)
-    let mismatch = 0;
-    invs.forEach((iv, k) => {
-      const its = items.filter(it => String(it.invSrNo || '1') === String(k + 1));
-      mismatch += n(iv.value || iv.invValue || iv.invoiceValue) - its.reduce((s, it) => s + itemVal(it), 0);
-    });
-    const m = Math.round(mismatch * 100) / 100;
-    // CIF (assessable value) and duty in INR, live from the items' rates; blank when an exchange rate is missing
-    let cif = 0, duty = 0, missing = false;
-    items.forEach(it => { const d = computeItemDuty(it, invs, jobData || {}); if (!d.rateFound) missing = true; cif += d.av; duty += d.total; });
-    return { terms: terms.length > 1 ? 'Mixed' : (terms[0] || ''), currency: curs.length > 1 ? 'Mixed' : (curs[0] || ''),
-      invTotal: invTotal.toFixed(2), itemTotal: itemTotal.toFixed(2), mismatch: m.toFixed(2), mismatchBad: Math.abs(m) >= 0.01,
-      cif: missing ? 'Ex. rate?' : cif.toFixed(2), duty: missing ? 'Ex. rate?' : duty.toFixed(2) };
-  }, [invoices, items, jobData]);
-  // 30-Oct-2026: clicking another row re-mounted the item form (key={selectedRowId}), so anything typed and not
-  // yet put in with Save / Modify was gone without a word. The row is only switched after asking.
+  const {
+    copyItemRow, handleAiPdf, checkAll, checkedIds, handleCopyFromOtherJob, handleCopyItem, handleDownloadSample, handleDownloadTemplate, handleFetchItem,
+    handleReadFile, handleRecalculate, invoices, items, jobData, selectedRowId, setSelectedRowId, toggleCheck, registerPendingEdits, askItemHistory, applyQuickQty,
+  } = ctx;
+  const [quickQtyOpen, setQuickQtyOpen] = useState(false);
   const isExBond = String((jobData && (jobData.autoField_51 || jobData.beType)) || '').toUpperCase() === 'X';
-  const whNum = (v) => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return Number.isFinite(x) ? x : null; };
+
+  const summary = useMemo(() => {
+    const invoiceList = invoices || [];
+    const currencies = [...new Set(invoiceList.map((invoice) => String(invoice.currency || invoice.invoiceCurrency || '').toUpperCase()).filter(Boolean))];
+    const terms = [...new Set(invoiceList.map((invoice) => String(invoice.terms || invoice.termsOfInvoice || '').toUpperCase()).filter(Boolean))];
+    const invoiceValue = (invoice) => toNumber(invoice.value || invoice.invValue || invoice.invoiceValue);
+    const invoiceTotal = invoiceList.reduce((sum, invoice) => sum + invoiceValue(invoice), 0);
+    const itemTotal = items.reduce((sum, item) => sum + itemValueOf(item), 0);
+    // mismatch per invoice (so two invoices in different currencies are not mixed)
+    const mismatch = Math.round(invoiceList.reduce((sum, invoice, index) => {
+      const invoiceItems = items.filter((item) => String(item.invSrNo || '1') === String(index + 1));
+      return sum + invoiceValue(invoice) - invoiceItems.reduce((itemSum, item) => itemSum + itemValueOf(item), 0);
+    }, 0) * 100) / 100;
+    // CIF (assessable value) and duty in INR, live from the items' rates; blank when an exchange rate is missing
+    let cif = 0;
+    let duty = 0;
+    let rateMissing = false;
+    items.forEach((item) => {
+      const estimate = computeItemDuty(item, invoiceList, jobData || {});
+      if (!estimate.rateFound) rateMissing = true;
+      cif += estimate.av;
+      duty += estimate.total;
+    });
+    return {
+      terms: terms.length > 1 ? 'Mixed' : (terms[0] || ''),
+      currency: currencies.length > 1 ? 'Mixed' : (currencies[0] || ''),
+      invTotal: invoiceTotal.toFixed(2),
+      itemTotal: itemTotal.toFixed(2),
+      mismatch: mismatch.toFixed(2),
+      mismatchBad: Math.abs(mismatch) >= 0.01,
+      cif: rateMissing ? 'Ex. rate?' : cif.toFixed(2),
+      duty: rateMissing ? 'Ex. rate?' : duty.toFixed(2),
+    };
+  }, [invoices, items, jobData]);
+
+  // The item form re-mounts per row (key={selectedRowId}), so typing not yet put in with Save / Modify would be lost
+  // without a word: a row switch asks first, and Validate / File BE ask through registerPendingEdits.
+  // A box is changed only when it differs from the saved item AND from what the screen first showed in it: some boxes
+  // show a value the item does not carry (a popup flag shows Y because the popup has data, SWS shows 10 / A).
   const formDirty = () => {
-  // boxes the screen fills by itself (defaults / computed) - they are not the operator's typing
-  const SKIP = new Set(['swsRate', 'swsFlag', 'foc', 'rateTypeFlag', 'ceth', 'accessoryStatus', 'itemNo', 'invSrNo', 'enterFilter', 'searchBy']);
-    const UPPER = new Set(['brandName', 'model', 'endUse', 'genericDesc', 'manufacturer', 'countryOfOrigin', 'accessories', 'sourceCountry', 'transitCountry']);
-    const f = document.getElementById('item-form'); if (!f || !selectedRowId) return false;
-    const cur = (items || []).find(it => it.id === selectedRowId) || {};
-    const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
-    for (const el of f.querySelectorAll('input[name], select[name], textarea[name]')) {
-      if (el.type === 'checkbox' || el.type === 'radio' || el.disabled || el.readOnly) continue;
-      const k = el.name; if (!k || SKIP.has(k)) continue;
-      // a key the row does not carry yet counts as a change only when something was actually typed
-      // 22-Nov-2026: MODIFY stores these boxes in capitals; a box typed in small letters then looked "changed" for ever
-      // ("Changes not put in" came up right after MODIFY, e.g. model "Nova 2 Pro").
-      if (UPPER.has(k) ? !same(String(el.value ?? '').toUpperCase(), String(cur[k] ?? '').toUpperCase()) : !same(el.value, cur[k] ?? '')) return true;
-    }
-    return false;
+    const form = getItemForm();
+    if (!form || !selectedRowId) return false;
+    const openItem = (items || []).find((item) => item.id === selectedRowId) || {};
+    return [...form.querySelectorAll('input[name], select[name], textarea[name]')].some((element) => {
+      if (element.type === 'checkbox' || element.type === 'radio' || element.disabled || element.readOnly) return false;
+      const name = element.name;
+      if (!name || SCREEN_FILLED_FIELDS.has(name)) return false;
+      const same = UPPERCASE_FIELDS.has(name)
+        ? (first, second) => sameText(String(first ?? '').toUpperCase(), String(second ?? '').toUpperCase())
+        : sameText;
+      const shownAtOpen = element.tagName === 'SELECT' ? undefined : element.defaultValue;
+      return !same(element.value, openItem[name] ?? '') && !(shownAtOpen !== undefined && same(element.value, shownAtOpen));
+    });
   };
-  // Validate / File BE read the job, not this form, so they ask here whether anything is still untyped-in.
-  // 30-Oct-2026: before this a row typed and left was checked and filed with its old values, with no word said.
-  const { registerPendingEdits } = ctx;
-  const [quickQty, setQuickQty] = React.useState(false); // 22-Nov-2026: Quick Quantity Entry window (ex-bond)
-  React.useEffect(() => {
+
+  useEffect(() => {
     if (typeof registerPendingEdits !== 'function') return undefined;
     return registerPendingEdits('items', () => {
       if (!formDirty()) return '';
-      const cur = (items || []).find(it => it.id === selectedRowId) || {};
-      const which = cur.itemSrNo ? 'Item ' + (cur.invSrNo || 1) + '/' + cur.itemSrNo : 'The open item';
+      const openItem = (items || []).find((item) => item.id === selectedRowId) || {};
+      const which = openItem.itemSrNo ? 'Item ' + (openItem.invSrNo || 1) + '/' + openItem.itemSrNo : 'The open item';
       return which + ' has changes that were not put in with MODIFY - they are not part of the BE yet.';
     });
   }); // no dependency list: the check must close over the current items / selected row
-  const pickRow = async (id) => {
-    if (id === selectedRowId) return;
-    // 20-Nov-2026: asked in an EagleView window with named buttons, not the browser's OK / Cancel box
-    if (formDirty()) { const lbl = (r) => r && r.itemSrNo ? 'item ' + (r.invSrNo || 1) + '/' + r.itemSrNo : 'the other item'; const cur = (items || []).find(it => it.id === selectedRowId); const nxt = (items || []).find(it => it.id === id); const which = lbl(cur); if (!(await askConfirm({ title: 'Changes not put in', message: which.charAt(0).toUpperCase() + which.slice(1) + ' has changes that were not put in with MODIFY.', note: 'Drop the changes: ' + lbl(nxt) + ' opens, and what was typed here is lost.\nStay here: press MODIFY first, then open ' + lbl(nxt) + '.', okLabel: 'Drop the changes', cancelLabel: 'Stay here' }))) return; }
-    setSelectedRowId(id);
+
+  const pickRow = async (item) => {
+    if (item.id === selectedRowId) return;
+    if (formDirty()) {
+      const openName = itemLabel((items || []).find((entry) => entry.id === selectedRowId));
+      const nextName = itemLabel(item);
+      const dropChanges = await askConfirm({
+        title: 'Changes not put in',
+        message: capitalised(openName) + ' has changes that were not put in with MODIFY.',
+        note: 'Drop the changes: ' + nextName + ' opens, and what was typed here is lost.\nStay here: press MODIFY first, then open ' + nextName + '.',
+        okLabel: 'Drop the changes',
+        cancelLabel: 'Stay here',
+      });
+      if (!dropChanges) return;
+    }
+    setSelectedRowId(item.id);
   };
+
+  const openQuickQty = () => {
+    if (selectedRowId && formDirty()) { toast.error('The open item has changes not put in with MODIFY - press MODIFY (or Clear) first'); return; }
+    setQuickQtyOpen(true);
+  };
+
+  const selectedPosition = items.length > 0 ? (items.findIndex((item) => item.id === selectedRowId) + 1 || 1) : 0;
+  const totals = [
+    { label: 'Terms', value: summary.terms, widthClass: 'tw:md:w-[60px]' },
+    { label: 'Currency', value: summary.currency, widthClass: 'tw:md:w-[60px]' },
+    // an ex-bond (X) clears part of its warehouse BE, so its items are worth less than the WH invoice and the invoice
+    // value is not sent in an X file - a "Mismatch / ICEGATE error 260" would be a false alarm there
+    ...(isExBond ? [
+      { label: 'WH BE Invoice', value: summary.invTotal, widthClass: 'tw:md:w-[100px]', right: true },
+      { label: 'This Ex-Bond', value: summary.itemTotal, widthClass: 'tw:md:w-[100px]', right: true },
+      { label: 'Rest of WH Invoice', value: summary.mismatch, widthClass: 'tw:md:w-[100px]', right: true, title: REST_OF_WH_TITLE },
+    ] : [
+      { label: 'Invoice Total', value: summary.invTotal, widthClass: 'tw:md:w-[90px]', right: true },
+      { label: 'Item Total', value: summary.itemTotal, widthClass: 'tw:md:w-[90px]', right: true },
+      { label: 'Mismatch', value: summary.mismatch, widthClass: 'tw:md:w-[80px]', right: true, tone: summary.mismatchBad ? 'bad' : 'ok', title: summary.mismatchBad ? MISMATCH_TITLE.bad : MISMATCH_TITLE.ok },
+    ]),
+    { label: 'CIF Total (INR)', value: summary.cif, widthClass: 'tw:md:w-[100px]', right: true },
+    { label: 'Total Duty (INR)', value: summary.duty, widthClass: 'tw:md:w-[100px]', right: true },
+  ];
 
   return (
     <>
-    {quickQty && <QuickQtyWindow items={items} onClose={() => setQuickQty(false)} onApply={(m) => { if (ctx.applyQuickQty) ctx.applyQuickQty(m); setQuickQty(false); }} />}
-    {/* Top Grid Area */}
-      <div className="glass-panel" style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', overflow: 'hidden', marginBottom: '4px' }}>
-        <div style={{ overflowX: 'auto', overflowY: 'auto', height: '100%' }}>
-          <table className="data-grid" style={{ width: '100%', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
-            <thead style={{ background: 'var(--primary-bg-light, var(--primary-bg-light))', color: '#334155', position: 'sticky', top: 0, zIndex: 1 }}>
-              <tr>
-                <th style={{ width: '30px', textAlign: 'center' }}>
-                  <input type="checkbox" checked={items.length > 0 && checkedIds.length === items.length} onChange={checkAll} style={{ margin: 0, cursor: 'pointer' }} />
-                </th>
-                <th style={{ width: '30px', textAlign: 'center' }}>Edit</th>
-                <th style={{ width: '30px', textAlign: 'center' }}>Copy</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Inv Sr No</th>
-                <th style={{ width: '80px' }}>Inv No</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Item Sr No</th>
-                <th>Item Desc</th>
-                <th>RITC</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                {isExBond && <th style={{ textAlign: 'right' }} title="Quantity of this item still in the warehouse when the WH BE was linked (WH BE quantity less what earlier ex-bonds cleared)">WH Bal</th>}
-                {isExBond && <th style={{ textAlign: 'right' }} title="WH balance less the quantity of this ex-bond">Left</th>}
-                <th>Unit</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>Value</th>
-                <th style={{ textAlign: 'center' }}>FOC</th>
-                <th>Scheme</th>
-                <th>Lic</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it) => (
-                <tr 
-                  key={it.id} 
-                  onClick={() => pickRow(it.id)}
-                  style={{ 
-                    background: selectedRowId === it.id ? '#fefce8' : 'transparent',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={checkedIds.includes(it.id)} onChange={() => toggleCheck(it.id)} style={{ margin: 0, cursor: 'pointer' }} />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <Edit size={14} color="var(--primary-text, var(--primary-color-start))" />
-                  </td>
-                  <td style={{ textAlign: 'center' }} title="Copy this item" onClick={(e) => { e.stopPropagation(); copyItemRow(it.id); }}>
-                    <Copy size={14} color="var(--primary-text, var(--primary-color-start))" />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>{it.invSrNo}</td>
-                  <td>{it.invNo || (invoices[parseInt(it.invSrNo) - 1]?.invNo) || ''}</td>
-                  <td style={{ textAlign: 'center' }}>{it.itemSrNo}</td>
-                  <td>{it.desc}</td>
-                  <td>{it.ritc}</td>
-                  <td style={{ textAlign: 'right' }}>{it.qty}</td>
-                  {isExBond && (() => { const bal = whNum(it._whBalanceQty), q = whNum(it.qty || it.quantity) || 0; const left = bal === null ? null : Math.round((bal - q) * 1e6) / 1e6;
-                    return (<><td style={{ textAlign: 'right', color: '#475569' }}>{bal === null ? '' : bal}</td><td style={{ textAlign: 'right', fontWeight: 700, color: left === null ? undefined : left < 0 ? '#dc2626' : left === 0 ? '#16a34a' : '#b45309' }}>{left === null ? '' : left}</td></>); })()}
-                  <td>{it.unit || it.uqc}</td>
-                  <td style={{ textAlign: 'right' }}>{it.price || it.unitPrice}</td>
-                  <td style={{ textAlign: 'right' }}>{((parseFloat(it.qty || it.quantity) * parseFloat(it.price || it.unitPrice)) || 0) ? (parseFloat(it.qty || it.quantity) * parseFloat(it.price || it.unitPrice)).toFixed(2) : (it.value || '')}</td>
-                  <td style={{ textAlign: 'center' }}>{it.foc}</td>
-                  <td>{listOf(it.schemeCatData).map(r => r.schemeCode).filter(Boolean).join(', ')}</td>
-                  <td>{listOf(it.licenceData).map(r => r.licenceNo).filter(Boolean).join(', ')}</td>
-                </tr>
-              ))}
-              {items.length === 0 && (
-                <tr><td colSpan="14" style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8' }}>No Items found</td></tr>
-              )}
-            </tbody>
-          </table>
+      {quickQtyOpen && <QuickQtyWindow items={items} onClose={() => setQuickQtyOpen(false)} onApply={(qtyById) => { if (applyQuickQty) applyQuickQty(qtyById); setQuickQtyOpen(false); }} />}
+
+      <div className="glass-panel tw:mb-1 tw:h-[160px] tw:flex-none tw:overflow-hidden">
+        <DataTable
+          columns={itemColumns({ isExBond, invoices, copyItemRow })}
+          rows={items}
+          selectedKey={selectedRowId}
+          onRowClick={pickRow}
+          selection={{ keys: checkedIds, onToggle: toggleCheck, onToggleAll: checkAll }}
+          emptyText="No Items found"
+          containerClassName="tw:h-full"
+        />
+      </div>
+
+      <div className="tw:mb-1 tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:rounded-sm tw:border tw:border-border tw:bg-background tw:px-2 tw:py-1.5">
+        <div className="tw:flex tw:items-center tw:gap-1">
+          <Input readOnly title="Position of the open item in the list" className="tw:w-16 tw:text-center" value={selectedPosition} />
+          <span>of</span>
+          <Input readOnly title="Items in this job" className="tw:w-16 tw:text-center" value={items.length} />
+        </div>
+        <Button onClick={handleFetchItem}><Search /> Fetch Item</Button>
+        <Button onClick={() => askItemHistory && askItemHistory(true)} title="What earlier jobs of this importer used for this description / model"><Search /> Last Used</Button>
+        <Button onClick={handleCopyItem}><Copy /> Copy Item</Button>
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:md:mx-auto">
+          <FileButton accept=".pdf" onFiles={(files) => handleAiPdf(files[0])}><Upload /> Upload PDF (AI)</FileButton>
+          <FileButton accept=".csv, .xls, .xlsx" onChange={handleReadFile}><FileText /> Read File</FileButton>
+          <Button onClick={handleDownloadTemplate}><Download /> Template</Button>
+          <Button onClick={handleDownloadSample}><Download /> Download Sample</Button>
+        </div>
+        <Button onClick={handleCopyFromOtherJob}><Copy /> Copy From Other Job</Button>
+      </div>
+
+      <div className={cn('tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:rounded-sm tw:border tw:border-border tw:bg-page tw:px-2 tw:py-1.5 tw:font-bold tw:text-head', isExBond ? 'tw:gap-2' : 'tw:gap-2 tw:md:gap-4')}>
+        {totals.map(({ label, value, widthClass, right, tone, title }) => {
+          const bad = tone === 'bad';
+          return (
+            <div key={label} className="tw:flex tw:items-center tw:gap-1 tw:whitespace-nowrap">
+              <Label className={cn('tw:font-bold', bad && 'tw:font-extrabold tw:text-destructive', tone === 'ok' && 'tw:text-success')}>{label}</Label>
+              <Input
+                readOnly
+                value={value}
+                title={title || ''}
+                className={cn('tw:w-24', widthClass, right && 'tw:text-right', tone === 'ok' && 'tw:text-success', bad && 'tw:border-2 tw:border-destructive tw:bg-destructive/10 tw:font-extrabold tw:text-destructive')}
+              />
+              {bad && <span className="tw:text-[11px] tw:text-destructive">⚠ ICEGATE error 260</span>}
+            </div>
+          );
+        })}
+        <div className="tw:flex tw:items-center tw:gap-2 tw:md:ml-auto">
+          {isExBond && items.length > 0 && <Button onClick={openQuickQty} title="Type or paste the quantity of every item in one window">Quick Qty Entry</Button>}
+          <Button variant="default" data-recalc onClick={handleRecalculate}><RefreshCw /> Re-Calculate</Button>
         </div>
       </div>
-
-      {/* Middle Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '6px 8px', background: 'var(--bg-panel, #ffffff)', border: '1px solid var(--primary-border)', borderRadius: '4px', marginBottom: '4px', overflowX: 'auto' }}>
-        <input type="text" className="input-field" title="Position of the open item in the list" style={{ width: '64px', minWidth: '64px', textAlign: 'center', padding: '0 4px' }} value={items.length > 0 ? (items.findIndex(it => it.id === selectedRowId) + 1 || 1) : 0} readOnly />{/* 22-Nov-2026: 40px cut a 3-digit number ("20:" for 207) */}
-          <span>of</span>
-          <input type="text" className="input-field" title="Items in this job" style={{ width: '64px', minWidth: '64px', textAlign: 'center', padding: '0 4px' }} value={items.length} readOnly />
-        
-        <button onClick={handleFetchItem} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-          <Search size={12} /> Fetch Item
-        </button>
-        <button onClick={() => ctx.askItemHistory && ctx.askItemHistory(true)} title="What earlier jobs of this importer used for this description / model" className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-          <Search size={12} /> Last Used
-        </button>
-        <button onClick={handleCopyItem} className="btn btn-secondary" style={{ background: 'var(--primary-text, var(--primary-color-start))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Copy size={12} /> Copy Item
-        </button>
-        
-        <div style={{ flex: 1 }}></div>
-
-        <input type="file" accept=".csv, .xls, .xlsx" ref={fileInputRef} style={{ display: 'none' }} onChange={handleReadFile} />
-        
-        <input type="file" accept=".pdf" id="importAiPdfInput" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files[0]; e.target.value = null; handleAiPdf(f); }} />
-        <button onClick={() => document.getElementById('importAiPdfInput').click()} className="btn btn-secondary" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Upload size={12} /> Upload PDF (AI)
-        </button>
-
-        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <FileText size={12} /> Read File
-        </button>
-        <button onClick={handleDownloadTemplate} className="btn btn-secondary" style={{ background: '#0f766e', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px' }}>
-          <Download size={12} /> Template
-        </button>
-        <button onClick={handleDownloadSample} className="btn btn-secondary" style={{ background: 'var(--primary-text, var(--primary-color-start))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Download size={12} /> Download Sample
-        </button>
-        
-        <div style={{ flex: 1 }}></div>
-        
-        <button onClick={handleCopyFromOtherJob} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <Copy size={12} /> Copy From Other Job
-        </button>
-      </div>
-
-      {/* Summary Row: worked out from the job's invoices and items (Terms / Currency were fixed "FOB" / "USD", Mismatch
-          was never calculated, CIF Total showed the foreign-currency item total). 28-Oct-2026 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isExBond ? '0.55rem' : '1rem', padding: '6px 8px', background: 'var(--primary-bg-light, var(--primary-bg-light))', border: '1px solid var(--primary-border)', borderRadius: '4px', marginBottom: '8px', overflowX: 'auto', fontWeight: 'bold', color: 'var(--primary-text, var(--primary-text))' }}>
-        {[
-          ['Terms', summary.terms, '60px'],
-          ['Currency', summary.currency, '60px'],
-          // 22-Nov-2026: an ex-bond (X) clears part of its warehouse BE, so its items are worth less than the WH invoice and
-          // the invoice value is not sent in an X file - the red "Mismatch / ICEGATE error 260" was a false alarm there.
-          ...(isExBond ? [
-            ['WH BE Invoice', summary.invTotal, '100px', true],
-            ['This Ex-Bond', summary.itemTotal, '100px', true],
-            ['Rest of WH Invoice', summary.mismatch, '100px', true],
-          ] : [
-          ['Invoice Total', summary.invTotal, '90px', true],
-          ['Item Total', summary.itemTotal, '90px', true],
-          // 29-Oct-2026: a mismatch is shown in red (text + box), 0.00 in green
-          ['Mismatch', summary.mismatch, '80px', true, summary.mismatchBad ? '#dc2626' : '#16a34a', summary.mismatchBad],
-          ]),
-          ['CIF Total (INR)', summary.cif, '100px', true],
-          ['Total Duty (INR)', summary.duty, '100px', true],
-        ].map(([label, val, w, right, color, bad]) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-            <span style={color ? { color, fontWeight: bad ? 800 : undefined } : undefined}>{label}</span>
-            <input type="text" className="input-field" style={{ width: w, height: '24px', textAlign: right ? 'right' : 'left', color: color || undefined, fontWeight: bad ? 800 : undefined, background: bad ? '#fee2e2' : undefined, border: bad ? '2px solid #dc2626' : undefined }} readOnly value={val} title={label === 'Rest of WH Invoice' ? 'Value of the warehouse BE invoice that is not in this ex-bond (still in the warehouse, or cleared by other ex-bonds). Not an error: an ex-bond file does not carry the invoice value.' : label === 'Mismatch' ? (bad ? 'Invoice and item totals differ - ICEGATE error 260. Fix the items or the invoice value.' : 'Invoice total minus item total, per invoice') : ''} />
-            {bad && <span style={{ color: '#dc2626', fontSize: '11px' }}>⚠ ICEGATE error 260</span>}
-          </div>
-        ))}
-        {isExBond && items.length > 0 && <button type="button" onClick={() => { if (selectedRowId && formDirty()) { toast.error('The open item has changes not put in with MODIFY - press MODIFY (or Clear) first'); return; } setQuickQty(true); }} className="btn btn-secondary" title="Type or paste the quantity of every item in one window" style={{ padding: '2px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>Quick Qty Entry</button>}
-        <button onClick={handleRecalculate} className="btn btn-primary" data-recalc style={{ padding: '2px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--primary-text, var(--primary-color-start))', border: 'none', color: '#fff', marginLeft: isExBond && items.length > 0 ? undefined : 'auto' }}>
-            <RefreshCw size={12} /> Re-Calculate
-          </button>
-      </div>
-
-      {/* Main Form Area */}
     </>
   );
 }
-

@@ -1,57 +1,78 @@
-// Due Agent / Due Carrier charges window (29-Oct-2026). Before, "Add" did nothing; now the rows are the AWB's
-// Other Charges with entitlement agent / carrier (saved in AwbOtherCharges with the AWB), charge list from the
-// Airway Bill Charges master.
-import React, { useState } from 'react';
-import ModalFrame, { inp, sel, lab, addBtn, th, td, delBtn } from './_ModalFrame';
+// Due Agent / Due Carrier charges: the AWB's Other Charges with entitlement agent / carrier (saved with the AWB),
+// charge list from the Airway Bill Charges master.
+import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import { Button, DataTable, Field, Input, SelectBox } from '@/components/ui';
+import ModalFrame, { ENTRY_ROW, FormError, GRID_BOX } from './_ModalFrame';
+
+const EMPTY_CHARGE = { code: '', rate: '', amount: '', ppcc: 'PP' };
+const PREPAID_COLLECT = [{ value: 'PP', label: 'P' }, { value: 'CC', label: 'C' }];
+const decimalText = (text) => text.replace(/[^\d.]/g, '');
 
 export default function ChargesWindow({ isOpen, onClose, title, entitlement, charges = [], setCharges, masterCharges = [], currency }) {
-  const empty = { code: '', rate: '', amount: '', ppcc: 'PP' };
-  const [f, setF] = useState(empty);
-  const [err, setErr] = useState('');
+  const [charge, setCharge] = useState(EMPTY_CHARGE);
+  const [error, setError] = useState('');
   if (!isOpen) return null;
-  const rows = (charges || []).map((c, idx) => ({ ...c, idx })).filter(c => c.code && String(c.entitlement || '').toLowerCase() === entitlement);
-  const nameOf = (code) => { const m = masterCharges.find(x => String(x.awbChargeCode || '').toUpperCase() === String(code).toUpperCase()); return m ? (m.awbChargeName || m.chargeName || '') : ''; };
-  const active = masterCharges.filter(m => m.isActive !== false && m.awbChargeCode);
-  const add = () => {
-    setErr('');
-    const code = String(f.code || '').trim().toUpperCase();
-    if (!/^[A-Z]{2}[AC]?$/.test(code)) return setErr('Choose a charge (IATA code of 2 letters)');
-    const amount = parseFloat(f.amount);
-    if (!(amount > 0)) return setErr('Enter the amount');
-    const row = { id: Date.now(), code, entitlement, ppcc: f.ppcc === 'CC' ? 'CC' : 'PP', amount: amount.toFixed(2), rate: f.rate, description: nameOf(code) };
-    const list = [...(charges || [])];
-    const blank = list.findIndex(c => !c.code);
-    if (blank >= 0) list[blank] = { ...list[blank], ...row, id: list[blank].id }; else list.push(row);
-    setCharges && setCharges(list);
-    setF(empty);
+
+  const rows = (charges || []).map((row, position) => ({ ...row, position }))
+    .filter((row) => row.code && String(row.entitlement || '').toLowerCase() === entitlement);
+  const nameOf = (code) => {
+    const master = masterCharges.find((item) => String(item.awbChargeCode || '').toUpperCase() === String(code).toUpperCase());
+    return master ? (master.awbChargeName || master.chargeName || '') : '';
   };
-  const remove = (idx) => { const list = [...charges]; list.splice(idx, 1); setCharges && setCharges(list); };
-  const total = rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  const activeCharges = masterCharges.filter((item) => item.isActive !== false && item.awbChargeCode);
+  const setField = (field, value) => setCharge((current) => ({ ...current, [field]: value }));
+
+  const add = () => {
+    setError('');
+    const code = String(charge.code || '').trim().toUpperCase();
+    if (!/^[A-Z]{2}[AC]?$/.test(code)) return setError('Choose a charge (IATA code of 2 letters)');
+    const amount = parseFloat(charge.amount);
+    if (!(amount > 0)) return setError('Enter the amount');
+    const row = { id: Date.now(), code, entitlement, ppcc: charge.ppcc === 'CC' ? 'CC' : 'PP', amount: amount.toFixed(2), rate: charge.rate, description: nameOf(code) };
+    const list = [...(charges || [])];
+    const blank = list.findIndex((item) => !item.code);
+    if (blank >= 0) list[blank] = { ...list[blank], ...row, id: list[blank].id };
+    else list.push(row);
+    setCharges?.(list);
+    setCharge(EMPTY_CHARGE);
+  };
+  const remove = (position) => setCharges?.(charges.filter((_, index) => index !== position));
+  const total = rows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+
+  const columns = [
+    { key: 'code', header: 'Code', className: 'tw:font-bold' },
+    { key: 'name', header: 'Charge Name', cell: (row) => row.description || nameOf(row.code) },
+    { key: 'rate', header: 'Rate', cell: (row) => row.rate || '' },
+    { key: 'amount', header: 'Amount', align: 'right' },
+    { key: 'ppcc', header: 'P/C', cell: (row) => (row.ppcc === 'CC' ? 'C' : 'P') },
+    {
+      key: 'delete', header: 'Delete', align: 'center',
+      cell: (row) => <Button variant="ghost" size="icon-sm" className="tw:text-destructive" aria-label="Delete" onClick={() => remove(row.position)}><X /></Button>,
+    },
+  ];
+
   return (
     <ModalFrame title={title} width={640} onClose={onClose} footer={`${rows.length} charge(s), total ${total.toFixed(2)} ${currency || ''} - saved with the AWB (Other Charges)`}>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 70px auto', gap: '8px', alignItems: 'end', marginBottom: '8px' }}>
-        <div><label style={lab}>Charge Name</label>
-          <select value={f.code} onChange={e => setF({ ...f, code: e.target.value })} style={sel}>
-            <option value="">Select</option>
-            {active.map(m => <option key={m.id || m.awbChargeCode} value={m.awbChargeCode}>{m.awbChargeCode} - {m.awbChargeName}</option>)}
-          </select>
-          {active.length === 0 && <div style={{ fontSize: '10px', color: '#b45309' }}>No charges in Master &gt; Airway Bill Charges Master</div>}
-        </div>
-        <div><label style={lab}>Rate</label><input value={f.rate} onChange={e => setF({ ...f, rate: e.target.value.replace(/[^\d.]/g, '') })} style={inp} /></div>
-        <div><label style={lab}>Amount</label><input value={f.amount} onChange={e => setF({ ...f, amount: e.target.value.replace(/[^\d.]/g, '') })} style={inp} /></div>
-        <div><label style={lab}>P/C</label><select value={f.ppcc} onChange={e => setF({ ...f, ppcc: e.target.value })} style={inp}><option value="PP">P</option><option value="CC">C</option></select></div>
-        <button onClick={add} style={addBtn}>+Add</button>
+      <div className={ENTRY_ROW}>
+        <Field label="Charge Name" layout="col" className="tw:md:flex-[2]"
+          note={activeCharges.length === 0 ? <span className="tw:text-warning">No charges in Master &gt; Airway Bill Charges Master</span> : undefined}>
+          <SelectBox className="tw:w-full" placeholder="Select" value={charge.code} onValueChange={(code) => setField('code', code)}
+            options={activeCharges.map((item) => ({ value: item.awbChargeCode, label: `${item.awbChargeCode} - ${item.awbChargeName}` }))} />
+        </Field>
+        <Field label="Rate" layout="col" className="tw:md:flex-1">
+          <Input value={charge.rate} onChange={(event) => setField('rate', decimalText(event.target.value))} />
+        </Field>
+        <Field label="Amount" layout="col" className="tw:md:flex-1">
+          <Input value={charge.amount} onChange={(event) => setField('amount', decimalText(event.target.value))} />
+        </Field>
+        <Field label="P/C" layout="col" className="tw:md:w-[70px]">
+          <SelectBox className="tw:w-full" value={charge.ppcc} onValueChange={(ppcc) => setField('ppcc', ppcc)} options={PREPAID_COLLECT} />
+        </Field>
+        <Button variant="default" onClick={add}><Plus /> Add</Button>
       </div>
-      {err && <div style={{ color: '#dc2626', fontSize: '11px', marginBottom: '6px' }}>{err}</div>}
-      <div style={{ border: '1px solid #000', backgroundColor: 'white', maxHeight: '240px', overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={th}>Code</th><th style={th}>Charge Name</th><th style={th}>Rate</th><th style={{ ...th, textAlign: 'right' }}>Amount</th><th style={th}>P/C</th><th style={{ ...th, textAlign: 'center' }}>Delete</th></tr></thead>
-          <tbody>
-            {rows.map(r => <tr key={r.idx}><td style={{ ...td, fontWeight: 700 }}>{r.code}</td><td style={td}>{r.description || nameOf(r.code)}</td><td style={td}>{r.rate || ''}</td><td style={{ ...td, textAlign: 'right' }}>{r.amount}</td><td style={td}>{r.ppcc === 'CC' ? 'C' : 'P'}</td><td style={{ ...td, textAlign: 'center' }}><button style={delBtn} onClick={() => remove(r.idx)}>✕</button></td></tr>)}
-            {rows.length === 0 && <tr><td colSpan={6} style={{ ...td, textAlign: 'center', color: '#64748b' }}>No {entitlement} charges</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <FormError>{error}</FormError>
+      <DataTable columns={columns} rows={rows} rowKey="position" emptyText={`No ${entitlement} charges`} containerClassName={GRID_BOX} />
     </ModalFrame>
   );
 }

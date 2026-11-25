@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
-export function useGlobalHotkeys({ onSave, onNew }) {
+// Ctrl+S / Ctrl+N outside a text box: the browser's own Save page / New window is stopped
+export function useGlobalHotkeys({ onSave, onNew } = {}) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ignore if user is typing in an input or textarea

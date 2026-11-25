@@ -1,71 +1,104 @@
-// "What is still to fill" line for the three AWB screens (22-Nov-2026).
-// It reads the screen: every box drawn with the red "must fill" border that is still empty is listed by its label;
-// a click on a name puts the cursor in that box. It is only the count of the red boxes - the full e-AWB check is
-// still VALIDATE EDI (the "Full check" link). Nothing is saved or changed by this line.
-import React from 'react';
+// "What is still to fill" line for the three AWB screens.
+// It reads the screen: every must-fill box (red border, or a ui box marked required) that is still empty is listed by
+// its label; a click on a name puts the cursor in that box. The full e-AWB check is still VALIDATE EDI ("Full check").
+// Nothing is saved or changed by this line.
+import { useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui';
 
-const RED = /rgb\(239, 68, 68\)|#ef4444/i;
+const RED_BORDER = /rgb\(239, 68, 68\)|#ef4444/i;
+const SCAN_EVERY_MS = 1200;
+const SHOWN_NAMES = 6;
+const LABEL_SEARCH_DEPTH = 4;
 
-function labelOf(el) {
-  const party = el.closest('.party-row-container');
-  let t = '';
-  const cell = el.closest('div');
-  let lab = null;
-  for (let n = el.parentElement, i = 0; n && i < 4 && !lab; n = n.parentElement, i++) lab = n.querySelector(':scope > label, :scope > span > label');
-  if (lab) t = lab.textContent;
-  if (!t && cell && cell.previousElementSibling && cell.previousElementSibling.tagName === 'LABEL') t = cell.previousElementSibling.textContent;
-  if (!t) t = el.getAttribute('placeholder') || el.getAttribute('name') || 'Box';
-  t = String(t).replace(/\*/g, '').replace(/\s+/g, ' ').trim();
-  if (/^prefi/i.test(t) || /digit no/i.test(t)) t = /create-hawb/.test(window.location.pathname) ? 'MAWB No' : 'AWB No';
-  if (/DEL001/i.test(t)) t = 'HAWB No';
-  if (party && party.getAttribute('data-title')) t = party.getAttribute('data-title') + ' ' + t.toLowerCase();
-  return t;
+// a ui box carries data-required itself; a box inside RequiredBox gets it from the wrapper
+const isMustFill = (element) => element.getAttribute('data-required') === 'true'
+  || Boolean(element.closest('[data-required="true"]'))
+  || RED_BORDER.test(element.getAttribute('style') || '');
+
+function nearestLabelText(element) {
+  let label = null;
+  for (let node = element.parentElement, depth = 0; node && depth < LABEL_SEARCH_DEPTH && !label; node = node.parentElement, depth++) {
+    label = node.querySelector(':scope > label, :scope > span > label');
+  }
+  if (label) return label.textContent;
+  const cell = element.closest('div');
+  if (cell && cell.previousElementSibling && cell.previousElementSibling.tagName === 'LABEL') return cell.previousElementSibling.textContent;
+  return element.getAttribute('placeholder') || element.getAttribute('name') || 'Box';
 }
 
-function scan() {
+function labelOf(element) {
+  let label = String(nearestLabelText(element)).replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+  if (/^prefi/i.test(label) || /digit no/i.test(label)) label = /create-hawb/.test(window.location.pathname) ? 'MAWB No' : 'AWB No';
+  if (/DEL001/i.test(label)) label = 'HAWB No';
+  const party = element.closest('.party-row-container');
+  if (party && party.getAttribute('data-title')) label = party.getAttribute('data-title') + ' ' + label.toLowerCase();
+  return label;
+}
+
+function findEmptyMustFillBoxes() {
   const root = document.querySelector('.main-content') || document;
-  const out = [];
-  root.querySelectorAll('input, select, textarea').forEach((el) => {
-    if (el.disabled || el.readOnly || el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden') return;
-    if (!el.offsetParent) return;
-    const st = (el.getAttribute('style') || '');
-    if (!RED.test(st)) return;
-    if (String(el.value || '').trim() !== '') return;
-    const label = labelOf(el);
-    if (!out.some((o) => o.label === label)) out.push({ label, el });
+  const boxes = [];
+  root.querySelectorAll('input, select, textarea').forEach((element) => {
+    if (element.disabled || element.readOnly || ['checkbox', 'radio', 'hidden'].includes(element.type)) return;
+    if (!element.offsetParent || !isMustFill(element)) return;
+    if (String(element.value || '').trim() !== '') return;
+    const label = labelOf(element);
+    if (!boxes.some((box) => box.label === label)) boxes.push({ label, element });
   });
-  return out;
+  return boxes;
 }
+
+const linkClass = 'tw:h-auto tw:px-0 tw:text-[11px] tw:font-semibold tw:whitespace-nowrap';
 
 export default function MissingStrip({ ctx, align }) {
-  const [list, setList] = React.useState([]);
-  const keyRef = React.useRef('');
-  React.useEffect(() => {
-    const run = () => {
-      const now = scan();
-      const key = now.map((o) => o.label).join('|');
-      if (key !== keyRef.current) { keyRef.current = key; setList(now); }
+  const [boxes, setBoxes] = useState([]);
+  const lastKeyRef = useRef('');
+
+  useEffect(() => {
+    const refresh = () => {
+      const found = findEmptyMustFillBoxes();
+      const key = found.map((box) => box.label).join('|');
+      if (key === lastKeyRef.current) return;
+      lastKeyRef.current = key;
+      setBoxes(found);
     };
-    run();
-    const t = setInterval(run, 1200);
-    return () => clearInterval(t);
+    refresh();
+    const timer = setInterval(refresh, SCAN_EVERY_MS);
+    return () => clearInterval(timer);
   }, []);
-  const go = (label) => {
-    const hit = scan().find((o) => o.label === label);
-    if (hit && hit.el) { hit.el.scrollIntoView({ block: 'center' }); hit.el.focus(); }
+
+  const goTo = (label) => {
+    const box = findEmptyMustFillBoxes().find((found) => found.label === label);
+    if (!box) return;
+    box.element.scrollIntoView({ block: 'center' });
+    box.element.focus();
   };
-  const link = { background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11px', fontWeight: 600, color: '#b91c1c', textDecoration: 'underline', whiteSpace: 'nowrap', height: 'auto' };
-  const shown = list.slice(0, 6);
+
+  const shown = boxes.slice(0, SHOWN_NAMES);
   return (
-    <div className="awb-missing" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: align || 'flex-end', gap: '2px 8px', fontSize: '11px', lineHeight: 1.5 }}>
-      {list.length === 0
-        ? <span style={{ color: '#15803d', fontWeight: 600 }}>Must-fill boxes are filled</span>
-        : <>
-            <span style={{ color: '#b91c1c', fontWeight: 700 }}>{list.length} to fill:</span>
-            {shown.map((o) => <button key={o.label} type="button" tabIndex={-1} style={link} title={'Go to ' + o.label} onClick={() => go(o.label)}>{o.label}</button>)}
-            {list.length > shown.length && <span style={{ color: '#b91c1c' }}>+{list.length - shown.length} more</span>}
-          </>}
-      <button type="button" tabIndex={-1} onClick={() => ctx && ctx.runIataValidation && ctx.runIataValidation()} title="Full e-AWB check (same as VALIDATE EDI)" style={{ ...link, color: 'var(--theme-base, #0284c7)', textDecoration: 'none' }}>Full check</button>
+    <div
+      className={cn(
+        'awb-missing tw:flex tw:flex-wrap tw:items-center tw:gap-x-2 tw:gap-y-0.5 tw:text-[11px] tw:leading-normal tw:normal-case',
+        align === 'flex-start' ? 'tw:justify-start' : align === 'center' ? 'tw:justify-center' : 'tw:justify-end',
+      )}
+    >
+      {boxes.length === 0
+        ? <span className="tw:font-semibold tw:text-success">Must-fill boxes are filled</span>
+        : (
+          <>
+            <span className="tw:font-bold tw:text-destructive">{boxes.length} to fill:</span>
+            {shown.map((box) => (
+              <Button key={box.label} variant="link" tabIndex={-1} title={'Go to ' + box.label} onClick={() => goTo(box.label)} className={cn(linkClass, 'tw:text-destructive tw:underline')}>
+                {box.label}
+              </Button>
+            ))}
+            {boxes.length > shown.length && <span className="tw:text-destructive">+{boxes.length - shown.length} more</span>}
+          </>
+        )}
+      <Button variant="link" tabIndex={-1} onClick={() => ctx?.runIataValidation?.()} title="Full e-AWB check (same as VALIDATE EDI)" className={linkClass}>
+        Full check
+      </Button>
     </div>
   );
 }

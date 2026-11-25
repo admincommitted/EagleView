@@ -1,186 +1,202 @@
-// Shared parts of the AWB document windows (SLI, DGD, labels, booking, CCA, DO, COO, lithium, live animals, temperature,
-// security declaration) - 11-Nov-2026.
-// Before: every window got only the AWB number, everything else was typed again; "Print" printed the whole screen
-// (window.print), the top bar covered the window's buttons, and what was typed came back only by luck.
-// Now: DocWindow reads the saved AWB (GET /api/awb/doc-data/:type/:id) and the window fills itself from it; what the
-// operator changes / types is kept with the AWB (PersistedDoc) and comes back next time; Print prints only the sheet;
-// PDF / Word export the sheet with the typed values; "Fill from AWB" starts again from the AWB.
-import React from 'react';
-import { createPortal } from 'react-dom';
-import html2pdf from 'html2pdf.js';
-import { X, Printer, Download, FileText, RefreshCw } from 'lucide-react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Download, FileText, Printer, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, Input, Modal, Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow, Textarea } from '@/components/ui';
+import { askConfirm } from '../../common/askConfirm';
+import { freightApi } from '../freightApi';
+import { EMPTY_DOC, failText } from './docFormat';
+import { printSheet, safeFileName, saveSheetPdf, saveSheetWord, sheetClone } from './docPrint';
 
-// given by PersistedDoc: { docType, restore(root), capture(root) }
-export const DocCtx = React.createContext(null);
+// given by PersistedDoc (awb/PersistedDoc.jsx): { docType, restore(root), capture() }
+export const DocCtx = createContext(null);
 
-export const dmy = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : (v || ''); };
-export const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-export const dMonY = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? `${m[3]}-${MON[Number(m[2]) - 1]}-${m[1]}` : (v || ''); };
-export const kg = (v) => (v || v === 0 ? (Number(v) || 0).toFixed(2) : '');
-export const money = (v) => (Number(v) ? Number(v).toFixed(2) : '');
-const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const LINE_FIELD = 'tw:h-auto tw:rounded-none tw:border-0 tw:border-b tw:border-solid tw:border-black tw:bg-transparent tw:px-[3px] tw:py-[2px] tw:[font-family:Arial,sans-serif] tw:text-[11px] tw:text-black tw:focus-visible:border-black tw:focus-visible:ring-0';
+const BOX_FIELD = 'tw:min-h-0 tw:resize-y tw:rounded-none tw:border tw:border-solid tw:border-[#cbd5e1] tw:bg-transparent tw:px-[3px] tw:py-[2px] tw:[font-family:Arial,sans-serif] tw:text-[11px] tw:text-black tw:focus-visible:ring-0';
+export const BOX = 'tw:border tw:border-solid tw:border-black tw:px-[8px] tw:py-[6px] tw:align-top';
+export const HEAD_CELL = 'tw:bg-[#eef2f7] tw:text-left tw:text-[10px]';
 
-// what a window shows when the AWB is not saved yet (blank form)
-export const EMPTY_DOC = {
-  awbNo: '', mawbNo: '', hawbNo: '', date: '', airline: { name: '', code: '', prefix: '' }, flights: [], routing: [], origin: { code: '', name: '', country: '' },
-  destination: { code: '', name: '', country: '' }, shipper: {}, consignee: {}, notify: null, shipperBlock: '', consigneeBlock: '', notifyBlock: '', agent: {},
-  pieces: '', gross: '', chargeable: '', volume: '', lines: [], dims: [], dimsText: '', goods: '', hsCodes: [], shc: [], handling: '', ssr: '', osi: '', sci: '',
-  currency: '', chargeCode: '', declared: {}, charges: { other: [] }, executed: {}, houses: [], company: {}, user: '', today: new Date().toISOString().slice(0, 10),
-};
-export const flightText = (d) => (d.flights || []).map(f => `${f.flight}${f.date ? ' / ' + dmy(f.date) : ''}`).join(', ');
-export const airportText = (a) => (a && a.code ? `${a.code}${a.name ? ' - ' + a.name : ''}` : '');
-export const isPrepaid = (d) => /^P/i.test(d.chargeCode || '') || !d.chargeCode;
-
-// ---- fields: named (so a typed value comes back in the same place) and filled from the AWB ----
-const line = { border: 'none', borderBottom: '1px solid #000', outline: 'none', fontFamily: 'Arial, sans-serif', fontSize: '11px', padding: '2px 3px', background: 'transparent', boxSizing: 'border-box', color: '#000' };
-export function In({ name, v, w = '100%', style, ...rest }) {
-  return <input name={name} defaultValue={v == null ? '' : String(v)} style={{ ...line, width: w, ...style }} {...rest} />;
+// the boxes are named and uncontrolled: PersistedDoc reads and refills them by their place and name
+export function DocInput({ name, value, className }) {
+  return <Input name={name} defaultValue={value == null ? '' : String(value)} className={cn(LINE_FIELD, className)} />;
 }
-export function Tx({ name, v, rows = 3, style, ...rest }) {
-  return <textarea name={name} defaultValue={v == null ? '' : String(v)} rows={rows} style={{ ...line, border: '1px solid #cbd5e1', width: '100%', resize: 'vertical', ...style }} {...rest} />;
+
+export function DocTextarea({ name, value, lines = 3, className }) {
+  return <Textarea name={name} defaultValue={value == null ? '' : String(value)} rows={lines} className={cn(BOX_FIELD, className)} />;
 }
-export function Ck({ name, on, label, style }) {
-  return <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '12px', fontSize: '11px', ...style }}><input type="checkbox" name={name} defaultChecked={!!on} /> {label}</label>;
-}
-export const box = { border: '1px solid #000', padding: '6px 8px', verticalAlign: 'top' };
-export const cap = { fontSize: '9.5px', fontWeight: 'bold', color: '#334155', display: 'block', marginBottom: '2px' };
-export const title = { textAlign: 'center', fontSize: '17px', fontWeight: 'bold', margin: '0 0 2px', letterSpacing: '0.5px' };
-export function Letterhead({ c, small }) {
+
+export function DocCheck({ name, checked, label, className }) {
   return (
-    <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '5px', marginBottom: '10px' }}>
-      <div style={{ fontSize: small ? '15px' : '18px', fontWeight: 'bold' }}>{(c && c.name) || ' '}</div>
-      {c && c.address && <div style={{ fontSize: '10px' }}>{c.address}</div>}
-      {c && (c.gstin || c.phone || c.email) && <div style={{ fontSize: '9.5px' }}>{[c.gstin && `GSTIN ${c.gstin}`, c.phone && `Ph ${c.phone}`, c.email].filter(Boolean).join('   |   ')}</div>}
+    <label className={cn('tw:mr-[12px] tw:inline-flex tw:items-center tw:gap-[4px] tw:text-[11px]', className)}>
+      <Input type="checkbox" name={name} defaultChecked={Boolean(checked)} className="tw:m-[3px] tw:size-[13px] tw:p-0" /> {label}
+    </label>
+  );
+}
+
+// the ui table parts without their screen-grid look (colours, row stripes, hover), for printed sheets
+const PLAIN_ROW = 'tw:border-0 tw:bg-transparent tw:even:bg-transparent tw:hover:bg-transparent';
+
+export function SheetTable({ className, children }) {
+  return <Table containerClassName="tw:overflow-visible" className={cn('tw:text-black', className)}>{children}</Table>;
+}
+
+export function SheetHeader({ children }) {
+  return <TableHeader className="tw:bg-transparent tw:text-black">{children}</TableHeader>;
+}
+
+export function SheetBody({ children }) {
+  return <TableBody className="tw:bg-transparent">{children}</TableBody>;
+}
+
+export function SheetFooter({ className, children }) {
+  return <TableFooter className={cn('tw:bg-transparent tw:font-normal', className)}>{children}</TableFooter>;
+}
+
+export function SheetRow({ className, children }) {
+  return <TableRow className={cn(PLAIN_ROW, className)}>{children}</TableRow>;
+}
+
+export function SheetCell({ className, ...props }) {
+  return <TableCell className={cn('tw:whitespace-normal', BOX, className)} {...props} />;
+}
+
+export function SheetHead({ className, ...props }) {
+  return <TableHead className={cn('tw:h-auto tw:whitespace-normal tw:font-bold tw:text-black', BOX, HEAD_CELL, className)} {...props} />;
+}
+
+export function Caption({ children, className }) {
+  return <span className={cn('tw:mb-[2px] tw:block tw:text-[9.5px] tw:font-bold tw:text-[#334155]', className)}>{children}</span>;
+}
+
+export function Letterhead({ company, small }) {
+  const contacts = [company?.gstin && `GSTIN ${company.gstin}`, company?.phone && `Ph ${company.phone}`, company?.email].filter(Boolean);
+  return (
+    <div className="tw:mb-[10px] tw:border-0 tw:border-b-2 tw:border-solid tw:border-black tw:pb-[5px] tw:text-center">
+      <div className={cn('tw:font-bold', small ? 'tw:text-[15px]' : 'tw:text-[18px]')}>{company?.name || ' '}</div>
+      {company?.address && <div className="tw:text-[10px]">{company.address}</div>}
+      {contacts.length > 0 && <div className="tw:text-[9.5px]">{contacts.join('   |   ')}</div>}
     </div>
   );
 }
+
 export function Sign({ left, right }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '40px', marginTop: '28px', fontSize: '10.5px' }}>
-      {[left, right].filter(Boolean).map((t, i) => <div key={i} style={{ flex: 1, textAlign: i ? 'right' : 'left' }}><div style={{ height: '34px' }} /><div style={{ borderTop: '1px solid #000', display: 'inline-block', minWidth: '220px', paddingTop: '3px' }}>{t}</div></div>)}
+    <div className="tw:mt-[28px] tw:flex tw:justify-between tw:gap-[40px] tw:text-[10.5px]">
+      {[left, right].filter(Boolean).map((text, index) => (
+        <div key={index} className={cn('tw:flex-1', index ? 'tw:text-right' : 'tw:text-left')}>
+          <div className="tw:h-[34px]" />
+          <div className="tw:inline-block tw:min-w-[220px] tw:border-0 tw:border-t tw:border-solid tw:border-black tw:pt-[3px]">{text}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ---- reading the AWB ----
-export function useAwbDoc(isOpen, awbId, awbType) {
-  const [state, setState] = React.useState({ d: null, loading: false, err: '' });
-  const load = React.useCallback(() => {
-    if (!awbId) { setState({ d: null, loading: false, err: 'This AWB is not saved yet - the form opens blank. Save the AWB to fill it from the AWB.' }); return; }
-    setState(s => ({ ...s, loading: true, err: '' }));
-    fetch(`/api/awb/doc-data/${encodeURIComponent(awbType || 'AWB')}/${encodeURIComponent(awbId)}`)
-      .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Could not read the AWB'); return j; })
-      .then(d => setState({ d, loading: false, err: '' })).catch(e => setState({ d: null, loading: false, err: e.message }));
+const CLOSED = { doc: null, loading: false, error: '' };
+const NOT_SAVED = 'This AWB is not saved yet - the form opens blank. Save the AWB to fill it from the AWB.';
+
+function useAwbDoc(isOpen, awbId, awbType) {
+  const [state, setState] = useState(CLOSED);
+  const load = useCallback(async () => {
+    if (!awbId) { setState({ ...CLOSED, error: NOT_SAVED }); return; }
+    setState((previous) => ({ ...previous, loading: true, error: '' }));
+    try {
+      setState({ doc: await freightApi.awbDocData(awbType || 'AWB', awbId), loading: false, error: '' });
+    } catch (error) {
+      setState({ doc: null, loading: false, error: failText(error, 'Could not read the AWB') });
+    }
   }, [awbId, awbType]);
   // closed: forget the AWB, so the next opening fills (and restores) from a fresh read
-  React.useEffect(() => { if (isOpen) load(); else setState({ d: null, loading: false, err: '' }); }, [isOpen, load]);
+  useEffect(() => { if (isOpen) load(); else setState(CLOSED); }, [isOpen, load]);
   return { ...state, reload: load };
 }
 
-// the sheet with its typed values written in (inputs do not print / export reliably)
-export function sheetClone(root) {
-  const c = root.cloneNode(true);
-  const src = root.querySelectorAll('input, textarea, select');
-  c.querySelectorAll('input, textarea, select').forEach((el, i) => {
-    const o = src[i];
-    const span = document.createElement('span');
-    if (o && (o.type === 'checkbox' || o.type === 'radio')) { span.textContent = o.checked ? '[X]' : '[  ]'; span.style.fontFamily = 'monospace'; }
-    else {
-      const val = o ? (o.tagName === 'SELECT' ? (o.options[o.selectedIndex] || {}).text || '' : o.value) : '';
-      span.innerHTML = esc(val).replace(/\n/g, '<br/>') || '&nbsp;';
-      span.style.cssText = `display:${o && o.tagName === 'TEXTAREA' ? 'block' : 'inline-block'};min-width:${o && o.tagName === 'TEXTAREA' ? '100%' : '20px'};font-size:11px;white-space:pre-wrap;`;
-      if (o && o.tagName !== 'TEXTAREA') span.style.borderBottom = '1px solid #000';
-    }
-    el.parentNode.replaceChild(span, el);
-  });
-  return c;
+const PRINT_CSS = '.pb{page-break-after:always} table{border-collapse:collapse}';
+
+function statusOf({ loading, error }) {
+  if (loading) return { text: 'Reading the AWB...', className: 'tw:text-muted-foreground' };
+  if (error) return { text: error, className: 'tw:text-warning' };
+  return { text: 'Filled from the saved AWB - change anything; it is kept with the AWB', className: 'tw:text-success' };
 }
 
-const tb = (bg) => ({ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', backgroundColor: bg, color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' });
+/** Window of an AWB document: reads the saved AWB, shows the sheet (children(doc)), keeps what is typed, prints / exports only the sheet. */
+export function DocWindow({ isOpen, onClose, title, fileName, awbId, awbType, landscape, extraButtons, children }) {
+  const persisted = useContext(DocCtx);
+  const { doc, loading, error, reload } = useAwbDoc(isOpen, awbId, awbType);
+  const [generation, setGeneration] = useState(0);
+  const [sheet, setSheet] = useState(null);
+  const restored = useRef(false);
 
-// window: reads the AWB, shows the sheet (children(d)), keeps what is typed, prints / exports only the sheet
-export function DocWindow({ isOpen, onClose, title: heading, fileName, awbId, awbType, landscape, sheetWidth = 794, children, extraButtons }) {
-  const pctx = React.useContext(DocCtx);
-  const { d, loading, err, reload } = useAwbDoc(isOpen, awbId, awbType);
-  const [gen, setGen] = React.useState(0);
-  const sheetRef = React.useRef(null);
-  const restored = React.useRef(false);
-  React.useEffect(() => { if (!isOpen) restored.current = false; }, [isOpen]);
-  // what was typed before comes back once the sheet is filled from the AWB
-  React.useEffect(() => {
-    if (!isOpen || loading || (!d && !err) || restored.current || !sheetRef.current) return; // only once the AWB is read
+  useEffect(() => { if (!isOpen) restored.current = false; }, [isOpen]);
+  // what was typed before goes back on top once the sheet is filled from the AWB
+  useEffect(() => {
+    if (!isOpen || loading || (!doc && !error) || restored.current || !sheet) return;
     restored.current = true;
-    if (pctx && pctx.restore) setTimeout(() => pctx.restore(sheetRef.current), 0);
-  }, [isOpen, loading, d, err]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!isOpen) return null;
-  const base = String(fileName || heading || 'Document').replace(/[^A-Za-z0-9_-]+/g, '_');
-  const refill = () => {
-    if (!window.confirm('Fill the form again from the AWB? What was typed here is replaced.')) return;
-    reload(); setGen(g => g + 1);
-    setTimeout(() => { if (pctx && pctx.capture && sheetRef.current) pctx.capture(sheetRef.current); }, 600);
+    if (persisted?.restore) setTimeout(() => persisted.restore(sheet), 0);
+  }, [isOpen, loading, doc, error, sheet, persisted]);
+
+  const data = doc || EMPTY_DOC;
+  const baseName = safeFileName(fileName || title);
+  const status = statusOf({ loading, error });
+  const heading = `${title}${data.hawbNo ? ` - HAWB ${data.hawbNo}` : data.awbNo ? ` - ${data.awbNo}` : ''}`;
+
+  const refill = async () => {
+    const goAhead = await askConfirm({ title: 'Fill from AWB', message: 'Fill the form again from the AWB? What was typed here is replaced.', okLabel: 'Fill again', tone: 'warn' });
+    if (!goAhead) return;
+    reload();
+    setGeneration((current) => current + 1);
+    setTimeout(() => persisted?.capture?.(), 600);
   };
-  const doPrint = () => {
-    const c = sheetClone(sheetRef.current);
-    const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;width:0;height:0;border:0;'; document.body.appendChild(f);
-    const doc = f.contentWindow.document; doc.open();
-    doc.write(`<html><head><title>${esc(base)}</title><style>@page{size:A4 ${landscape ? 'landscape' : 'portrait'};margin:8mm} body{margin:0;font-family:Arial,sans-serif;color:#000} .pb{page-break-after:always} table{border-collapse:collapse}</style></head><body>${c.outerHTML}</body></html>`);
-    doc.close();
-    setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 1500); }, 300);
-  };
-  const doPdf = () => {
-    const c = sheetClone(sheetRef.current); c.style.width = (landscape ? 1040 : 720) + 'px'; c.style.padding = '8px';
-    html2pdf().set({ margin: [0.25, 0.25, 0.25, 0.25], filename: `${base}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 },
-      jsPDF: { unit: 'in', format: 'a4', orientation: landscape ? 'landscape' : 'portrait' }, pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.keep'] } }).from(c).save();
-  };
-  const doWord = () => {
-    const c = sheetClone(sheetRef.current);
-    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${esc(base)}</title><style>@page WordSection1 { size: ${landscape ? '841.9pt 595.3pt; mso-page-orientation: landscape' : '595.3pt 841.9pt'}; margin: 0.5in; } div.WordSection1 { page: WordSection1; } table { border-collapse: collapse; }</style></head><body><div class="WordSection1">${c.outerHTML}</div></body></html>`;
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'application/msword' })); a.download = `${base}.doc`; document.body.appendChild(a); a.click(); a.remove();
-  };
-  const data = d || EMPTY_DOC;
-  return createPortal(
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <div role="dialog" aria-label={heading} style={{ backgroundColor: '#e2e8f0', width: '96vw', maxWidth: `${sheetWidth + 80}px`, height: '94vh', borderRadius: '8px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-        <div style={{ padding: '9px 14px', borderBottom: '1px solid #cbd5e1', display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: '8px 8px 0 0', flexWrap: 'wrap' }}>
-          <div style={{ marginRight: 'auto', minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: '15px', color: '#0f172a', fontWeight: 'bold' }}>{heading}{data.hawbNo ? ` - HAWB ${data.hawbNo}` : data.awbNo ? ` - ${data.awbNo}` : ''}</h2>
-            <span style={{ fontSize: '11px', color: loading ? '#64748b' : err ? '#b45309' : '#16a34a', fontWeight: 'bold' }}>{loading ? 'Reading the AWB...' : err || 'Filled from the saved AWB - change anything; it is kept with the AWB'}</span>
-          </div>
-          {extraButtons}
-          {awbId && <button type="button" onClick={refill} style={tb('#64748b')} title="Start again from the AWB"><RefreshCw size={14} /> Fill from AWB</button>}
-          <button type="button" onClick={doPrint} style={tb('#0f766e')}><Printer size={14} /> Print</button>
-          <button type="button" onClick={doPdf} style={tb('#dc2626')}><Download size={14} /> PDF</button>
-          <button type="button" onClick={doWord} style={tb('#2563eb')}><FileText size={14} /> Word</button>
-          <button type="button" onClick={onClose} aria-label="Close" style={{ display: 'flex', padding: '6px', backgroundColor: '#fff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}><X size={16} /></button>
+  const print = () => printSheet(sheetClone(sheet), { title: baseName, landscape, css: PRINT_CSS });
+  const savePdf = () => saveSheetPdf(sheetClone(sheet, { width: landscape ? 1040 : 720, padding: '8px' }), { fileName: baseName, landscape, avoid: ['tr', '.keep'] });
+  const saveWord = () => saveSheetWord(sheetClone(sheet), { fileName: baseName, title: baseName, landscape });
+
+  const footer = (
+    <>
+      {extraButtons}
+      {awbId && <Button variant="secondary" title="Start again from the AWB" onClick={refill}><RefreshCw /> Fill from AWB</Button>}
+      <Button variant="default" disabled={!sheet} onClick={print}><Printer /> Print</Button>
+      <Button variant="destructive" disabled={!sheet} onClick={savePdf}><Download /> PDF</Button>
+      <Button disabled={!sheet} onClick={saveWord}><FileText /> Word</Button>
+    </>
+  );
+
+  return (
+    <Modal open={isOpen} onClose={onClose} title={heading} width={landscape ? 1140 : 874} closeOnOutside={false}
+      description={<span className={cn('tw:text-[11px] tw:font-bold', status.className)}>{status.text}</span>}
+      className="tw:h-[94vh]" bodyClassName="tw:items-center-safe tw:overflow-auto tw:bg-[#e2e8f0] tw:p-[14px]" footer={footer}>
+      {loading ? <div className="tw:p-[40px] tw:text-[13px] tw:text-muted-foreground">Reading the AWB...</div> : (
+        <div key={generation} ref={setSheet} data-doc-root={persisted ? persisted.docType : ''}
+          className={cn('tw:shrink-0 tw:bg-white tw:px-[26px] tw:py-[22px] tw:[font-family:Arial,sans-serif] tw:text-[11px] tw:text-black tw:normal-case tw:box-border',
+            landscape ? 'tw:w-[1060px]' : 'tw:w-[794px]')}>
+          {children(data)}
         </div>
-        <div style={{ padding: '14px', flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
-          {loading ? <div style={{ color: '#64748b', fontSize: '13px', padding: '40px' }}>Reading the AWB...</div> : (
-            <div key={gen} ref={sheetRef} data-doc-root={pctx ? pctx.docType : ''} style={{ width: `${sheetWidth}px`, backgroundColor: 'white', padding: '22px 26px', fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#000', boxSizing: 'border-box', alignSelf: 'flex-start', textTransform: 'none' }}>
-              {children(data)}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body
+      )}
+    </Modal>
   );
 }
 
-// ---- Code 39 barcode (labels) - plain SVG, no library ----
-const C39 = {
+const CODE39 = {
   '0': 'nnnwwnwnn', '1': 'wnnwnnnnw', '2': 'nnwwnnnnw', '3': 'wnwwnnnnn', '4': 'nnnwwnnnw', '5': 'wnnwwnnnn', '6': 'nnwwwnnnn', '7': 'nnnwnnwnw', '8': 'wnnwnnwnn', '9': 'nnwwnnwnn',
   A: 'wnnnnwnnw', B: 'nnwnnwnnw', C: 'wnwnnwnnn', D: 'nnnnwwnnw', E: 'wnnnwwnnn', F: 'nnwnwwnnn', G: 'nnnnnwwnw', H: 'wnnnnwwnn', I: 'nnwnnwwnn', J: 'nnnnwwwnn',
   K: 'wnnnnnnww', L: 'nnwnnnnww', M: 'wnwnnnnwn', N: 'nnnnwnnww', O: 'wnnnwnnwn', P: 'nnwnwnnwn', Q: 'nnnnnnwww', R: 'wnnnnnwwn', S: 'nnwnnnwwn', T: 'nnnnwnwwn',
   U: 'wwnnnnnnw', V: 'nwwnnnnnw', W: 'wwwnnnnnn', X: 'nwnnwnnnw', Y: 'wwnnwnnnn', Z: 'nwwnwnnnn', '-': 'nwnnnnwnw', '.': 'wwnnnnwnn', ' ': 'nwwnnnwnn', '*': 'nwnnwnwnn',
   $: 'nwnwnwnnn', '/': 'nwnwnnnwn', '+': 'nwnnnwnwn', '%': 'nnnwnwnwn',
 };
+
+/** Code 39 barcode as plain SVG (cargo labels). */
 export function Barcode39({ value, height = 46, unit = 1.4 }) {
   const text = '*' + String(value || '').toUpperCase().replace(/[^0-9A-Z\-. $/+%]/g, '') + '*';
-  const bars = []; let x = 0;
-  for (const ch of text) {
-    const p = C39[ch]; if (!p) continue;
-    for (let i = 0; i < 9; i++) { const w = (p[i] === 'w' ? 3 : 1) * unit; if (i % 2 === 0) bars.push(<rect key={bars.length} x={x} y={0} width={w} height={height} fill="#000" />); x += w; }
-    x += unit; // gap between characters
+  const bars = [];
+  let position = 0;
+  for (const character of text) {
+    const pattern = CODE39[character];
+    if (!pattern) continue;
+    for (let index = 0; index < 9; index++) {
+      const barWidth = (pattern[index] === 'w' ? 3 : 1) * unit;
+      if (index % 2 === 0) bars.push(<rect key={bars.length} x={position} y={0} width={barWidth} height={height} fill="#000" />);
+      position += barWidth;
+    }
+    position += unit;
   }
-  return <svg width={x} height={height} viewBox={`0 0 ${x} ${height}`} role="img" aria-label={`Barcode ${value}`} style={{ display: 'block', margin: '0 auto' }}>{bars}</svg>;
+  return <svg width={position} height={height} viewBox={`0 0 ${position} ${height}`} role="img" aria-label={`Barcode ${value}`} className="tw:mx-auto tw:block">{bars}</svg>;
 }

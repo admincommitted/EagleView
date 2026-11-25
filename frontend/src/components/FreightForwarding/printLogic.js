@@ -1,287 +1,314 @@
 import AWBTermsPage from './AWBTermsPage';
+import { freightApi } from './freightApi';
+import { downloadBlob } from '@/lib/download';
+import { getToken } from '@/services/session';
 
 export const showSuccessToast = (title, message, isError = false) => {
-    const event = new CustomEvent('show-toast', { detail: { title, message, isError } });
-    window.dispatchEvent(event);
+  window.dispatchEvent(new CustomEvent('show-toast', { detail: { title, message, isError } }));
 };
 
 export const showValidationErrorsModal = (errors) => {
-    const event = new CustomEvent('show-validation-errors', { detail: { errors } });
-    window.dispatchEvent(event);
+  window.dispatchEvent(new CustomEvent('show-validation-errors', { detail: { errors } }));
 };
 
-import domtoimage from 'dom-to-image';
-import { jsPDF } from 'jspdf';
-import html2pdf from 'html2pdf.js';
+const AS_AGREED = 'AS AGREED';
+const FLIGHT_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const EXECUTED_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PAGE_BREAK_STYLE = "\n<style>@media print { .page-break { page-break-after: always; } } .page-break { page-break-after: always; }</style>";
+const COPIES_BODY_OPEN = "<body style=\"margin:0; padding:0; background: #fff;\">";
+const AUTO_PRINT_SCRIPT = "<script>setTimeout(() => { window.print(); }, 500);</script>";
 
+// The AWB screens keep the whole AWB as JSON on a hidden #awb-print-data element.
+function readPrintData() {
+  const json = document.getElementById('awb-print-data')?.getAttribute('data-json');
+  if (!json) return {};
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    console.error('Failed to parse print data JSON', error);
+    return {};
+  }
+}
+
+const blankIfUndefined = (value) => (value !== undefined ? value : '');
+const toNumber = (value) => parseFloat(value) || 0;
+const positiveOrBlank = (value) => (toNumber(value) > 0 ? value : '');
+const amountOrBlank = (value) => (value > 0 ? Number(value).toFixed(2) : '');
+const prepaidCollect = (isAsAgreed, prepaid, collect) => ({
+  prepaid: isAsAgreed && prepaid ? AS_AGREED : prepaid,
+  collect: isAsAgreed && collect ? AS_AGREED : collect,
+});
+
+function chargeBoxes(data, isAsAgreed) {
+  return {
+    weightCharge: prepaidCollect(isAsAgreed, data.weightChargePP || '', data.weightChargeCC || ''),
+    valuationCharge: prepaidCollect(isAsAgreed, positiveOrBlank(data.valChargePP), positiveOrBlank(data.valChargeCC)),
+    taxCharge: prepaidCollect(isAsAgreed, positiveOrBlank(data.taxPP), positiveOrBlank(data.taxCC)),
+    dueAgent: prepaidCollect(isAsAgreed, amountOrBlank(data.dueAgentPP), amountOrBlank(data.dueAgentCC)),
+    dueCarrier: prepaidCollect(isAsAgreed, amountOrBlank(data.dueCarrierPP), amountOrBlank(data.dueCarrierCC)),
+    grandTotal: prepaidCollect(isAsAgreed, amountOrBlank(data.totalPP), amountOrBlank(data.totalCC)),
+  };
+}
+
+// A special handling code already written in the SSR / OSI text is not printed a second time.
+function specialHandlingCodesHtml(data) {
+  const handlingText = ((data.ssrText || '') + ' ' + (data.osiText || '')).toUpperCase();
+  const codes = (data.sphCodes || [])
+    .filter((code) => code && code.trim())
+    .filter((code) => !handlingText.includes(code.trim().toUpperCase()));
+  return codes.length > 0
+    ? '<div style="margin-top:3px;font-size:9px;font-weight:bold;letter-spacing:1px;">' + codes.join('  ') + '</div>'
+    : '';
+}
+
+const escapeOciPart = (value) => String(value == null ? '' : value).trim().toUpperCase()
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// OCI line: country / information id / customs information id / information, e.g. IN/SHP/T/07AAACC6689E1ZJ
+function otherCustomsInfoHtml(data) {
+  const lines = (data.ociRows || [])
+    .map((row) => ({
+      country: row.countryCode || row.country || '',
+      infoId: row.infoId || '',
+      customsId: row.customsId || '',
+      info: row.suppInfo || row.addInfo || '',
+    }))
+    .filter((row) => String(row.info).trim())
+    .map((row) => [row.country, row.infoId, row.customsId, row.info].map(escapeOciPart).join('/'))
+    .filter((line, index, all) => all.indexOf(line) === index);
+  return lines.length > 0
+    ? '<div style="margin-top:3px;font-size:8px;font-family:monospace;">' + lines.join('  ') + '</div>'
+    : '';
+}
+
+function linkedHouseWaybillsHtml(data) {
+  const houses = data.linkedHawbs || [];
+  if (houses.length === 0) return '';
+  const numbers = houses.map((house) => house.hawbNumber || house.awbNumber || house.awb || '').filter(Boolean);
+  return '<div style="margin-top:2px;font-size:8px;"><strong>HOUSE WAYBILLS:</strong> ' + numbers.join(' / ') + '</div>';
+}
+
+// IATA other-charge code: a 2-letter code takes the entitlement suffix (AW due carrier = AWC, due agent = AWA);
+// a 3-letter code (AMS) prints as it is.
+function otherChargesText(data, isAsAgreed) {
+  const charges = data.otherCharges || [];
+  if (isAsAgreed && charges.length > 0) return AS_AGREED;
+  return charges
+    .filter((charge) => charge.code && charge.amount && parseFloat(charge.amount) > 0)
+    .map((charge) => {
+      const code = (charge.code || '').toUpperCase().trim();
+      const suffix = charge.entitlement === 'agent' ? 'A' : 'C';
+      const printedCode = code.length === 2 ? `${code}${suffix}` : code;
+      return `${printedCode} ${parseFloat(charge.amount).toFixed(2)}`;
+    })
+    .join('   ');
+}
+
+function printedUserName() {
+  try {
+    const token = getToken();
+    if (!token) return '';
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    let name = payload.name || payload.username || payload.user || payload.email || 'SYSTEM';
+    if (name.includes('@')) name = name.split('@')[0];
+    return name.toUpperCase();
+  } catch {
+    return 'SYSTEM';
+  }
+}
+
+function formatParty(party) {
+  if (!party) return { name: '', address: '' };
+  const addressLines = [];
+  if (party.street) addressLines.push(party.street);
+  const cityLine = [party.city, party.state, party.country, party.zip].filter(Boolean);
+  if (cityLine.length > 0) addressLines.push(cityLine.join(' '));
+  if (party.phone) addressLines.push('PH: ' + party.phone);
+  return { name: party.name || '', address: addressLines.join('<br/>'), code: party.code || '' };
+}
+
+const issuingAgent = (details) => (details
+  ? { name: details.name || '', address: details.place || '', code: details.code || '' }
+  : { name: '', address: '', code: '' });
+
+const flightDay = (date) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date || ''));
+  return match ? `${match[3]} ${FLIGHT_MONTHS[Number(match[2]) - 1] || match[2]}` : String(date || '');
+};
+
+const flightText = (flightNumber, flightDate) => {
+  const day = flightDay(flightDate);
+  return flightNumber && day ? `${flightNumber} / ${day}` : (flightNumber || day || '');
+};
+
+function executedOnDate(rawDate) {
+  if (!rawDate || !rawDate.includes('-')) return rawDate;
+  const parts = rawDate.split('-');
+  if (parts.length !== 3) return rawDate;
+  return `${parts[2]} ${EXECUTED_MONTHS[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+}
+
+const freightTermsOf = (chargeCode) => {
+  if (chargeCode.startsWith('PP')) return 'FREIGHT PREPAID';
+  if (chargeCode.startsWith('CC')) return 'FREIGHT COLLECT';
+  return '';
+};
+
+const linePieces = (line) => line.pieces || line.noOfPcs;
+const lineWeightUnit = (line) => (line.gwUnit || 'K').charAt(0).toUpperCase();
+const lineItemNo = (line) => line.commodityItemNumber || line.commodityItemNo;
+const lineRate = (line) => (line.rateAsAgreed ? AS_AGREED : line.rateCharge);
+const lineTotal = (line) => (line.rateAsAgreed ? AS_AGREED : (line.totalAmount || line.total));
+const lineGoods = (line) => line.goodsDescription || line.natureOfGoods || line.description;
+const isPrintedLine = (line) => line && (line.pieces || line.noOfPcs || line.grossWeight || line.chargeableWeight);
+const blankCell = (value) => (value === undefined || value === null || String(value) === '' ? '&nbsp;' : value);
+
+function firstLineRateClass(line) {
+  const saved = String(line.rateClassCode || line.rateClass || '');
+  if (/^SELECT/i.test(saved)) return '';
+  const letter = saved.trim().charAt(0);
+  return letter === '-' ? '' : letter;
+}
+
+function multiLineRateClass(line) {
+  const saved = String(line.rateClassCode || line.rateClass || '').trim();
+  return /^SELECT/i.test(saved) ? '' : saved.charAt(0);
+}
+
+function singleLineGrid(firstLine) {
+  if (!firstLine) {
+    return { pieces: '', gross: '', weightUnit: 'K', rateClass: '', itemNo: '', chargeable: '', rate: '', total: '' };
+  }
+  return {
+    pieces: linePieces(firstLine) || '',
+    gross: firstLine.grossWeight || '',
+    weightUnit: lineWeightUnit(firstLine),
+    rateClass: firstLineRateClass(firstLine),
+    itemNo: lineItemNo(firstLine) || '',
+    chargeable: firstLine.chargeableWeight || '',
+    rate: lineRate(firstLine) || '',
+    total: lineTotal(firstLine) || '',
+  };
+}
+
+// Every rate line is printed one under the other, and the sub-total row adds them up.
+function rateGrid(rateLines, printedLines) {
+  if (printedLines.length <= 1) {
+    const grid = singleLineGrid(rateLines[0]);
+    return { ...grid, totalPieces: grid.pieces, totalGross: grid.gross, totalCharge: grid.total };
+  }
+  const column = (read) => printedLines.map(read).map(blankCell).join('<br/>');
+  return {
+    pieces: column(linePieces),
+    gross: column((line) => line.grossWeight),
+    weightUnit: column(lineWeightUnit),
+    rateClass: column(multiLineRateClass),
+    itemNo: column(lineItemNo),
+    chargeable: column((line) => line.chargeableWeight),
+    rate: column(lineRate),
+    total: column(lineTotal),
+    totalPieces: printedLines.reduce((sum, line) => sum + (parseInt(linePieces(line), 10) || 0), 0),
+    totalGross: printedLines.reduce((sum, line) => sum + toNumber(line.grossWeight), 0).toFixed(2),
+    totalCharge: printedLines.some((line) => line.rateAsAgreed)
+      ? AS_AGREED
+      : printedLines.reduce((sum, line) => sum + toNumber(line.totalAmount || line.total), 0).toFixed(2),
+  };
+}
+
+function measurementLines(data, firstLine) {
+  const lines = [];
+  if (data.dimRows && data.dimRows.length > 0) {
+    data.dimRows
+      .filter((dim) => dim.length && dim.width && dim.height)
+      .forEach((dim) => lines.push(`DIMS: ${dim.pieces || dim.pcs || dim.pkgs || 1} PCS ${dim.length} X ${dim.width} X ${dim.height} ${dim.unit || 'CM'}`));
+  } else if (firstLine.length && firstLine.width && firstLine.height) {
+    const pieces = firstLine.noOfUnits || firstLine.pieces || firstLine.noOfPcs || 1;
+    lines.push(`DIMS: ${pieces} PCS ${firstLine.length} X ${firstLine.width} X ${firstLine.height} ${firstLine.cmIn || 'CM'}`);
+  }
+  const volume = data.volume || firstLine.volume;
+  if (volume) lines.push(`VOL: ${volume} MC`);
+  return lines;
+}
+
+function natureAndQuantityHtml(data, rateLines, printedLines) {
+  if (rateLines.length === 0) return data.natureOfGoods || '';
+  const firstLine = rateLines[0];
+  let goods = lineGoods(firstLine) || data.natureOfGoods || '';
+  if (printedLines.length > 1) {
+    const distinctGoods = new Set(printedLines.map((line) => String(lineGoods(line) || '').trim()).filter(Boolean));
+    goods = [...distinctGoods].join('\n') || goods;
+  }
+  const measurements = measurementLines(data, firstLine);
+  let html = goods.replace(/\n/g, '<br/>');
+  if (measurements.length > 0) html += (html ? '<br/><br/>' : '') + measurements.join('<br/>');
+  if (firstLine.harmonisedCode) html += `<br/><br/>HSN: ${firstLine.harmonisedCode}`;
+  return html;
+}
+
+function carrierSignatureOf(data, agent) {
+  const signature = data.signatureCarrier;
+  return signature && !/^\s*AS AGENT FOR CARRIER\s*$/i.test(signature) ? signature : 'AS AGENT FOR CARRIER ' + (agent.name || '');
+}
 
 export const getPrintHTML = (copyText = "", includeTerms = true) => {
-    // Extractor functions
-    
+  const data = readPrintData();
+  const rateLines = data.rateLines || [];
+  const printedLines = rateLines.filter(isPrintedLine);
+  const isAsAgreed = rateLines.some((line) => line.rateAsAgreed);
 
-    
-    
-    // Try to load state from hidden JSON div for 100% robust extraction
-    let printData = {};
-    const printDataEl = document.getElementById('awb-print-data');
-    if (printDataEl && printDataEl.getAttribute('data-json')) {
-        try {
-            printData = JSON.parse(printDataEl.getAttribute('data-json'));
-        } catch (e) {
-            console.error("Failed to parse print data JSON", e);
-        }
-    }
+  const charges = chargeBoxes(data, isAsAgreed);
+  const grid = rateGrid(rateLines, printedLines);
+  const natureQty = natureAndQuantityHtml(data, rateLines, printedLines);
+  const otherCharges = otherChargesText(data, isAsAgreed);
+  const sphCodesHtml = specialHandlingCodesHtml(data);
+  const ociHtml = otherCustomsInfoHtml(data);
+  const linkedHawbsHtml = linkedHouseWaybillsHtml(data);
+  const userName = printedUserName();
 
-    
+  const ssrText = blankIfUndefined(data.ssrText);
+  const osiText = blankIfUndefined(data.osiText);
+  const accountingInfo = blankIfUndefined(data.accountingInfo);
+  const sci = blankIfUndefined(data.sci);
 
-    
+  const shipper = formatParty(data.parties && data.parties['Shipper']);
+  const consignee = formatParty(data.parties && data.parties['Consignee']);
+  const agent = issuingAgent(data.agentDetails);
+  const shipperSignature = data.signatureShipper || shipper.name;
+  const carrierSignature = carrierSignatureOf(data, agent);
 
-    const isAsAgreed = printData.rateLines && printData.rateLines.length > 0 && printData.rateLines.some(r => r.rateAsAgreed);
+  const awbPrefix = data.awbPrefix || '';
+  const awbSuffix = data.awbSuffix || '';
+  const hawbNumber = data.hawbNumber || '';
+  const awbNumberText = hawbNumber || (awbPrefix ? awbPrefix + '-' + awbSuffix : '');
+  // A house AWB is issued by the forwarder (us); a master AWB by the airline.
+  const isHouseAwb = data.awbKind ? data.awbKind === 'HAWB' : !!hawbNumber;
+  const issuerName = isHouseAwb ? (agent.name || '') : (data.airlineName || '');
 
-    const wChg = { pp: (isAsAgreed && printData.weightChargePP) ? 'AS AGREED' : (printData.weightChargePP || ''), cc: (isAsAgreed && printData.weightChargeCC) ? 'AS AGREED' : (printData.weightChargeCC || '') };
-    const _vPP = (parseFloat(printData.valChargePP) || 0) > 0 ? printData.valChargePP : '';
-    const _vCC = (parseFloat(printData.valChargeCC) || 0) > 0 ? printData.valChargeCC : '';
-    const vChg = { pp: (isAsAgreed && _vPP) ? 'AS AGREED' : _vPP, cc: (isAsAgreed && _vCC) ? 'AS AGREED' : _vCC };
-    const _tPP = (parseFloat(printData.taxPP) || 0) > 0 ? printData.taxPP : '';
-    const _tCC = (parseFloat(printData.taxCC) || 0) > 0 ? printData.taxCC : '';
-    const tChg = { pp: (isAsAgreed && _tPP) ? 'AS AGREED' : _tPP, cc: (isAsAgreed && _tCC) ? 'AS AGREED' : _tCC };
-    
-    const tAgentPP = (isAsAgreed && printData.dueAgentPP > 0) ? 'AS AGREED' : (printData.dueAgentPP > 0 ? Number(printData.dueAgentPP).toFixed(2) : '');
-    const tAgentCC = (isAsAgreed && printData.dueAgentCC > 0) ? 'AS AGREED' : (printData.dueAgentCC > 0 ? Number(printData.dueAgentCC).toFixed(2) : '');
-    const tCarrierPP = (isAsAgreed && printData.dueCarrierPP > 0) ? 'AS AGREED' : (printData.dueCarrierPP > 0 ? Number(printData.dueCarrierPP).toFixed(2) : '');
-    const tCarrierCC = (isAsAgreed && printData.dueCarrierCC > 0) ? 'AS AGREED' : (printData.dueCarrierCC > 0 ? Number(printData.dueCarrierCC).toFixed(2) : '');
-    const tTotalPP = (isAsAgreed && printData.totalPP > 0) ? 'AS AGREED' : (printData.totalPP > 0 ? Number(printData.totalPP).toFixed(2) : '');
-    const tTotalCC = (isAsAgreed && printData.totalCC > 0) ? 'AS AGREED' : (printData.totalCC > 0 ? Number(printData.totalCC).toFixed(2) : '');
+  const departureAirport = data.depAirport || '';
+  const destinationAirport = data.destAirport || '';
+  const firstDestination = data.to1 || destinationAirport;
+  const firstCarrier = data.by1 || '';
+  const to2 = data.to2 || '';
+  const by2 = data.by2 || '';
+  const to3 = data.to3 || '';
+  const by3 = data.by3 || '';
+  const firstFlight = flightText(data.flightNumber1 || '', data.flightDate1);
+  const secondFlight = flightText(data.flightNumber2 || '', data.flightDate2);
 
-    const ssrText = printData.ssrText !== undefined ? printData.ssrText : '';
-    const osiText = printData.osiText !== undefined ? printData.osiText : '';
-    const acctText = printData.accountingInfo !== undefined ? printData.accountingInfo : '';
-    const sciInput = printData.sci !== undefined ? printData.sci : '';
+  const currency = data.currencyCode || 'INR';
+  const chargeCode = data.chargeCode || 'PP';
+  const insurance = data.insuranceValue || '';
+  const carriageValue = data.carriageValue || '';
+  const customsValue = data.customsValue || '';
+  const freightTerms = freightTermsOf(chargeCode);
+  const accountingBox = accountingInfo && accountingInfo.toUpperCase().includes('FREIGHT')
+    ? accountingInfo
+    : freightTerms + (accountingInfo ? '<br/>' + accountingInfo : '');
 
-    // SPH Codes — skip codes already mentioned in SSR/OSI text to avoid duplicates
-    const _combinedHandlingText = ((printData.ssrText || '') + ' ' + (printData.osiText || '')).toUpperCase();
-    const sphCodesArr = (printData.sphCodes || [])
-      .filter(s => s && s.trim())
-      .filter(s => !_combinedHandlingText.includes(s.trim().toUpperCase()));
-    const sphCodesHtml = sphCodesArr.length > 0
-      ? '<div style="margin-top:3px;font-size:9px;font-weight:bold;letter-spacing:1px;">' + sphCodesArr.join('  ') + '</div>' : '';
+  const executedDate = executedOnDate(data.executedDate || '');
+  const executedPlace = data.executedPlace || '';
 
-
-    // OCI Rows — only rows with the information typed. 29-Oct-2026: read addInfo / country, which the screens never
-    // fill (they keep suppInfo / countryCode), so no OCI line was ever printed. Printed the OCI way:
-    // country / information id / customs id / information, e.g. IN/SHP/T/07AAACC6689E1ZJ
-    const ociRowsArr = printData.ociRows || [];
-    const escOci = (v) => String(v == null ? '' : v).trim().toUpperCase().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const ociHtml = ociRowsArr.length > 0
-      ? (() => {
-          const filtered = ociRowsArr
-            .map(r => ({ cc: r.countryCode || r.country || '', id: r.infoId || '', cid: r.customsId || '', info: r.suppInfo || r.addInfo || '' }))
-            .filter(r => String(r.info).trim())  // Must have actual supplementary info
-            .map(r => [r.cc, r.id, r.cid, r.info].map(escOci).join('/'))
-            .filter((v, i, arr) => arr.indexOf(v) === i); // deduplicate
-          return filtered.length > 0
-            ? '<div style="margin-top:3px;font-size:8px;font-family:monospace;">' + filtered.join('  ') + '</div>'
-            : '';
-        })()
-      : '';
-
-    // Linked HAWBs (for MAWB print)
-    const linkedHawbsArr = printData.linkedHawbs || [];
-    const linkedHawbsHtml = linkedHawbsArr.length > 0
-      ? '<div style="margin-top:2px;font-size:8px;"><strong>HOUSE WAYBILLS:</strong> ' +
-        linkedHawbsArr.map(h => h.hawbNumber || h.awbNumber || h.awb || '').filter(Boolean).join(' / ') + // the MAWB screen keeps the number in .awb - none was printed (29-Oct-2026)
-        '</div>' : '';
-
-    const otherChargesList = printData.otherCharges || [];
-    let combinedOtherChargesStr = '';
-      if (isAsAgreed && otherChargesList.length > 0) {
-          combinedOtherChargesStr = 'AS AGREED';
-      } else {
-          // IATA Standard format: [ChargeCode + EntitlementSuffix] [Amount]
-          // 2-letter code: AW + carrier → AWC, AW + agent → AWA
-          // 3-letter code: AMS → AMS (no suffix)
-          combinedOtherChargesStr = otherChargesList
-            .filter(c => c.code && c.amount && parseFloat(c.amount) > 0)
-            .map(c => {
-              const code = (c.code || '').toUpperCase().trim();
-              const suffix = c.entitlement === 'agent' ? 'A' : 'C';
-              const finalCode = code.length === 2 ? `${code}${suffix}` : code;
-              return `${finalCode} ${parseFloat(c.amount).toFixed(2)}`;
-            }).join('   ');
-      }
-
-
-    // Extract user name from JWT token
-    let userName = '';
-    try {
-        const token = localStorage.getItem('token');
-        if (token) {
-            const payloadStr = atob(token.split('.')[1]);
-            const payload = JSON.parse(payloadStr);
-            userName = payload.name || payload.username || payload.user || payload.email || 'SYSTEM';
-            if (userName.includes('@')) {
-                userName = userName.split('@')[0];
-            }
-            userName = userName.toUpperCase();
-        }
-    } catch (e) {
-        userName = 'SYSTEM';
-    }
-
-    const formatParty = (p) => {
-        if (!p) return { name: '', address: '' };
-        let addressLines = [];
-        if (p.street) addressLines.push(p.street);
-        let cs = [];
-        if (p.city) cs.push(p.city);
-        if (p.state) cs.push(p.state);
-        if (p.country) cs.push(p.country);
-        if (p.zip) cs.push(p.zip);
-        if (cs.length > 0) addressLines.push(cs.join(' '));
-        if (p.phone) addressLines.push('PH: ' + p.phone);
-        return { name: p.name || '', address: addressLines.join('<br/>'), code: p.code || '' };
-    };
-
-    const shipper = formatParty(printData.parties && printData.parties['Shipper']);
-    const consignee = formatParty(printData.parties && printData.parties['Consignee']);
-    
-    let agent = { name: '', address: '', code: '' };
-    if (printData.agentDetails) {
-        let a = printData.agentDetails;
-        let addr = a.place || '';
-        agent = { name: a.name || '', address: addr, code: a.code || '' };
-    }
-
-    let awbPrefix = printData.awbPrefix || '';
-    let hawbNumber = printData.hawbNumber || '';
-    // 11-Nov-2026: a house AWB is issued by us (the forwarder), not by the airline; a MAWB / AWB is the airline's
-    const isHouseAwb = printData.awbKind ? printData.awbKind === 'HAWB' : !!hawbNumber;
-    const issuerName = isHouseAwb ? (agent.name || '') : (printData.airlineName || '');
-    let awbSuffix = printData.awbSuffix || '';
-
-    
-    const dep = printData.depAirport || '';
-    let dest = printData.destAirport || '';
-      // Use only IATA code (3 letters) for destination box — not full airport name
-      // Full name is too long and overlaps with adjacent boxes
-    let to1 = printData.to1 || '';
-    if (!to1) to1 = dest;
-    const carrier = printData.by1 || '';
-    
-    // Attempt to get FLIGHT NO and DATE
-    // 11-Nov-2026: flight date as on an AWB, "12 NOV" (it printed 2026-11-12)
-    const fltDay = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? `${m[3]} ${['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][Number(m[2]) - 1] || m[2]}` : String(d || ''); };
-    const fltNo1 = printData.flightNumber1 || '';
-    const fltDt1 = fltDay(printData.flightDate1);
-    const flt = fltNo1 && fltDt1 ? `${fltNo1} / ${fltDt1}` : (fltNo1 || fltDt1 || '');
-    const fltNo2 = printData.flightNumber2 || '';
-    const fltDt2 = fltDay(printData.flightDate2);
-    const flt2 = fltNo2 && fltDt2 ? `${fltNo2} / ${fltDt2}` : (fltNo2 || fltDt2 || '');
-
-    // The other To/By fields
-    const to2 = printData.to2 || '';
-    const by2 = printData.by2 || '';
-    const to3 = printData.to3 || '';
-    const by3 = printData.by3 || '';
-
-    
-    const curr = printData.currencyCode || 'INR';
-    const chgs = printData.chargeCode || 'PP';
-    const insurance = printData.insuranceValue || '';
-    const nvd = printData.carriageValue || '';
-    const ncv = printData.customsValue || '';
-
-    let rawExecDate = printData.executedDate || '';
-    let executedPlace = printData.executedPlace || '';
-    let executedDate = rawExecDate;
-    if (rawExecDate && rawExecDate.includes('-')) {
-        const parts = rawExecDate.split('-');
-        if (parts.length === 3) {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const monthStr = months[parseInt(parts[1], 10) - 1];
-            executedDate = `${parts[2]} ${monthStr} ${parts[0]}`;
-        }
-    }
-
-
-    const acct = chgs.startsWith('PP') ? 'FREIGHT PREPAID' : (chgs.startsWith('CC') ? 'FREIGHT COLLECT' : '');
-    
-    // Grid values
-    
-    let pcs = '', grossWt = '', kg = 'K', rc = '', itemNo = '', chgWt = '', rate = '', total = '';
-    if (printData.rateLines && printData.rateLines.length > 0) {
-        const r = printData.rateLines[0];
-        pcs = r.pieces || r.noOfPcs || '';
-        grossWt = r.grossWeight || '';
-        kg = (r.gwUnit || 'K').charAt(0).toUpperCase();
-        rc = String(r.rateClassCode || r.rateClass || '').trim().charAt(0); // the class as saved - an empty one printed as Q (11-Nov-2026)
-        if (/^SELECT/i.test(String(r.rateClassCode || r.rateClass || ''))) rc = '';
-        if (rc.includes('-')) rc = rc.split('-')[0].trim();
-        itemNo = r.commodityItemNumber || r.commodityItemNo || '';
-        chgWt = r.chargeableWeight || '';
-        rate = r.rateAsAgreed ? 'AS AGREED' : (r.rateCharge || '');
-        total = r.rateAsAgreed ? 'AS AGREED' : (r.totalAmount || r.total || '');
-    }
-
-
-    // 11-Nov-2026: EVERY rate line is printed (one under the other) and the sub-total row adds them up. Before, only
-    // the first line and its own figures were printed, so a 2-line AWB lost line 2 and its total did not match.
-    const RL = (printData.rateLines || []).filter(r => r && (r.pieces || r.noOfPcs || r.grossWeight || r.chargeableWeight));
-    const cell = (v) => (v === undefined || v === null || String(v) === '' ? '&nbsp;' : v);
-    const colOf = (f) => RL.map(f).map(cell).join('<br/>');
-    const rcOf = (r) => { const v = String(r.rateClassCode || r.rateClass || '').trim(); return /^SELECT/i.test(v) ? '' : v.charAt(0); };
-    let linePcs = pcs, lineGross = grossWt, lineKg = kg, lineRc = rc, lineItem = itemNo, lineChg = chgWt, lineRate = rate, lineTotal = total, sumPcs = pcs, sumGross = grossWt, sumTotal = total;
-    if (RL.length > 1) {
-        linePcs = colOf(r => r.pieces || r.noOfPcs); lineGross = colOf(r => r.grossWeight); lineKg = colOf(r => (r.gwUnit || 'K').charAt(0).toUpperCase());
-        lineRc = colOf(rcOf); lineItem = colOf(r => r.commodityItemNumber || r.commodityItemNo); lineChg = colOf(r => r.chargeableWeight);
-        lineRate = colOf(r => r.rateAsAgreed ? 'AS AGREED' : r.rateCharge); lineTotal = colOf(r => r.rateAsAgreed ? 'AS AGREED' : (r.totalAmount || r.total));
-        const n = (v) => parseFloat(v) || 0;
-        sumPcs = RL.reduce((a, r) => a + (parseInt(r.pieces || r.noOfPcs, 10) || 0), 0);
-        sumGross = RL.reduce((a, r) => a + n(r.grossWeight), 0).toFixed(2);
-        sumTotal = RL.some(r => r.rateAsAgreed) ? 'AS AGREED' : RL.reduce((a, r) => a + n(r.totalAmount || r.total), 0).toFixed(2);
-    }
-
-    let natureQty = printData.natureOfGoods || '';
-    if (printData.rateLines && printData.rateLines.length > 0) {
-        const r = printData.rateLines[0];
-        natureQty = r.goodsDescription || r.natureOfGoods || r.description || printData.natureOfGoods || '';
-        if (RL.length > 1) natureQty = [...new Set(RL.map(x => String(x.goodsDescription || x.natureOfGoods || x.description || '').trim()).filter(Boolean))].join('\n') || natureQty;
-        
-        let dims = [];
-        if (printData.dimRows && printData.dimRows.length > 0) {
-            printData.dimRows.forEach(d => {
-                if (d.length && d.width && d.height) {
-                    const pcs = d.pieces || d.pcs || d.pkgs || 1;
-                    const u = d.unit || 'CM';
-                    dims.push(`DIMS: ${pcs} PCS ${d.length} X ${d.width} X ${d.height} ${u}`);
-                }
-            });
-        } else if (r.length && r.width && r.height) {
-            const pcs = r.noOfUnits || r.pieces || r.noOfPcs || 1;
-            const u = r.cmIn || 'CM';
-            dims.push(`DIMS: ${pcs} PCS ${r.length} X ${r.width} X ${r.height} ${u}`);
-        }
-        
-        const vol = printData.volume || r.volume;
-        if (vol) {
-            dims.push(`VOL: ${vol} MC`);
-        }
-        if (dims.length > 0) {
-           natureQty = natureQty.replace(/\n/g, '<br/>');
-           natureQty += (natureQty ? '<br/><br/>' : '') + dims.join('<br/>');
-        } else {
-           natureQty = natureQty.replace(/\n/g, '<br/>');
-        }
-        
-        if (r.harmonisedCode) {
-            natureQty += `<br/><br/>HSN: ${r.harmonisedCode}`;
-        }
-    }
-    
-
-  const printType = 'Print AWB';
-  // const AWBTermsPage removed to use import
-    return `
+  return `
       <html>
         <head>
           <title>Air Waybill Print Preview</title>
@@ -349,10 +376,10 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
           <div class="top-bar">
             <div class="top-bar-left">
               <span>${awbPrefix || "&nbsp;"}</span>
-              <span>${dep || "&nbsp;"}</span>
+              <span>${departureAirport || "&nbsp;"}</span>
               <span>${awbSuffix || "&nbsp;"}</span>
             </div>
-            <div>${hawbNumber ? hawbNumber : (awbPrefix ? awbPrefix + '-' + awbSuffix : "&nbsp;")}</div>
+            <div>${awbNumberText || "&nbsp;"}</div>
           </div>
           <div class="awb-outer">
             
@@ -403,7 +430,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
               </div>
               <div class="col" style="width: 52%; padding: 4px; border-bottom: none; border-right: none;">
                 <span class="box-title">Accounting Information</span>
-                <div class="val-normal" style="margin-top: 10px;">${acctText && acctText.toUpperCase().includes('FREIGHT') ? acctText : (acct + (acctText ? '<br/>' + acctText : ''))}</div>
+                <div class="val-normal" style="margin-top: 10px;">${accountingBox}</div>
               </div>
             </div>
             
@@ -425,7 +452,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
             <div class="row thick-bottom" style="display: flex;">
               <div class="col" style="width: 48%; border-right: 2px solid #000; padding: 4px;">
                 <span class="box-title">Airport of Departure (Addr. Of First Carrier) and requested Routing</span>
-                <div class="val-normal" style="margin-top: 4px;">${dep}</div>
+                <div class="val-normal" style="margin-top: 4px;">${departureAirport}</div>
               </div>
               <div class="col" style="width: 52%; padding: 4px; border-right: none;"></div>
             </div>
@@ -433,10 +460,10 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
             <!-- Row 6 (Routing) -->
             <div class="row thick-bottom" style="display: flex; box-sizing: border-box; height: 38px;">
               <div style="width: 4.5%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
-                <div class="routing-title">To</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${to1}</div>
+                <div class="routing-title">To</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${firstDestination}</div>
               </div>
               <div style="width: 13.5%; position: relative; padding: 2px; box-sizing: border-box;">
-                  <div class="routing-title">By First Carrier</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${carrier}</div>
+                  <div class="routing-title">By First Carrier</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${firstCarrier}</div>
                 </div>
                 <div style="width: 12%; border-right: 1px solid #000; position: relative; box-sizing: border-box;">
                   <div style="position: absolute; top: -1px; left: -25%; width: 125%; height: 14px; z-index: 1;">
@@ -452,10 +479,10 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                     <div style="width: 25%; position: relative; padding: 2px; box-sizing: border-box;"><div class="routing-title">by</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${by3}</div></div>
                   </div>
               <div style="width: 6.5%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
-                <div class="routing-title">Currency</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${curr}</div>
+                <div class="routing-title">Currency</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${currency}</div>
               </div>
               <div style="width: 6.5%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
-                <div class="routing-title" style="line-height: 1.1; font-size: 8px;">CHGS<br/>Code</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${chgs.substring(0,2)}</div>
+                <div class="routing-title" style="line-height: 1.1; font-size: 8px;">CHGS<br/>Code</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${chargeCode.substring(0,2)}</div>
               </div>
               <div style="width: 5.25%; border-right: 2px solid #000; padding: 0; box-sizing: border-box;">
                 <div style="height: 50%; border-bottom: 1px solid #000; padding: 2px; box-sizing: border-box;">
@@ -476,24 +503,24 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                 </div>
               </div>
               <div style="width: 14.25%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
-                <div class="routing-title">Declared Value for Carriage</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${nvd}</div>
+                <div class="routing-title">Declared Value for Carriage</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${carriageValue}</div>
               </div>
               <div style="width: 14.25%; position: relative; padding: 2px; box-sizing: border-box;">
-                <div class="routing-title">Declared Value for Customs</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${ncv}</div>
+                <div class="routing-title">Declared Value for Customs</div><div class="routing-val" style="position: absolute; bottom: 2px; left: 2px;">${customsValue}</div>
               </div>
             </div>
             
             <!-- Row 7 -->
               <div class="row thick-bottom" style="display: flex; box-sizing: border-box; height: 38px;">
                 <div style="width: 24%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
-                  <div class="routing-title">Airport of Destination</div><div class="val-normal" style="position: absolute; bottom: 2px; left: 2px;">${dest}</div>
+                  <div class="routing-title">Airport of Destination</div><div class="val-normal" style="position: absolute; bottom: 2px; left: 2px;">${destinationAirport}</div>
                 </div>
                 <div style="width: 24%; border-right: 2px solid #000; position: relative; box-sizing: border-box;">
                   <div style="position: absolute; top: -1px; left: 10%; width: 80%; height: 14px; z-index: 1;">
                     <svg class="svg-bg" style="width: 100%; height: 100%; overflow: visible;" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 85,100 15,100" fill="none" stroke="black" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: 0; left: 0; font-size: 7.5px; width: 100%; text-align: center; letter-spacing: -0.2px;">Requested Flight No/Date</div>
                   </div>
-                  <div class="routing-val" style="position: absolute; bottom: 2px; left: 0; width: 100%;">${flt} ${flt2}</div>
+                  <div class="routing-val" style="position: absolute; bottom: 2px; left: 0; width: 100%;">${firstFlight} ${secondFlight}</div>
                 </div>
                 <div style="width: 13%; border-right: 1px solid #000; position: relative; padding: 2px; box-sizing: border-box;">
                   <div class="routing-title">Amount of Insurance</div><div class="val-normal" style="position: absolute; bottom: 2px; left: 2px;">${insurance}</div>
@@ -509,7 +536,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                 <span class="box-title">Handling Information</span>
                 <div class="val-normal" style="margin-top: 4px;">${ssrText}<br/>${osiText}${sphCodesHtml}${ociHtml}${linkedHawbsHtml}</div>
               </div>
-              <div style="position: absolute; bottom: 0; right: 2px; border: 1px solid #000; padding: 2px 10px; font-size: 9px;">SCI ${sciInput}</div>
+              <div style="position: absolute; bottom: 0; right: 2px; border: 1px solid #000; padding: 2px 10px; font-size: 9px;">SCI ${sci}</div>
             </div>
             
             <!-- Row 9 (Grid) -->
@@ -546,25 +573,25 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                 </thead>
                 <tbody>
                   <tr style="height: 180px;">
-                    <td class="val-normal">${linePcs}</td>
-                    <td class="val-normal text-right">${lineGross}</td>
-                    <td class="val-normal text-center" style="border-right: none;">${lineKg}</td>
+                    <td class="val-normal">${grid.pieces}</td>
+                    <td class="val-normal text-right">${grid.gross}</td>
+                    <td class="val-normal text-center" style="border-right: none;">${grid.weightUnit}</td>
                     <td class="div-col"></td>
-                    <td class="val-normal text-center" style="border-right: 1px solid #000;">${lineRc}</td>
-                    <td class="val-normal text-center" style="border-right: none;">${lineItem}</td>
+                    <td class="val-normal text-center" style="border-right: 1px solid #000;">${grid.rateClass}</td>
+                    <td class="val-normal text-center" style="border-right: none;">${grid.itemNo}</td>
                     <td class="div-col"></td>
-                    <td class="val-normal text-center" style="border-right: none;">${lineChg}</td>
+                    <td class="val-normal text-center" style="border-right: none;">${grid.chargeable}</td>
                     <td class="div-col"></td>
-                    <td class="val-normal text-center" style="border-right: none;">${lineRate}</td>
+                    <td class="val-normal text-center" style="border-right: none;">${grid.rate}</td>
                       <td class="div-col"></td>
-                      <td class="val-normal text-center" style="border-right: none;">${lineTotal}</td>
+                      <td class="val-normal text-center" style="border-right: none;">${grid.total}</td>
                     <td class="div-col"></td>
                     <td class="val-normal" style="font-weight: normal; font-family: Arial, sans-serif; border-right: none;">${natureQty}</td>
                   </tr>
                   <!-- Sub-total row -->
                   <tr style="height: 20px;">
-                    <td style="border-top: 1px solid #000; text-align: left; font-weight: normal; font-size: 11px;">${sumPcs}</td>
-                    <td style="border-top: 1px solid #000; text-align: right; font-weight: normal; font-size: 11px;">${sumGross}</td>
+                    <td style="border-top: 1px solid #000; text-align: left; font-weight: normal; font-size: 11px;">${grid.totalPieces}</td>
+                    <td style="border-top: 1px solid #000; text-align: right; font-weight: normal; font-size: 11px;">${grid.totalGross}</td>
                     <td style="border-right: none;"></td>
                     <td class="div-col"></td>
                     <td style="border-right: 1px solid #000;"></td>
@@ -574,7 +601,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                     <td class="div-col"></td>
                     <td style="border-right: none;"></td>
                     <td class="div-col"></td>
-                    <td style="border-top: 1px solid #000; text-align: center; font-family: monospace; font-weight: normal; font-size: 11px; border-right: none;">${sumTotal}</td>
+                    <td style="border-top: 1px solid #000; text-align: center; font-family: monospace; font-weight: normal; font-size: 11px; border-right: none;">${grid.totalCharge}</td>
                     <td class="div-col"></td>
                     <td style="border-right: none;"></td>
                   </tr>
@@ -591,7 +618,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                 
                 <!-- Totals Row 1 -->
                 <div class="abs-row" style="height: 25px;">
-                  <div class="abs-val" style="width: 50%; top: 12px;">${wChg.pp}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px;">${charges.weightCharge.prepaid}</div>
                   <div class="iata-wrap" style="left: 6%; width: 32%; height: 12px;">
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 85,100 15,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Prepaid</div>
@@ -604,48 +631,48 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 85,100 15,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Collect</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${wChg.cc}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${charges.weightCharge.collect}</div>
                 </div>
 
                 <!-- Totals Row 2 (No AS AGREED here) -->
                 <div class="abs-row" style="height: 36px;">
-                  <div class="abs-val" style="width: 50%; top: 12px;">${vChg.pp}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px;">${charges.valuationCharge.prepaid}</div>
                   <div class="iata-wrap" style="left: 33%; width: 34%; height: 12px;">
                     <!-- All remaining polygons point INWARDS -->
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 90,100 10,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Valuation Charge</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${vChg.cc}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${charges.valuationCharge.collect}</div>
                 </div>
 
                 <!-- Totals Row 3 -->
                 <div class="abs-row" style="height: 36px;">
-                  <div class="abs-val" style="width: 50%; top: 12px;">${tChg.pp}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px;">${charges.taxCharge.prepaid}</div>
                   <div class="iata-wrap" style="left: 36%; width: 28%; height: 12px;">
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 85,100 15,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Tax</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${tChg.cc}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${charges.taxCharge.collect}</div>
                 </div>
 
                 <!-- Totals Row 4 -->
                 <div class="abs-row" style="height: 36px;">
-                  <div class="abs-val" style="width: 50%; top: 12px;">${tAgentPP}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px;">${charges.dueAgent.prepaid}</div>
                   <div class="iata-wrap" style="left: 7%; width: 86%; height: 12px;">
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 95,100 5,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Total other Charges Due Agent</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${tAgentCC}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${charges.dueAgent.collect}</div>
                 </div>
 
                 <!-- Totals Row 5 -->
                 <div class="abs-row" style="height: 36px;">
-                  <div class="abs-val" style="width: 50%; top: 12px;">${tCarrierPP}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px;">${charges.dueCarrier.prepaid}</div>
                   <div class="iata-wrap" style="left: 7%; width: 86%; height: 12px;">
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 95,100 5,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px;">Total other Charges Due Carrier</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${tCarrierCC}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%;">${charges.dueCarrier.collect}</div>
                 </div>
 
                 <!-- Totals Row 6 (Gray Bar) -->
@@ -654,12 +681,12 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
 
                 <!-- Totals Row 7 -->
                 <div class="abs-row" style="height: 36px;">
-                  <div class="abs-val" style="width: 50%; top: 12px; font-weight: bold;">${tTotalPP}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; font-weight: bold;">${charges.grandTotal.prepaid}</div>
                   <div class="iata-wrap" style="left: 33%; width: 34%; height: 12px;">
                     <svg class="svg-bg" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,0 100,0 90,100 10,100" fill="white" stroke="black" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
                     <div class="svg-text" style="top: -1px; font-weight: bold;">Total</div>
                   </div>
-                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%; font-weight: bold;">${tTotalCC}</div>
+                  <div class="abs-val" style="width: 50%; top: 12px; left: 50%; font-weight: bold;">${charges.grandTotal.collect}</div>
                 </div>
 
                 <!-- Totals Row 8 -->
@@ -690,7 +717,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                   <!-- Row A (Other Charges) -->
                   <div style="height: 97px; border-bottom: 1px solid #000; padding: 2px 4px; box-sizing: border-box;">
                     <div class="box-title" style="font-size: 8px;">Other Charges</div>
-                    <div class="val-normal" style="font-size: 11px; margin-top: 4px; word-wrap: break-word;">${combinedOtherChargesStr}</div>
+                    <div class="val-normal" style="font-size: 11px; margin-top: 4px; word-wrap: break-word;">${otherCharges}</div>
                   </div>
                   
                   <!-- Row B (Shipper Signature) -->
@@ -699,7 +726,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                       Shipper certifies that the particulars on the face herof arre correct and that insofar as any part of the consignment contains dangerous goods such part is properly described by name and is in proper condition for carriage by air according to the applicable Dangerous Goods Regulations
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: center; width: 100%; padding-bottom: 4px;">
-                      <div class="val-normal text-center" style="font-size: 9px; margin-bottom: 2px;">${printData.signatureShipper || shipper.name}</div>
+                      <div class="val-normal text-center" style="font-size: 9px; margin-bottom: 2px;">${shipperSignature}</div>
                       <div style="width: 90%; border-top: 1px dashed #000; text-align: center; padding-top: 2px; font-size: 7px;">Signature of Shipper or his Agent</div>
                     </div>
                   </div>
@@ -709,7 +736,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                     <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-grow: 1; padding-bottom: 2px;">
                       <div class="val-normal" style="font-size: 10px; width: 30%;"></div>
                       <div class="val-normal" style="font-size: 10px; width: 25%; text-align: center;"></div>
-                      <div class="val-normal" style="font-size: 9px; width: 45%; text-align: right; word-wrap: break-word;">${(printData.signatureCarrier && !/^\s*AS AGENT FOR CARRIER\s*$/i.test(printData.signatureCarrier)) ? printData.signatureCarrier : ('AS AGENT FOR CARRIER ' + (agent.name || ''))}</div>
+                      <div class="val-normal" style="font-size: 9px; width: 45%; text-align: right; word-wrap: break-word;">${carrierSignature}</div>
                     </div>
                     <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; position: relative; height: 12px;">
                       <div style="position: absolute; top: -11px; left: 16%; font-size: 11px; font-family: 'Courier New', Courier, monospace; font-weight: bold; white-space: nowrap; z-index: 2;">${executedDate}</div>
@@ -739,7 +766,7 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
                       <div style="position: absolute; bottom: -2px; left: 0; right: -2px; height: 4px; background: white; z-index: -1;"></div>
                       
                       <div style="font-size: 11px; padding-left: 4px; padding-right: 8px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; position: relative; z-index: 2;">${userName}</div>
-                      <div style="font-weight: bold; font-size: 13px; white-space: nowrap; position: relative; z-index: 2;">${hawbNumber ? hawbNumber : (awbPrefix ? awbPrefix + "-" + awbSuffix : "")}</div>
+                      <div style="font-weight: bold; font-size: 13px; white-space: nowrap; position: relative; z-index: 2;">${awbNumberText}</div>
                     </div>
                   </div>
 
@@ -761,28 +788,91 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
         </body>
       </html>
     `;
-  };
+};
 
-  const handlePrintPreview = () => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(getPrintHTML());
-    printWindow.document.close();
-  };
+const copiesOrBlank = (copies) => (copies && copies.length ? copies : [""]);
 
-  
-  
-  export const handleDownloadManifest = (data) => {
-    if (!data || !data.awbPrefix || !data.awbSuffix) return;
-    
-    const mawb = data.awbPrefix + '-' + data.awbSuffix;
-    const dep = data.depAirport || 'UNK';
-    const dest = data.destAirport || 'UNK';
-    const pcs = data.rateLines && data.rateLines[0] ? data.rateLines[0].pieces : '0';
-    const grossWt = data.rateLines && data.rateLines[0] ? data.rateLines[0].grossWeight : '0.00';
-    const nature = data.natureOfGoods || 'CONSOLIDATION';
-    const issueDate = new Date().toISOString().split('.')[0]; // YYYY-MM-DDTHH:mm:ss
+function copiesHtml(copies, includeTerms) {
+  const headMatch = getPrintHTML(copies[0], includeTerms).match(/<head>([\s\S]*?)<\/head>/i);
+  const head = (headMatch ? headMatch[1] : '') + PAGE_BREAK_STYLE;
+  const pages = copies.map((copyText) => {
+    const singleHtml = getPrintHTML(copyText, includeTerms);
+    const bodyMatch = singleHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const body = (bodyMatch ? bodyMatch[1] : singleHtml).replace(/<script>[\s\S]*?<\/script>/gi, '');
+    return "<div class=\"page-break\">" + body + "</div>";
+  });
+  return "<html><head>" + head + "</head>" + COPIES_BODY_OPEN + pages.join('');
+}
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+export const printAWB = (selectedCopies = [""], includeTerms = true) => {
+  const html = copiesHtml(copiesOrBlank(selectedCopies), includeTerms) + AUTO_PRINT_SCRIPT + "</body></html>";
+
+  const iframe = document.createElement('iframe');
+  Object.assign(iframe.style, { position: 'absolute', width: '0', height: '0', border: 'none' });
+  document.body.appendChild(iframe);
+
+  const frameDocument = iframe.contentWindow.document;
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+
+  setTimeout(() => {
+    if (document.body.contains(iframe)) document.body.removeChild(iframe);
+  }, 10000);
+};
+
+async function pdfErrorMessage(error) {
+  if (!error.response) return error.message || String(error);
+  try {
+    const body = JSON.parse(await error.response.data.text());
+    return body.error || 'Failed to generate PDF';
+  } catch {
+    return 'HTTP ERROR';
+  }
+}
+
+function openAndDownloadPdf(pdf, fileName) {
+  const url = URL.createObjectURL(pdf);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  downloadBlob(pdf, fileName);
+}
+
+export const downloadAWBPDF = async (selectedCopies = [""], includeTerms = true) => {
+  const copies = copiesOrBlank(selectedCopies);
+  const html = copiesHtml(copies, includeTerms) + "</body></html>";
+  const { awbPrefix, awbSuffix } = readPrintData();
+  const fileName = awbPrefix && awbSuffix ? `AWB_${awbPrefix}-${awbSuffix}.pdf` : 'Airway_Bill.pdf';
+
+  try {
+    showSuccessToast('Info', 'Generating PDF... Please wait.', false);
+    const pdf = await freightApi.generateAwbPdf(html, fileName);
+    openAndDownloadPdf(pdf, fileName);
+    showSuccessToast('Success', 'PDF Downloaded Successfully!');
+  } catch (error) {
+    console.error(error);
+    // Without the server PDF the print window still makes the same file ("Microsoft Print to PDF" / "Save as PDF").
+    const reason = await pdfErrorMessage(error);
+    showSuccessToast('Info', 'Server PDF not available (' + reason + '). Opening the print window - choose "Microsoft Print to PDF" or "Save as PDF".', false);
+    printAWB(copies, includeTerms);
+  }
+};
+
+const masterAwbNumber = (data) => data.awbPrefix + '-' + data.awbSuffix;
+const xmlIssueDateTime = () => new Date().toISOString().split('.')[0];
+const firstLineValue = (data, field, fallback) => (data.rateLines && data.rateLines[0] ? data.rateLines[0][field] : fallback);
+const downloadXml = (xml, fileName) => downloadBlob(new Blob([xml], { type: 'application/xml' }), fileName);
+
+export const handleDownloadManifest = (data) => {
+  if (!data || !data.awbPrefix || !data.awbSuffix) return;
+
+  const mawb = masterAwbNumber(data);
+  const dest = data.destAirport || 'UNK';
+  const pcs = firstLineValue(data, 'pieces', '0');
+  const grossWt = firstLineValue(data, 'grossWeight', '0.00');
+  const issueDate = xmlIssueDateTime();
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:HouseManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:rsm="iata:housemanifest:1" xmlns:ram="iata:datamodel:3">
   <rsm:MessageHeaderDocument>
     <ram:ID>${mawb}</ram:ID>
@@ -804,33 +894,22 @@ export const getPrintHTML = (copyText = "", includeTerms = true) => {
   </rsm:MasterConsignment>
 </rsm:HouseManifest>`;
 
-    const blob = new Blob([xml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Manifest_${mawb}_XFZB.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  downloadXml(xml, `Manifest_${mawb}_XFZB.xml`);
 };
 
-  
-  
-
 export const handleDownloadXFWB = (data) => {
-    if (!data || !data.awbPrefix || !data.awbSuffix) return;
+  if (!data || !data.awbPrefix || !data.awbSuffix) return;
 
-    const mawb = data.awbPrefix + '-' + data.awbSuffix;
-    const dep = data.depAirport || 'UNK';
-    const dest = data.destAirport || 'UNK';
-    const pcs = data.rateLines && data.rateLines[0] ? data.rateLines[0].pieces : '0';
-    const grossWt = data.rateLines && data.rateLines[0] ? data.rateLines[0].grossWeight : '0.00';
-    const shipperName = data.parties?.Shipper?.name || '';
-    const consigneeName = data.parties?.Consignee?.name || '';
-    const issueDate = new Date().toISOString().split('.')[0];
+  const mawb = masterAwbNumber(data);
+  const dep = data.depAirport || 'UNK';
+  const dest = data.destAirport || 'UNK';
+  const pcs = firstLineValue(data, 'pieces', '0');
+  const grossWt = firstLineValue(data, 'grossWeight', '0.00');
+  const shipperName = data.parties?.Shipper?.name || '';
+  const consigneeName = data.parties?.Consignee?.name || '';
+  const issueDate = xmlIssueDateTime();
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <awb:Waybill xmlns:awb="iata:waybill:1" xmlns:ram="iata:datamodel:3">
   <awb:MessageHeaderDocument>
     <ram:ID>${data.awbSuffix}</ram:ID>
@@ -861,124 +940,5 @@ export const handleDownloadXFWB = (data) => {
   </awb:MasterConsignment>
 </awb:Waybill>`;
 
-    const blob = new Blob([xml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `AWB_${mawb}_XFWB.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-};
-
-  
-
-
-export const printAWB = (selectedCopies = [""], includeTerms = true) => {
-    if (!selectedCopies || selectedCopies.length === 0) selectedCopies = [""];
-    
-    let firstHtml = getPrintHTML(selectedCopies[0], includeTerms);
-    let headMatch = firstHtml.match(/<head>([\s\S]*?)<\/head>/i);
-    let headContent = headMatch ? headMatch[1] : '';
-    headContent += "\n<style>@media print { .page-break { page-break-after: always; } } .page-break { page-break-after: always; }</style>";
-    
-    let fullHtml = "<html><head>" + headContent + "</head><body style=\"margin:0; padding:0; background: #fff;\">";
-    
-    for (let i = 0; i < selectedCopies.length; i++) {
-        let singleHtml = getPrintHTML(selectedCopies[i], includeTerms);
-        let bodyContentMatch = singleHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        let content = bodyContentMatch ? bodyContentMatch[1] : singleHtml;
-        content = content.replace(/<script>[\s\S]*?<\/script>/gi, ''); // remove individual scripts
-        fullHtml += "<div class=\"page-break\">" + content + "</div>";
-    }
-    
-    fullHtml += "<script>setTimeout(() => { window.print(); }, 500);</script></body></html>";
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
-    
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(fullHtml);
-    doc.close();
-    
-    setTimeout(() => {
-        if(document.body.contains(iframe)) document.body.removeChild(iframe);
-    }, 10000);
-};
-
-
-export const downloadAWBPDF = async (selectedCopies = [""], includeTerms = true) => {
-    if (!selectedCopies || selectedCopies.length === 0) selectedCopies = [""];
-    
-    let firstHtml = getPrintHTML(selectedCopies[0], includeTerms);
-    let headMatch = firstHtml.match(/<head>([\s\S]*?)<\/head>/i);
-    let headContent = headMatch ? headMatch[1] : '';
-    headContent += "\n<style>@media print { .page-break { page-break-after: always; } } .page-break { page-break-after: always; }</style>";
-    
-    let fullHtml = "<html><head>" + headContent + "</head><body style=\"margin:0; padding:0; background: #fff;\">";
-    
-    for (let i = 0; i < selectedCopies.length; i++) {
-        let singleHtml = getPrintHTML(selectedCopies[i], includeTerms);
-        let bodyContentMatch = singleHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        let content = bodyContentMatch ? bodyContentMatch[1] : singleHtml;
-        content = content.replace(/<script>[\s\S]*?<\/script>/gi, '');
-        fullHtml += "<div class=\"page-break\">" + content + "</div>";
-    }
-    fullHtml += "</body></html>";
-    let html = fullHtml;
-    
-    let awbPrefix = '', awbSuffix = '';
-    try {
-        const payload = JSON.parse(document.getElementById('awb-print-data').getAttribute('data-json'));
-        awbPrefix = payload.awbPrefix || '';
-        awbSuffix = payload.awbSuffix || '';
-    } catch(e) {}
-    const filename = awbPrefix && awbSuffix ? `AWB_${awbPrefix}-${awbSuffix}.pdf` : 'Airway_Bill.pdf';
-
-    try {
-        showSuccessToast('Info', 'Generating PDF... Please wait.', false);
-        const response = await fetch('/api/awb/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ html, filename })
-        });
-        
-        if (!response.ok) {
-            let errMsg = 'Failed to generate PDF';
-            try {
-                const errData = await response.json();
-                errMsg = errData.error || errMsg;
-            } catch(e) { errMsg = 'HTTP ERROR'; }
-            throw new Error(errMsg);
-        }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        
-        // Open in new tab
-        window.open(url, '_blank');
-        
-        // Also download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        setTimeout(() => window.URL.revokeObjectURL(url), 2000);
-        showSuccessToast('Success', 'PDF Downloaded Successfully!');
-    } catch (err) {
-        console.error(err);
-        // 11-Nov-2026: the server could not make the PDF - open the print window instead, where "Microsoft Print to
-        // PDF" / "Save as PDF" makes the same file (as before the server PDF)
-        showSuccessToast('Info', 'Server PDF not available (' + (err.message || err.toString()) + '). Opening the print window - choose "Microsoft Print to PDF" or "Save as PDF".', false);
-        printAWB(selectedCopies, includeTerms);
-    }
+  downloadXml(xml, `AWB_${mawb}_XFWB.xml`);
 };

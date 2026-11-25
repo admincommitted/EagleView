@@ -1,52 +1,113 @@
-// e-Sanchit supporting documents of an item / its invoice / the whole SB. Rewritten 29-Oct-2026.
-//
-// Before, a row had only file name, doc code, IRN, DRN: the issuing party, beneficiary, place / date of issue and
-// expiry that ICEGATE needs (errors 822 / 827 when missing) could not be entered, "Doc For" was ignored when the SB
-// was built (every row was sent at item level) and documents could not be copied from another job or to other items.
-//
-// Each row: srNo, irn, drn, refNo, docCode, fileName / file (PDF to sign and upload), fileType, docFor (Item | Invoice |
-// SB), issuer* and beneficiary* (code, name, address 1-2, city, pin), placeOfIssue, issueDate, expiryDate,
-// icegateId (only when the document was uploaded with another ICEGATE id). SB-level rows are kept on the job
-// (exportData.eSanchitList), item / invoice rows on the item.
-import React, { useEffect, useMemo, useState } from 'react';
-import { asList } from '../../../../../utils/asList';
-import { Copy, Download, Edit2, FileUp, Plus, Save, Trash2, Upload, X, Search } from 'lucide-react';
-import { downloadPdf, shortPdfName } from '../../../../../utils/downloadPdf';
-import { localSigner, signPdf } from '../../../../../utils/dscSigner';
+import { useEffect, useMemo, useState } from 'react';
+import { Copy, Download, Edit2, FileUp, Plus, Save, Search, Trash2, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
-import BodyPortal from '../../../../common/BodyPortal';
+import { cn } from '@/lib/utils';
+import { asList } from '@/utils/asList';
+import { downloadPdf, shortPdfName } from '@/utils/downloadPdf';
+import { localSigner, signPdf } from '@/utils/dscSigner';
+import { errorMessage } from '@/services/axiosInstance';
+import askConfirm from '@/components/common/askConfirm';
+import { Button, Checkbox, DataTable, DateInput, Field, FileButton, Input, Label, Modal, SelectBox } from '@/components/ui';
+import { exportEntryApi } from '../../../exportEntryApi';
+import { answerOf } from '../answerOf';
 
-const EMPTY = { irn: '', drn: '', refNo: '', docCode: '', docName: '', fileName: '', fileType: 'PDF', docFor: 'Item',
+const EMPTY = {
+  irn: '', drn: '', refNo: '', docCode: '', docName: '', fileName: '', fileType: 'PDF', docFor: 'Item',
   issuerCode: '', issuerName: '', issuerAddress1: '', issuerAddress2: '', issuerCity: '', issuerPin: '',
   beneficiaryCode: '', beneficiaryName: '', beneficiaryAddress1: '', beneficiaryAddress2: '', beneficiaryCity: '', beneficiaryPin: '',
-  placeOfIssue: '', issueDate: '', expiryDate: '', icegateDifferent: false, icegateId: '' };
+  placeOfIssue: '', issueDate: '', expiryDate: '', icegateDifferent: false, icegateId: '',
+};
+const DOC_FOR_OPTIONS = [{ value: 'Item', label: 'This item' }, { value: 'Invoice', label: 'Its invoice' }, { value: 'SB', label: 'Whole SB' }];
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
+const MAX_MASTER_OPTIONS = 80;
+const JOB_LIST_LIMIT = 2000;
+const IRN_PATTERN = /^\d{16}$/;
+const BOX = 'tw:grid tw:gap-2 tw:rounded-lg tw:border tw:border-border tw:bg-page tw:p-2.5';
 
-// rows saved by older screens / read from an ICEGATE file -> one shape
-export function normDoc(d, i = 0) {
-  const g = (d && d._icegate) || {};
-  const ymd = (v) => { const s = String(v || '').trim(); const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(s); return m ? `${m[1]}-${m[2]}-${m[3]}` : s; };
+const newDocId = (index = '') => `doc-${Date.now()}-${index}${Math.random().toString(36).slice(2, 6)}`;
+const ymd = (value) => {
+  const text = String(value || '').trim();
+  const parts = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(text);
+  return parts ? `${parts[1]}-${parts[2]}-${parts[3]}` : text;
+};
+
+// rows saved by older screens / read from an ICEGATE file -> one shape (the _icegate values go into the row's own fields)
+function normDoc(doc, index = 0) {
+  const icegate = doc?._icegate || {};
+  const docForOf = () => {
+    if (doc.docFor) return doc.docFor;
+    if (icegate.itemSerialNumber && +icegate.itemSerialNumber) return 'Item';
+    if (icegate.invoiceSerialNumber && +icegate.invoiceSerialNumber) return 'Invoice';
+    return doc._icegate ? 'SB' : 'Item';
+  };
   return {
-    ...EMPTY, ...d, _icegate: undefined, // all its values are now in the row's own fields (edits must be sent)
-    id: d.id || `doc-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
-    irn: d.irn || g.imageReferenceNumber || '', drn: d.drn || '', refNo: d.refNo || g.documentReferenceNo || '',
-    docCode: d.docCode || g.documentTypeCode || '', docFor: d.docFor || (g.itemSerialNumber && +g.itemSerialNumber ? 'Item' : g.invoiceSerialNumber && +g.invoiceSerialNumber ? 'Invoice' : (d._icegate ? 'SB' : 'Item')),
-    issuerCode: d.issuerCode || g.documentIssuingPartyCode || '', issuerName: d.issuerName || d.issuingParty || g.documentIssuingPartyName || '',
-    issuerAddress1: d.issuerAddress1 || d.issuerAddress || g.documentIssuingPartyNameAddress1 || '', issuerAddress2: d.issuerAddress2 || g.documentIssuingPartyNameAddress2 || '',
-    issuerCity: d.issuerCity || g.documentIssuingPartyNameCity || '', issuerPin: d.issuerPin || g.documentIssuingPartyNamePin || '',
-    beneficiaryCode: d.beneficiaryCode || g.documentBeneficiaryPartyCode || '', beneficiaryName: d.beneficiaryName || d.beneficiaryParty || g.documentBeneficiaryPartyName || '',
-    beneficiaryAddress1: d.beneficiaryAddress1 || g.documentBeneficiaryPartyNameAddress1 || '', beneficiaryAddress2: d.beneficiaryAddress2 || g.documentBeneficiaryPartyNameAddress2 || '',
-    beneficiaryCity: d.beneficiaryCity || g.documentBeneficiaryPartyNameCity || '', beneficiaryPin: d.beneficiaryPin || g.documentBeneficiaryPartyNamePin || '',
-    placeOfIssue: d.placeOfIssue || g.placeOfIssue || '', issueDate: ymd(d.issueDate || d.date || g.documentIssueDate), expiryDate: ymd(d.expiryDate || g.documentExpiryDate),
-    fileType: String(d.fileType || g.fileType || 'PDF').toUpperCase(), icegateId: d.icegateId || g.icegateId || '', icegateDifferent: !!(d.icegateDifferent || (d.icegateId && !/^\d{10,}$/.test(d.icegateId))),
+    ...EMPTY, ...doc, _icegate: undefined,
+    id: doc.id || `doc-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+    irn: doc.irn || icegate.imageReferenceNumber || '', drn: doc.drn || '', refNo: doc.refNo || icegate.documentReferenceNo || '',
+    docCode: doc.docCode || icegate.documentTypeCode || '', docFor: docForOf(),
+    issuerCode: doc.issuerCode || icegate.documentIssuingPartyCode || '', issuerName: doc.issuerName || doc.issuingParty || icegate.documentIssuingPartyName || '',
+    issuerAddress1: doc.issuerAddress1 || doc.issuerAddress || icegate.documentIssuingPartyNameAddress1 || '', issuerAddress2: doc.issuerAddress2 || icegate.documentIssuingPartyNameAddress2 || '',
+    issuerCity: doc.issuerCity || icegate.documentIssuingPartyNameCity || '', issuerPin: doc.issuerPin || icegate.documentIssuingPartyNamePin || '',
+    beneficiaryCode: doc.beneficiaryCode || icegate.documentBeneficiaryPartyCode || '', beneficiaryName: doc.beneficiaryName || doc.beneficiaryParty || icegate.documentBeneficiaryPartyName || '',
+    beneficiaryAddress1: doc.beneficiaryAddress1 || icegate.documentBeneficiaryPartyNameAddress1 || '', beneficiaryAddress2: doc.beneficiaryAddress2 || icegate.documentBeneficiaryPartyNameAddress2 || '',
+    beneficiaryCity: doc.beneficiaryCity || icegate.documentBeneficiaryPartyNameCity || '', beneficiaryPin: doc.beneficiaryPin || icegate.documentBeneficiaryPartyNamePin || '',
+    placeOfIssue: doc.placeOfIssue || icegate.placeOfIssue || '', issueDate: ymd(doc.issueDate || doc.date || icegate.documentIssueDate), expiryDate: ymd(doc.expiryDate || icegate.documentExpiryDate),
+    fileType: String(doc.fileType || icegate.fileType || 'PDF').toUpperCase(), icegateId: doc.icegateId || icegate.icegateId || '',
+    icegateDifferent: !!(doc.icegateDifferent || (doc.icegateId && !/^\d{10,}$/.test(doc.icegateId))),
   };
 }
 
-const inp = { height: '28px', padding: '0 8px', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '12px', background: '#fff', width: '100%', boxSizing: 'border-box' };
-const lab = { fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.3px' };
-const box = { border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', background: '#f8fafc', display: 'grid', gap: '8px' };
-const btn = (bg, c = '#fff') => ({ height: '30px', padding: '0 12px', border: 'none', borderRadius: '6px', background: bg, color: c, fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' });
+// ICEGATE checks of one document (SUPPORTINGDOCS: IRN, doc code, issuing party, place and date of issue, beneficiary)
+function missingOf(doc) {
+  const missing = [];
+  if (!doc.docCode) missing.push('Doc. code');
+  if (doc.irn && !IRN_PATTERN.test(doc.irn)) missing.push('IRN must be 16 digits');
+  if (!doc.irn && !doc.file) missing.push(doc.signedOnly ? 'IRN (upload the signed PDF on e-Sanchit and enter its IRN)' : 'IRN (or a PDF to upload)');
+  if (!doc.issuerName) missing.push('Issuing party name');
+  if (!doc.beneficiaryName) missing.push('Beneficiary name');
+  if (!doc.placeOfIssue) missing.push('Place of issue');
+  if (!doc.issueDate) missing.push('Issue date');
+  if (doc.issueDate && new Date(doc.issueDate) > new Date()) missing.push('Issue date is in the future');
+  if (doc.expiryDate && doc.issueDate && doc.expiryDate < doc.issueDate) missing.push('Expiry date is before the issue date');
+  if (doc.icegateDifferent && !doc.icegateId) missing.push('ICEGATE id (marked different)');
+  return missing;
+}
 
-export default function ESanchitDocsModal({ open, onClose, onSave, itemRows, exportData, setExportData, items, setItems, itemLabel, esanchitMasters, icegateProfiles, defaultIcegateId, selectedIcegateProfile, setSelectedIcegateProfile }) {
+function DocField({ label, name, form, onChange, max, upper, date, placeholder, className }) {
+  return (
+    <Field label={label} layout="col" className={className}>
+      {date
+        ? <DateInput value={form[name] || ''} onValueChange={(value) => onChange(name, value)} />
+        : <Input data-allow-text="" maxLength={max} placeholder={placeholder} value={form[name] || ''} onChange={(event) => onChange(name, upper ? event.target.value.toUpperCase() : event.target.value)} />}
+    </Field>
+  );
+}
+
+function PartyBox({ prefix, title, form, onChange, onSameAsExporter }) {
+  const box = (label, part, extra) => <DocField label={label} name={prefix + part} form={form} onChange={onChange} upper {...extra} />;
+  return (
+    <div className={BOX}>
+      <div className="tw:flex tw:items-center tw:justify-between">
+        <strong className="tw:text-entry tw:text-foreground">{title}</strong>
+        <Button variant="secondary" onClick={onSameAsExporter}>Same as exporter</Button>
+      </div>
+      <div className="tw:grid tw:grid-cols-[1fr_2fr] tw:gap-2">{box('Code', 'Code', { max: 17 })}{box('Name *', 'Name', { max: 70 })}</div>
+      {box('Address 1', 'Address1', { max: 70 })}
+      {box('Address 2', 'Address2', { max: 70 })}
+      <div className="tw:grid tw:grid-cols-[2fr_1fr] tw:gap-2">{box('City', 'City', { max: 35 })}<DocField label="Pin" name={`${prefix}Pin`} form={form} onChange={onChange} max={10} /></div>
+    </div>
+  );
+}
+
+/**
+ * e-Sanchit supporting documents of an item / its invoice / the whole SB. SB-level rows are kept on the job
+ * (exportData.eSanchitList), item / invoice rows on the item. An attached PDF is kept with the job at once
+ * (uploads/esanchit_archive/<job no>/...); a job not saved yet files under "draft" and the server moves it on Save.
+ */
+export default function ESanchitDocsModal({
+  open, onClose, onSave, itemRows, exportData, setExportData, items, setItems, itemLabel, esanchitMasters, icegateProfiles, defaultIcegateId,
+  selectedIcegateProfile, setSelectedIcegateProfile,
+}) {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editId, setEditId] = useState(null);
@@ -54,301 +115,388 @@ export default function ESanchitDocsModal({ open, onClose, onSave, itemRows, exp
   const [codeQuery, setCodeQuery] = useState('');
   const [pin, setPin] = useState('');
   const [askPin, setAskPin] = useState(false);
-  // 16-Nov-2026: EagleView Signer on this PC - the PIN is asked in its own window, not here
-  const [tool, setTool] = useState(undefined);
-  useEffect(() => { localSigner().then(setTool); }, []);
+  const [signerTool, setSignerTool] = useState(undefined);
   const [busy, setBusy] = useState(false);
 
-  const exporter = useMemo(() => ({ beneficiaryName: exportData?.shipperName || '', beneficiaryCode: exportData?.shipperIec || '', beneficiaryAddress1: exportData?.shipperAddress1 || '',
-    beneficiaryAddress2: exportData?.shipperAddress2 || '', beneficiaryCity: exportData?.shipperCity || '', beneficiaryPin: exportData?.shipperPin || '' }), [exportData]);
-  const fresh = () => ({ ...EMPTY, ...exporter, placeOfIssue: exportData?.shipperCity || '' });
+  useEffect(() => {
+    const detectSigner = async () => {
+      try {
+        setSignerTool(await localSigner());
+      } catch (error) {
+        console.error('EagleView Signer check failed:', error);
+      }
+    };
+    detectSigner();
+  }, []);
 
-  // item / invoice rows of this item + SB-level rows of the job
+  const exporter = useMemo(() => ({
+    Name: exportData?.shipperName || '', Code: exportData?.shipperIec || '', Address1: exportData?.shipperAddress1 || '',
+    Address2: exportData?.shipperAddress2 || '', City: exportData?.shipperCity || '', Pin: exportData?.shipperPin || '',
+  }), [exportData]);
+  const exporterAs = (prefix) => Object.fromEntries(Object.entries(exporter).map(([part, value]) => [prefix + part, value]));
+  const freshForm = () => ({ ...EMPTY, ...exporterAs('beneficiary'), placeOfIssue: exportData?.shipperCity || '' });
+
   useEffect(() => {
     if (!open) return;
-    const own = asList(itemRows).map(normDoc);
-    const sb = asList(exportData?.eSanchitList).map((d, i) => ({ ...normDoc(d, i), docFor: 'SB' }));
-    setRows([...own.filter(r => r.docFor !== 'SB'), ...sb]);
-    setForm(fresh()); setEditId(null); setAskPin(false); setPin('');
-  }, [open]);
+    const ownRows = asList(itemRows).map(normDoc);
+    const sbRows = asList(exportData?.eSanchitList).map((doc, index) => ({ ...normDoc(doc, index), docFor: 'SB' }));
+    setRows([...ownRows.filter((row) => row.docFor !== 'SB'), ...sbRows]);
+    setForm(freshForm());
+    setEditId(null);
+    setAskPin(false);
+    setPin('');
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!open) return null;
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const masters = (esanchitMasters || []).filter(m => !codeQuery || String(m.documentCode).includes(codeQuery) || String(m.description || '').toLowerCase().includes(codeQuery.toLowerCase())).slice(0, 80);
+  const setValue = (key, value) => setForm((previous) => ({ ...previous, [key]: value }));
+  const masters = (esanchitMasters || [])
+    .filter((master) => !codeQuery || String(master.documentCode).includes(codeQuery) || String(master.description || '').toLowerCase().includes(codeQuery.toLowerCase()))
+    .slice(0, MAX_MASTER_OPTIONS);
+  const codeOptions = [
+    ...(form.docCode && !masters.some((master) => String(master.documentCode) === String(form.docCode))
+      ? [{ value: String(form.docCode), label: `${form.docCode} ${form.docName ? `- ${form.docName}` : ''}` }] : []),
+    ...masters.map((master) => ({ value: String(master.documentCode), label: `${master.documentCode} - ${master.description}` })),
+  ];
+  const jobKey = () => String(exportData?.jobNo && exportData.jobNo !== 'DRAFT' ? exportData.jobNo : (exportData?.id ? `job-${exportData.id}` : 'draft'));
+  const pendingCount = rows.filter((row) => !row.irn && row.file).length;
 
-  // ICEGATE checks of one document (SUPPORTINGDOCS: IRN, doc code, issuing party name, place and date of issue, beneficiary name, file type)
-  const check = (r) => {
-    const e = [];
-    if (!r.docCode) e.push('Doc. code');
-    if (r.irn && !/^\d{16}$/.test(r.irn)) e.push('IRN must be 16 digits');
-    if (!r.irn && !r.file) e.push(r.signedOnly ? 'IRN (upload the signed PDF on e-Sanchit and enter its IRN)' : 'IRN (or a PDF to upload)');
-    if (!r.issuerName) e.push('Issuing party name');
-    if (!r.beneficiaryName) e.push('Beneficiary name');
-    if (!r.placeOfIssue) e.push('Place of issue');
-    if (!r.issueDate) e.push('Issue date');
-    if (r.issueDate && new Date(r.issueDate) > new Date()) e.push('Issue date is in the future');
-    if (r.expiryDate && r.issueDate && r.expiryDate < r.issueDate) e.push('Expiry date is before the issue date');
-    if (r.icegateDifferent && !r.icegateId) e.push('ICEGATE id (marked different)');
-    return e;
-  };
-  // 14-Nov-2026: as on Import - an attached PDF is kept with the job at once (uploads/esanchit_archive/<job no>/...), and the
-  // row keeps its link (fileUrl). Before, the PDF lived only in the browser: it was gone after Save + reopen unless it
-  // already had an IRN. A job not saved yet files under "draft"; the server moves it to the job no folder on Save.
-  const jobKey = () => String(exportData?.jobNo && exportData.jobNo !== 'DRAFT' ? exportData.jobNo : (exportData?.id ? 'job-' + exportData.id : 'draft'));
-  const archive = async (file, r) => {
+  const keepPdfWithJob = async (file, doc) => {
     try {
-      const fd = new FormData(); fd.append('jobNo', jobKey()); fd.append('docCode', r.docCode || ''); fd.append('irn', r.irn || ''); fd.append('pdf', file);
-      const j = await fetch('/api/icegate/esanchit-archive', { method: 'POST', body: fd }).then(x => x.json());
-      if (j && j.success) return { fileUrl: j.fileUrl };
-      toast.error('PDF could not be kept with the job: ' + ((j && j.error) || 'no answer'));
-    } catch (e) { toast.error('PDF could not be kept with the job: ' + e.message); }
+      const upload = new FormData();
+      upload.append('jobNo', jobKey());
+      upload.append('docCode', doc.docCode || '');
+      upload.append('irn', doc.irn || '');
+      upload.append('pdf', file);
+      const answer = await answerOf(exportEntryApi.keepEsanchitPdf(upload));
+      if (answer?.success) return { fileUrl: answer.fileUrl };
+      toast.error(`PDF could not be kept with the job: ${answer?.error || 'no answer'}`);
+    } catch (error) {
+      toast.error(`PDF could not be kept with the job: ${errorMessage(error)}`);
+    }
     return {};
   };
+
+  // the next document keeps issuer, beneficiary, place and dates (usually the same); the document details are emptied
   const addOrUpdate = async () => {
-    const r = { ...form, irn: String(form.irn || '').replace(/\s/g, ''), docCode: String(form.docCode || '').trim() };
-    const errs = check(r);
-    if (errs.length) { toast.error('Missing / wrong: ' + errs.join(', ')); return; }
-    if (r.irn && rows.some(x => x.irn === r.irn && x.id !== editId)) { toast.error('IRN ' + r.irn + ' is already in the list'); return; }
-    const before = editId ? rows.find(x => x.id === editId) : null;
-    if (r.file && (!before || before.file !== r.file)) { const a = await archive(r.file, r); if (a.fileUrl) { r.fileUrl = a.fileUrl; r.signedOnly = false; } }
-    if (editId) { setRows(rows.map(x => x.id === editId ? { ...r, id: editId } : x)); toast.success('Document updated'); }
-    else { setRows([...rows, { ...r, id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }]); toast.success('Document added'); }
-    // next document: issuer, beneficiary, place and dates stay (usually the same), document details are emptied
-    setForm({ ...r, id: undefined, irn: '', drn: '', refNo: '', docCode: '', docName: '', file: undefined, fileName: '', fileUrl: undefined, signedOnly: false }); setEditId(null);
+    const doc = { ...form, irn: String(form.irn || '').replace(/\s/g, ''), docCode: String(form.docCode || '').trim() };
+    const missing = missingOf(doc);
+    if (missing.length) {
+      toast.error(`Missing / wrong: ${missing.join(', ')}`);
+      return;
+    }
+    if (doc.irn && rows.some((row) => row.irn === doc.irn && row.id !== editId)) {
+      toast.error(`IRN ${doc.irn} is already in the list`);
+      return;
+    }
+    const before = editId ? rows.find((row) => row.id === editId) : null;
+    if (doc.file && (!before || before.file !== doc.file)) {
+      const kept = await keepPdfWithJob(doc.file, doc);
+      if (kept.fileUrl) {
+        doc.fileUrl = kept.fileUrl;
+        doc.signedOnly = false;
+      }
+    }
+    if (editId) {
+      setRows(rows.map((row) => (row.id === editId ? { ...doc, id: editId } : row)));
+      toast.success('Document updated');
+    } else {
+      setRows([...rows, { ...doc, id: newDocId() }]);
+      toast.success('Document added');
+    }
+    setForm({ ...doc, id: undefined, irn: '', drn: '', refNo: '', docCode: '', docName: '', file: undefined, fileName: '', fileUrl: undefined, signedOnly: false });
+    setEditId(null);
   };
-  const edit = (r) => { setForm({ ...r }); setEditId(r.id); };
-  const copyRow = (r) => { setForm({ ...r, irn: '', drn: '', file: undefined, fileName: '', fileUrl: undefined, signedOnly: false }); setEditId(null); toast('Copied to the form - enter the IRN of the new document and click Add', { icon: 'ℹ️' }); };
-  const remove = (r) => { if (window.confirm(`Remove document ${r.irn || r.fileName || r.docCode}?`)) { setRows(rows.filter(x => x.id !== r.id)); if (editId === r.id) { setEditId(null); setForm(fresh()); } } };
 
-  const attach = (e) => {
-    const f = e.target.files && e.target.files[0]; e.target.value = null; if (!f) return;
-    if (!/\.pdf$/i.test(f.name)) { toast.error('e-Sanchit takes PDF files only'); return; }
-    if (f.size > 20 * 1024 * 1024) { toast.error('File is larger than 20 MB'); return; }
-    setForm(fm => ({ ...fm, file: f, fileName: f.name, fileType: 'PDF' }));
+  const editRow = (row) => {
+    setForm({ ...row });
+    setEditId(row.id);
+  };
+  const copyRow = (row) => {
+    setForm({ ...row, irn: '', drn: '', file: undefined, fileName: '', fileUrl: undefined, signedOnly: false });
+    setEditId(null);
+    toast('Copied to the form - enter the IRN of the new document and click Add', { icon: 'ℹ️' });
+  };
+  const removeRow = async (row) => {
+    if (!(await askConfirm({ title: 'Remove document', message: `Remove document ${row.irn || row.fileName || row.docCode}?`, okLabel: 'Remove', cancelLabel: 'Keep', tone: 'danger' }))) return;
+    setRows((previous) => previous.filter((other) => other.id !== row.id));
+    if (editId === row.id) {
+      setEditId(null);
+      setForm(freshForm());
+    }
   };
 
-  // documents of another job (by its job no): rows with an IRN are added here
+  const attachPdf = ([file]) => {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name)) {
+      toast.error('e-Sanchit takes PDF files only');
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      toast.error('File is larger than 20 MB');
+      return;
+    }
+    setForm((previous) => ({ ...previous, file, fileName: file.name, fileType: 'PDF' }));
+  };
+
+  // documents with an IRN of another job (by its job no)
   const addByJobRef = async () => {
-    const no = jobRef.trim().toUpperCase();
-    if (!no) { toast.error('Enter the job no to copy documents from'); return; }
+    const jobNo = jobRef.trim().toUpperCase();
+    if (!jobNo) {
+      toast.error('Enter the job no to copy documents from');
+      return;
+    }
     try {
-      const list = await fetch('/api/export-jobs?limit=2000').then(r => r.json());
-      const hit = (list.data || []).find(j => String(j.jobNo || '').toUpperCase() === no);
-      if (!hit) { toast.error('Job ' + no + ' not found'); return; }
-      const full = await fetch('/api/export-jobs/' + hit.id).then(r => r.json());
-      const job = full.data || {};
-      const found = [...asList(job.eSanchitList).map(d => ({ ...normDoc(d), docFor: 'SB' })),
-        ...(job.invoices || []).flatMap(inv => (inv.items || []).flatMap(it => asList(it.eSanchitList).map(d => normDoc(d))))]
-        .filter(d => d.irn && !rows.some(x => x.irn === d.irn));
-      const uniq = found.filter((d, i) => found.findIndex(x => x.irn === d.irn) === i).map((d, i) => ({ ...d, id: `doc-${Date.now()}-${i}` }));
-      if (!uniq.length) { toast('No new document with an IRN in job ' + no, { icon: 'ℹ️' }); return; }
-      setRows([...rows, ...uniq]); toast.success(uniq.length + ' document(s) added from job ' + no);
-    } catch (err) { toast.error('Could not read job ' + no + ': ' + err.message); }
+      const list = await answerOf(exportEntryApi.exportJobList(JOB_LIST_LIMIT));
+      const hit = (list?.data || []).find((job) => String(job.jobNo || '').toUpperCase() === jobNo);
+      if (!hit) {
+        toast.error(`Job ${jobNo} not found`);
+        return;
+      }
+      const job = (await answerOf(exportEntryApi.exportJobById(hit.id)))?.data || {};
+      const docs = [
+        ...asList(job.eSanchitList).map((doc) => ({ ...normDoc(doc), docFor: 'SB' })),
+        ...(job.invoices || []).flatMap((invoice) => (invoice.items || []).flatMap((item) => asList(item.eSanchitList).map((doc) => normDoc(doc)))),
+      ].filter((doc) => doc.irn && !rows.some((row) => row.irn === doc.irn));
+      const unique = docs.filter((doc, index) => docs.findIndex((other) => other.irn === doc.irn) === index).map((doc, index) => ({ ...doc, id: `doc-${Date.now()}-${index}` }));
+      if (!unique.length) {
+        toast(`No new document with an IRN in job ${jobNo}`, { icon: 'ℹ️' });
+        return;
+      }
+      setRows([...rows, ...unique]);
+      toast.success(`${unique.length} document(s) added from job ${jobNo}`);
+    } catch (error) {
+      toast.error(`Could not read job ${jobNo}: ${errorMessage(error)}`);
+    }
   };
 
-  // item-level rows of this item to every other item of the job
-  const copyToAllItems = () => {
-    const mine = rows.filter(r => r.docFor !== 'SB' && r.irn);
-    if (!mine.length) { toast.error('No item / invoice document with an IRN to copy'); return; }
-    if (!items || !items.length) { toast.error('No other items'); return; }
-    if (!window.confirm(`Copy ${mine.length} document(s) to all ${items.length} item(s) of the job?`)) return;
-    setItems(items.map(it => {
-      const have = asList(it.eSanchitList).map(normDoc);
-      const add = mine.filter(r => !have.some(h => h.irn === r.irn)).map(r => ({ ...r, id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, file: undefined }));
-      return add.length ? { ...it, eSanchitList: [...have, ...add], suppDocs: 'Y' } : it;
+  const copyToAllItems = async () => {
+    const ownWithIrn = rows.filter((row) => row.docFor !== 'SB' && row.irn);
+    if (!ownWithIrn.length) {
+      toast.error('No item / invoice document with an IRN to copy');
+      return;
+    }
+    if (!items?.length) {
+      toast.error('No other items');
+      return;
+    }
+    if (!(await askConfirm({ title: 'Copy to all items', message: `Copy ${ownWithIrn.length} document(s) to all ${items.length} item(s) of the job?`, okLabel: 'Copy', cancelLabel: 'Do not copy' }))) return;
+    setItems(items.map((item) => {
+      const have = asList(item.eSanchitList).map(normDoc);
+      const added = ownWithIrn.filter((row) => !have.some((doc) => doc.irn === row.irn)).map((row) => ({ ...row, id: newDocId(), file: undefined }));
+      return added.length ? { ...item, eSanchitList: [...have, ...added], suppDocs: 'Y' } : item;
     }));
     toast.success('Documents copied to the items');
   };
 
-  // sign (local DSC signer) and upload the PDFs that have no IRN yet
-  const uploadPending = async () => {
-    const pending = rows.filter(r => !r.irn && r.file);
-    if (!pending.length) { toast.error('No PDF waiting for upload'); return; }
+  // signs (EagleView Signer on this PC, else the PIN typed here) and sends the PDFs that have no IRN yet. Without the
+  // e-Sanchit portal upload the server keeps the signed PDF: the operator uploads it on the portal and types the IRN.
+  const signPending = async () => {
+    if (!pendingCount) {
+      toast.error('No PDF waiting for upload');
+      return;
+    }
     setBusy(true);
-    let ok = 0, signedOnly = 0; const next = [...rows];
+    let uploaded = 0;
+    let signedOnly = 0;
+    const next = [...rows];
     try {
-      for (let i = 0; i < next.length; i++) {
-        const d = next[i]; if (d.irn || !d.file) continue;
-        let sg;
-        try { sg = await signPdf(d.file, tool ? '' : pin, 'e-Sanchit document ' + d.docCode + (jobKey() ? ' - job ' + jobKey() : '')); }
-        catch (err) { if (err.cancelled) { toast('Signing cancelled in EagleView Signer.', { icon: 'ℹ️' }); break; } throw err; }
-        const signed = new File([sg.blob], 'signed_' + d.fileName, { type: 'application/pdf' });
-        // 14-Nov-2026: the text fields go before the file (the server files the PDF under the job no; without it the
-        // signed PDF went to the "misc" folder and was not linked to the row)
-        const uf = new FormData(); uf.append('jobNo', jobKey()); uf.append('documentCode', d.docCode); uf.append('irn', d.irn || ''); uf.append('profileId', selectedIcegateProfile || ''); uf.append('pdf', signed);
-        const ur = await fetch('/api/icegate/upload-esanchit', { method: 'POST', body: uf }).then(r => r.json());
-        if (ur.success && /^\d{16}$/.test(String(ur.irn || ''))) { next[i] = { ...d, irn: ur.irn, drn: d.drn || ur.drn || '', file: undefined, fileName: signed.name, fileUrl: ur.fileUrl || d.fileUrl, signedOnly: false }; ok++; }
-        // signed with the DSC and saved, not uploaded (the e-Sanchit portal upload is done by hand): the row keeps the
-        // signed PDF; the operator uploads it on the portal and types the IRN. Before, this showed "Upload ... failed".
-        else if (ur.signedOnly) { next[i] = { ...d, file: undefined, fileName: signed.name, fileUrl: ur.fileUrl || d.fileUrl, signedOnly: true }; signedOnly++; }
-        else toast.error('Upload of ' + d.fileName + ' failed: ' + (ur.error || 'no answer'));
+      for (let index = 0; index < next.length; index++) {
+        const doc = next[index];
+        if (doc.irn || !doc.file) continue;
+        let signature;
+        try {
+          signature = await signPdf(doc.file, signerTool ? '' : pin, `e-Sanchit document ${doc.docCode}${jobKey() ? ` - job ${jobKey()}` : ''}`);
+        } catch (error) {
+          if (error.cancelled) {
+            toast('Signing cancelled in EagleView Signer.', { icon: 'ℹ️' });
+            break;
+          }
+          throw error;
+        }
+        const signed = new File([signature.blob], `signed_${doc.fileName}`, { type: 'application/pdf' });
+        // the text fields go before the file: the server files the PDF under the job no
+        const upload = new FormData();
+        upload.append('jobNo', jobKey());
+        upload.append('documentCode', doc.docCode);
+        upload.append('irn', doc.irn || '');
+        upload.append('profileId', selectedIcegateProfile || '');
+        upload.append('pdf', signed);
+        const answer = await answerOf(exportEntryApi.uploadEsanchitPdf(upload));
+        if (answer.success && IRN_PATTERN.test(String(answer.irn || ''))) {
+          next[index] = { ...doc, irn: answer.irn, drn: doc.drn || answer.drn || '', file: undefined, fileName: signed.name, fileUrl: answer.fileUrl || doc.fileUrl, signedOnly: false };
+          uploaded++;
+        } else if (answer.signedOnly) {
+          next[index] = { ...doc, file: undefined, fileName: signed.name, fileUrl: answer.fileUrl || doc.fileUrl, signedOnly: true };
+          signedOnly++;
+        } else {
+          toast.error(`Upload of ${doc.fileName} failed: ${answer.error || 'no answer'}`);
+        }
       }
       setRows(next);
-      if (ok) toast.success(ok + ' IRN(s) received');
-      if (signedOnly) toast(signedOnly + ' PDF(s) signed with the DSC and saved with the job. Upload them on the e-Sanchit portal and enter the 16-digit IRN here (Edit the row).', { duration: 10000, icon: '✍️' });
-      if (ok || signedOnly) { setAskPin(false); setPin(''); }
-    } catch (err) { toast.error(err.message); } finally { setBusy(false); }
+      if (uploaded) toast.success(`${uploaded} IRN(s) received`);
+      if (signedOnly) toast(`${signedOnly} PDF(s) signed with the DSC and saved with the job. Upload them on the e-Sanchit portal and enter the 16-digit IRN here (Edit the row).`, { duration: 10000, icon: '✍️' });
+      if (uploaded || signedOnly) {
+        setAskPin(false);
+        setPin('');
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const save = () => {
-    const bad = rows.map(r => ({ r, e: check(r) })).filter(x => x.e.length);
-    if (bad.length && !window.confirm(`${bad.length} document(s) are incomplete (${bad[0].e.join(', ')}).\nICEGATE rejects incomplete documents. Save anyway?`)) return;
-    const sbRows = rows.filter(r => r.docFor === 'SB').map(r => ({ ...r, file: undefined }));
-    setExportData(prev => ({ ...prev, eSanchitList: sbRows }));
-    onSave(rows.filter(r => r.docFor !== 'SB').map(r => ({ ...r, file: r.irn ? undefined : r.file })));
+  const save = async () => {
+    const incomplete = rows.map((row) => ({ row, missing: missingOf(row) })).filter((entry) => entry.missing.length);
+    if (incomplete.length && !(await askConfirm({
+      title: 'Incomplete documents',
+      message: `${incomplete.length} document(s) are incomplete (${incomplete[0].missing.join(', ')}).`,
+      note: 'ICEGATE rejects incomplete documents.',
+      okLabel: 'Save anyway', cancelLabel: 'Go back', tone: 'warn',
+    }))) return;
+    setExportData((previous) => ({ ...previous, eSanchitList: rows.filter((row) => row.docFor === 'SB').map((row) => ({ ...row, file: undefined })) }));
+    onSave(rows.filter((row) => row.docFor !== 'SB').map((row) => ({ ...row, file: row.irn ? undefined : row.file })));
   };
 
-  const F = (label, k, extra = {}) => (
-    <label style={{ display: 'grid', gap: '3px' }}><span style={lab}>{label}</span>
-      <input style={{ ...inp, ...(extra.style || {}) }} value={form[k] || ''} maxLength={extra.max} type={extra.type || 'text'} placeholder={extra.ph || ''}
-        onChange={e => set(k, extra.upper ? e.target.value.toUpperCase() : e.target.value)} /></label>);
-  const party = (p, title) => (
-    <div style={box}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <strong style={{ fontSize: '12px', color: '#0f172a' }}>{title}</strong>
-        <button type="button" style={btn('#e0f2fe', '#0369a1')} onClick={() => setForm(f => ({ ...f, [p + 'Name']: exporter.beneficiaryName, [p + 'Code']: exporter.beneficiaryCode, [p + 'Address1']: exporter.beneficiaryAddress1, [p + 'Address2']: exporter.beneficiaryAddress2, [p + 'City']: exporter.beneficiaryCity, [p + 'Pin']: exporter.beneficiaryPin }))}>Same as exporter</button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '8px' }}>{F('Code', p + 'Code', { max: 17, upper: true })}{F('Name *', p + 'Name', { max: 70, upper: true })}</div>
-      {F('Address 1', p + 'Address1', { max: 70, upper: true })}{F('Address 2', p + 'Address2', { max: 70, upper: true })}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>{F('City', p + 'City', { max: 35, upper: true })}{F('Pin', p + 'Pin', { max: 10 })}</div>
-    </div>);
-  const pending = rows.filter(r => !r.irn && r.file).length;
+  const textColumn = (key, header, className) => ({ key, header, className: cn('tw:max-w-[150px] tw:truncate', className), cell: (row) => <span title={row[key]}>{row[key]}</span> });
+  const columns = [
+    {
+      key: 'actions', header: '',
+      cell: (row) => (
+        <span className="tw:inline-flex tw:gap-0.5">
+          <Button variant="ghost" size="icon-sm" title="Edit" aria-label="Edit document" onClick={() => editRow(row)}><Edit2 /></Button>
+          <Button variant="ghost" size="icon-sm" className="tw:text-primary" title="Copy to the form" aria-label="Copy document" onClick={() => copyRow(row)}><Copy /></Button>
+          <Button variant="ghost" size="icon-sm" className="tw:text-destructive" title="Remove" aria-label="Remove document" onClick={() => removeRow(row)}><Trash2 /></Button>
+          {row.fileUrl && (
+            <Button variant="ghost" size="icon-sm" className="tw:text-success" aria-label="Download PDF"
+              title={`Download ${shortPdfName(row)}${row.signedOnly ? ' - upload it on e-Sanchit' : ''}`} onClick={() => downloadPdf(row)}>
+              <Download />
+            </Button>
+          )}
+        </span>
+      ),
+    },
+    { key: 'serial', header: 'Sr', cell: (row, index) => index + 1 },
+    { key: 'docFor', header: 'For', cell: (row) => (row.docFor === 'SB' ? 'SB' : row.docFor === 'Invoice' ? 'Invoice' : 'Item') },
+    {
+      key: 'irn', header: 'IRN',
+      cell: (row) => <b className={row.irn ? 'tw:text-success' : 'tw:text-destructive'}>{row.irn || (row.file ? 'to sign' : row.signedOnly ? 'signed - enter IRN' : '-')}</b>,
+    },
+    { key: 'drn', header: 'DRN' },
+    { key: 'refNo', header: 'Ref. No' },
+    { key: 'docCode', header: 'Doc Code', cell: (row) => <span title={row.docName}>{row.docCode}</span> },
+    {
+      key: 'file', header: 'File', className: 'tw:max-w-[140px] tw:truncate',
+      cell: (row) => (row.fileUrl
+        ? <a href={row.fileUrl} target="_blank" rel="noreferrer" title={`Open ${row.fileName || 'PDF'}`}>{row.fileName || 'PDF'}</a>
+        : <span title={row.fileName}>{row.fileName}</span>),
+    },
+    textColumn('issuerName', 'Issued by'),
+    textColumn('beneficiaryName', 'Beneficiary'),
+    { key: 'placeOfIssue', header: 'Place' },
+    { key: 'issueDate', header: 'Issue' },
+    { key: 'expiryDate', header: 'Expiry' },
+    {
+      key: 'status', header: 'Status',
+      cell: (row) => {
+        const missing = missingOf(row);
+        return <span className={cn('tw:font-semibold', missing.length ? 'tw:text-warning' : 'tw:text-success')} title={missing.join(', ')}>{missing.length ? `⚠ ${missing.length} missing` : 'OK'}</span>;
+      },
+    },
+  ];
+
+  const signButtonTitle = signerTool
+    ? 'Sign with the DSC token of this PC - EagleView Signer asks the PIN in its own window; the signed PDF is kept with the job. Then upload it on the e-Sanchit portal and enter the IRN'
+    : 'Sign the attached PDFs with your DSC token (Local Signer, port 5050); the signed PDF is kept with the job. Then upload it on the e-Sanchit portal and enter the IRN';
+  const signControls = askPin ? (
+    <>
+      <Label className="tw:font-bold tw:text-primary">DSC token PIN</Label>
+      <Input type="password" className="tw:w-[110px]" value={pin} onChange={(event) => setPin(event.target.value)} autoFocus />
+      {(icegateProfiles || []).length > 1 && (
+        <SelectBox className="tw:w-[170px]" options={icegateProfiles.map((profile) => ({ value: String(profile.id), label: `${profile.loginId} (${profile.profileName})` }))}
+          value={selectedIcegateProfile} onValueChange={setSelectedIcegateProfile} />
+      )}
+      <Button variant="default" disabled={busy || !pin} onClick={signPending}><Upload /> {busy ? 'Signing...' : 'Sign with DSC'}</Button>
+      <Button onClick={() => setAskPin(false)}>Cancel</Button>
+    </>
+  ) : (
+    <Button variant="default" disabled={!pendingCount || busy} title={signButtonTitle} onClick={() => (signerTool ? signPending() : setAskPin(true))}>
+      <Upload /> {busy ? 'Signing - see EagleView Signer...' : `Sign ${pendingCount} PDF(s)`}
+    </Button>
+  );
 
   return (
-    // rendered on <body>: inside the Items panel the window was placed and cut by the panel (went off the screen). 29-Oct-2026
-    <BodyPortal>
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px', boxSizing: 'border-box' }}>
-      <div style={{ width: '100%', maxWidth: '1180px', maxHeight: 'calc(100vh - 24px)', background: '#fff', borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,.25)', overflow: 'hidden' }}>
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', flexShrink: 0 }}>
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>e-Sanchit Supporting Documents</div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{itemLabel} · Job {exportData?.jobNo || 'not saved'} · Exporter {exportData?.shipperName || '-'}</div>
-          </div>
-          <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+    <Modal
+      open={open}
+      title="e-Sanchit Supporting Documents"
+      description={`${itemLabel} · Job ${exportData?.jobNo || 'not saved'} · Exporter ${exportData?.shipperName || '-'}`}
+      width={1180}
+      closeOnOutside={false}
+      onClose={onClose}
+      footer={(
+        <>
+          <div className="tw:mr-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2">{signControls}</div>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="success" onClick={save}><Save /> OK - keep {rows.length} document(s)</Button>
+        </>
+      )}
+    >
+      <div className={cn(BOX, 'tw:grid-cols-1 tw:items-end tw:md:grid-cols-3 tw:lg:grid-cols-[1.2fr_1.2fr_1fr_2fr_1.4fr]')}>
+        <DocField label="IRN (16 digits)" name="irn" form={form} onChange={setValue} max={16} placeholder="from e-Sanchit" />
+        <DocField label="DRN" name="drn" form={form} onChange={setValue} max={35} />
+        <DocField label="Doc. Ref. No." name="refNo" form={form} onChange={setValue} max={35} upper placeholder="e.g. invoice no" />
+        <div className="tw:flex tw:min-w-0 tw:flex-col tw:gap-1">
+          <Field label="Doc. Code *" layout="col">
+            <Input className="tw:w-[90px] tw:flex-none" maxLength={6} placeholder="CODE" value={form.docCode || ''} onChange={(event) => setValue('docCode', event.target.value.replace(/\D/g, ''))} />
+            <SelectBox clearable clearLabel="-- choose from master --" placeholder="-- choose from master --" options={codeOptions} value={form.docCode || ''}
+              onValueChange={(code) => {
+                const master = (esanchitMasters || []).find((row) => String(row.documentCode) === code);
+                setForm((previous) => ({ ...previous, docCode: code, docName: master ? master.description : '' }));
+              }} />
+          </Field>
+          <Input data-allow-text="" leftIcon={Search} className="tw:h-5 tw:text-[10px]" placeholder="filter doc codes" value={codeQuery} onChange={(event) => setCodeQuery(event.target.value)} />
         </div>
+        <Field label="PDF file" layout="col">
+          <FileButton variant="secondary" accept=".pdf" onFiles={attachPdf}><FileUp /> Attach</FileButton>
+          <span className="tw:max-w-[130px] tw:truncate tw:text-[10px] tw:text-muted-foreground" title={form.fileName}>{form.fileName || 'no file'}</span>
+        </Field>
+      </div>
 
-        <div style={{ padding: '14px 18px', overflowY: 'auto', display: 'grid', gap: '12px', flex: '1 1 auto', minHeight: 0, alignContent: 'start' }}>
-          {/* document */}
-          <div style={{ ...box, gridTemplateColumns: '1.2fr 1.2fr 1fr 2fr 1.4fr', alignItems: 'end' }}>
-            {F('IRN (16 digits)', 'irn', { max: 16, ph: 'from e-Sanchit' })}
-            {F('DRN', 'drn', { max: 35 })}
-            {F('Doc. Ref. No.', 'refNo', { max: 35, upper: true, ph: 'e.g. invoice no' })}
-            <label style={{ display: 'grid', gap: '3px' }}><span style={lab}>Doc. Code *</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <input style={{ ...inp, width: '90px' }} value={form.docCode || ''} maxLength={6} onChange={e => set('docCode', e.target.value.replace(/\D/g, ''))} placeholder="CODE" />
-                <select style={{ ...inp }} value={form.docCode || ''} onChange={e => { const m = (esanchitMasters || []).find(x => String(x.documentCode) === e.target.value); setForm(f => ({ ...f, docCode: e.target.value, docName: m ? m.description : '' })); }}>
-                  <option value="">-- choose from master --</option>
-                  {form.docCode && !masters.some(m => String(m.documentCode) === String(form.docCode)) && <option value={form.docCode}>{form.docCode} {form.docName ? '- ' + form.docName : ''}</option>}
-                  {masters.map(m => <option key={m.id || m.documentCode} value={m.documentCode}>{m.documentCode} - {m.description}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Search size={11} color="#94a3b8" /><input style={{ ...inp, height: '22px', fontSize: '10px' }} placeholder="filter doc codes" value={codeQuery} onChange={e => setCodeQuery(e.target.value)} /></div>
-            </label>
-            <label style={{ display: 'grid', gap: '3px' }}><span style={lab}>PDF file</span>
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <input type="file" id="esanchitPdf" accept=".pdf" style={{ display: 'none' }} onChange={attach} />
-                <button type="button" style={btn('#eef2ff', '#4338ca')} onClick={() => document.getElementById('esanchitPdf').click()}><FileUp size={13} /> Attach</button>
-                <span style={{ fontSize: '10px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '130px' }} title={form.fileName}>{form.fileName || 'no file'}</span>
-              </div>
-            </label>
-          </div>
+      <div className="tw:grid tw:grid-cols-1 tw:gap-3 tw:lg:grid-cols-2">
+        <PartyBox prefix="issuer" title="Document issued by" form={form} onChange={setValue} onSameAsExporter={() => setForm((previous) => ({ ...previous, ...exporterAs('issuer') }))} />
+        <PartyBox prefix="beneficiary" title="Beneficiary (in whose name)" form={form} onChange={setValue} onSameAsExporter={() => setForm((previous) => ({ ...previous, ...exporterAs('beneficiary') }))} />
+      </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {party('issuer', 'Document issued by')}
-            {party('beneficiary', 'Beneficiary (in whose name)')}
-          </div>
-
-          <div style={{ ...box, gridTemplateColumns: '1.4fr 1fr 1fr .8fr 1.1fr 1.6fr', alignItems: 'end' }}>
-            {F('Place of issue *', 'placeOfIssue', { max: 35, upper: true })}
-            {F('Issue date *', 'issueDate', { type: 'date' })}
-            {F('Expiry date', 'expiryDate', { type: 'date' })}
-            <label style={{ display: 'grid', gap: '3px' }}><span style={lab}>File type</span>
-              <select style={inp} value={form.fileType || 'PDF'} onChange={e => set('fileType', e.target.value)}><option>PDF</option></select></label>
-            <label style={{ display: 'grid', gap: '3px' }}><span style={lab}>Document for</span>
-              <select style={inp} value={form.docFor} onChange={e => set('docFor', e.target.value)}>
-                <option value="Item">This item</option><option value="Invoice">Its invoice</option><option value="SB">Whole SB</option>
-              </select></label>
-            <div style={{ display: 'grid', gap: '4px' }}>
-              <label style={{ display: 'flex', gap: '6px', alignItems: 'center', fontSize: '11px', fontWeight: 600, color: '#334155' }}>
-                <input type="checkbox" checked={!!form.icegateDifferent} onChange={e => setForm(f => ({ ...f, icegateDifferent: e.target.checked, icegateId: e.target.checked ? f.icegateId : '' }))} />
-                Uploaded with another ICEGATE id {defaultIcegateId ? <span style={{ color: '#94a3b8', fontWeight: 400 }}>(default {defaultIcegateId})</span> : null}
-              </label>
-              {form.icegateDifferent && <input style={inp} placeholder="ICEGATE ID" value={form.icegateId || ''} maxLength={25} onChange={e => set('icegateId', e.target.value.toUpperCase())} />}
-            </div>
-          </div>
-          <div style={{ fontSize: '10px', color: '#b45309' }}>A statement-level document (whole shipping bill) must use "Whole SB". Fields marked * are needed by ICEGATE.</div>
-
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button type="button" style={btn('#16a34a')} onClick={addOrUpdate}>{editId ? <><Save size={13} /> Update document</> : <><Plus size={13} /> Add document</>}</button>
-            {editId && <button type="button" style={btn('#f1f5f9', '#334155')} onClick={() => { setEditId(null); setForm(fresh()); }}>Cancel edit</button>}
-            <span style={{ width: '1px', height: '22px', background: '#e2e8f0' }} />
-            <input style={{ ...inp, width: '170px' }} placeholder="Job no to copy from" value={jobRef} onChange={e => setJobRef(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addByJobRef(); }} />
-            <button type="button" style={btn('#0284c7')} onClick={addByJobRef}><Plus size={13} /> Add by job no</button>
-            <button type="button" style={btn('#7c3aed')} onClick={copyToAllItems} title="Copy this item's documents (with IRN) to every item of the job"><Copy size={13} /> Copy to all items</button>
-          </div>
-
-          {/* list */}
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'auto', maxHeight: '230px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', whiteSpace: 'nowrap' }}>
-              <thead style={{ background: '#f1f5f9', position: 'sticky', top: 0 }}>
-                <tr>{['', 'Sr', 'For', 'IRN', 'DRN', 'Ref. No', 'Doc Code', 'File', 'Issued by', 'Beneficiary', 'Place', 'Issue', 'Expiry', 'Status'].map(h => <th key={h} style={{ padding: '7px 8px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>{h}</th>)}</tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 && <tr><td colSpan={14} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>No document yet - fill the form above and click Add document</td></tr>}
-                {rows.map((r, i) => {
-                  const e = check(r);
-                  return (
-                    <tr key={r.id} style={{ background: editId === r.id ? '#fefce8' : i % 2 ? '#fcfcfd' : '#fff', borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '5px 8px', display: 'flex', gap: '8px' }}>
-                        <Edit2 size={13} style={{ cursor: 'pointer', color: '#0f172a' }} onClick={() => edit(r)} />
-                        <Copy size={13} style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => copyRow(r)} />
-                        <Trash2 size={13} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => remove(r)} />
-                        {r.fileUrl && <span title={'Download ' + shortPdfName(r) + (r.signedOnly ? ' - upload it on e-Sanchit' : '')} style={{ display: 'inline-flex' }}><Download size={13} style={{ cursor: 'pointer', color: '#15803d' }} aria-label="Download PDF" onClick={() => downloadPdf(r)} /></span>}
-                      </td>
-                      <td style={{ padding: '5px 8px' }}>{i + 1}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.docFor === 'SB' ? 'SB' : r.docFor === 'Invoice' ? 'Invoice' : 'Item'}</td>
-                      <td style={{ padding: '5px 8px', fontWeight: 700, color: r.irn ? '#15803d' : '#b91c1c' }}>{r.irn || (r.file ? 'to sign' : r.signedOnly ? 'signed - enter IRN' : '-')}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.drn}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.refNo}</td>
-                      <td style={{ padding: '5px 8px' }} title={r.docName}>{r.docCode}</td>
-                      <td style={{ padding: '5px 8px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.fileName}>{r.fileUrl ? <a href={r.fileUrl} target="_blank" rel="noreferrer" title={'Open ' + (r.fileName || 'PDF')}>{r.fileName || 'PDF'}</a> : r.fileName}</td>
-                      <td style={{ padding: '5px 8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.issuerName}>{r.issuerName}</td>
-                      <td style={{ padding: '5px 8px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.beneficiaryName}>{r.beneficiaryName}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.placeOfIssue}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.issueDate}</td>
-                      <td style={{ padding: '5px 8px' }}>{r.expiryDate}</td>
-                      <td style={{ padding: '5px 8px', color: e.length ? '#b45309' : '#15803d', fontWeight: 600 }} title={e.join(', ')}>{e.length ? '⚠ ' + e.length + ' missing' : 'OK'}</td>
-                    </tr>);
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{ flexShrink: 0, padding: '12px 18px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {askPin ? (
-              <>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: '#6d28d9' }}>DSC token PIN</span>
-                <input type="password" style={{ ...inp, width: '110px' }} value={pin} onChange={e => setPin(e.target.value)} autoFocus />
-                {(icegateProfiles || []).length > 1 && (
-                  <select style={{ ...inp, width: '170px' }} value={selectedIcegateProfile || ''} onChange={e => setSelectedIcegateProfile(e.target.value)}>
-                    {icegateProfiles.map(p => <option key={p.id} value={p.id}>{p.loginId} ({p.profileName})</option>)}
-                  </select>)}
-                <button type="button" disabled={busy || !pin} style={{ ...btn(busy || !pin ? '#a5b4fc' : '#4f46e5') }} onClick={uploadPending}><Upload size={13} /> {busy ? 'Signing...' : 'Sign with DSC'}</button>
-                <button type="button" style={btn('#f1f5f9', '#334155')} onClick={() => setAskPin(false)}>Cancel</button>
-              </>
-            ) : (
-              <button type="button" disabled={!pending || busy} style={btn(pending && !busy ? '#4f46e5' : '#cbd5e1')} onClick={() => (tool ? uploadPending() : setAskPin(true))} title={tool ? "Sign with the DSC token of this PC - EagleView Signer asks the PIN in its own window; the signed PDF is kept with the job. Then upload it on the e-Sanchit portal and enter the IRN" : "Sign the attached PDFs with your DSC token (Local Signer, port 5050); the signed PDF is kept with the job. Then upload it on the e-Sanchit portal and enter the IRN"}><Upload size={13} /> {busy ? 'Signing - see EagleView Signer...' : 'Sign ' + pending + ' PDF(s)'}</button>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" style={btn('#fff', '#334155')} onClick={onClose}>Cancel</button>
-            <button type="button" style={btn('#16a34a')} onClick={save}><Save size={13} /> OK - keep {rows.length} document(s)</button>
-          </div>
+      <div className={cn(BOX, 'tw:grid-cols-1 tw:items-end tw:sm:grid-cols-2 tw:lg:grid-cols-[1.4fr_1fr_1fr_.8fr_1.1fr_1.6fr]')}>
+        <DocField label="Place of issue *" name="placeOfIssue" form={form} onChange={setValue} max={35} upper />
+        <DocField label="Issue date *" name="issueDate" form={form} onChange={setValue} date />
+        <DocField label="Expiry date" name="expiryDate" form={form} onChange={setValue} date />
+        <Field label="File type" layout="col"><SelectBox options={['PDF']} value={form.fileType || 'PDF'} onValueChange={(type) => setValue('fileType', type)} /></Field>
+        <Field label="Document for" layout="col"><SelectBox options={DOC_FOR_OPTIONS} value={form.docFor} onValueChange={(docFor) => setValue('docFor', docFor)} /></Field>
+        <div className="tw:grid tw:gap-1">
+          <Label className="tw:cursor-pointer tw:gap-1.5 tw:text-[11px] tw:font-semibold tw:whitespace-normal">
+            <Checkbox checked={!!form.icegateDifferent}
+              onCheckedChange={(checked) => setForm((previous) => ({ ...previous, icegateDifferent: checked === true, icegateId: checked === true ? previous.icegateId : '' }))} />
+            Uploaded with another ICEGATE id {defaultIcegateId ? <span className="tw:font-normal tw:text-muted-foreground">(default {defaultIcegateId})</span> : null}
+          </Label>
+          {form.icegateDifferent && (
+            <Input data-allow-text="" placeholder="ICEGATE ID" maxLength={25} value={form.icegateId || ''} onChange={(event) => setValue('icegateId', event.target.value.toUpperCase())} />
+          )}
         </div>
       </div>
-    </div>
-    </BodyPortal>
+      <p className="tw:m-0 tw:text-[10px] tw:text-warning tw:normal-case">A statement-level document (whole shipping bill) must use "Whole SB". Fields marked * are needed by ICEGATE.</p>
+
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+        <Button variant="success" onClick={addOrUpdate}>{editId ? <><Save /> Update document</> : <><Plus /> Add document</>}</Button>
+        {editId && <Button onClick={() => { setEditId(null); setForm(freshForm()); }}>Cancel edit</Button>}
+        <span className="tw:h-[22px] tw:w-px tw:bg-border" />
+        <Input data-allow-text="" className="tw:w-[170px]" placeholder="Job no to copy from" value={jobRef} onChange={(event) => setJobRef(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') addByJobRef(); }} />
+        <Button variant="default" onClick={addByJobRef}><Plus /> Add by job no</Button>
+        <Button variant="secondary" title="Copy this item's documents (with IRN) to every item of the job" onClick={copyToAllItems}><Copy /> Copy to all items</Button>
+      </div>
+
+      <DataTable columns={columns} rows={rows} selectedKey={editId} emptyText="No document yet - fill the form above and click Add document"
+        containerClassName="tw:max-h-[230px] tw:rounded-lg tw:border tw:border-border" />
+    </Modal>
   );
 }

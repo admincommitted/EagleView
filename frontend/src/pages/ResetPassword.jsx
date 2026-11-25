@@ -1,73 +1,118 @@
-// ResetPassword.jsx (28-Oct-2026)
-// Opened from the e-mailed link /reset-password?token=... ; sets a new password with POST /api/auth/reset-password.
-import React, { useState } from 'react';
+// Opened from the e-mailed link /reset-password?token=... ; sets a new password.
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, Input, Label } from '@/components/ui';
+import { authApi } from './authApi';
+
+const MIN_LENGTH = 8;
+const PASSWORD_BOX = 'tw:h-auto tw:rounded-lg tw:py-3 tw:pr-10 tw:pl-10 tw:text-[15px]';
+
+function PasswordBox({ id, label, children }) {
+  return (
+    <div className="tw:mb-3.5">
+      <Label htmlFor={id} className="tw:mb-1.5 tw:font-semibold">{label}</Label>
+      <div className="tw:relative">
+        <Lock className="tw:pointer-events-none tw:absolute tw:top-1/2 tw:left-3 tw:size-4 tw:-translate-y-1/2 tw:text-muted-foreground" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Notice({ tone, children }) {
+  return (
+    <div className={cn('tw:mb-3.5 tw:rounded-lg tw:border tw:px-3 tw:py-2.5 tw:text-[13px]', tone === 'error' ? 'tw:border-destructive/30 tw:bg-destructive/10 tw:text-destructive' : 'tw:border-success/30 tw:bg-success/10 tw:text-success')}>
+      {children}
+    </div>
+  );
+}
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
   const token = params.get('token') || '';
   const navigate = useNavigate();
-  const [pwd, setPwd] = useState('');
-  const [pwd2, setPwd2] = useState('');
-  const [show, setShow] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(token ? '' : 'This reset link is broken. Please ask for a new one from the login page.');
   const [done, setDone] = useState('');
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const submit = async (event) => {
+    event.preventDefault();
     setError('');
-    if (pwd.length < 8) return setError('New password must be at least 8 characters.');
-    if (pwd !== pwd2) return setError('The two passwords do not match.');
+    if (password.length < MIN_LENGTH) { setError(`New password must be at least ${MIN_LENGTH} characters.`); return; }
+    if (password !== confirmation) { setError('The two passwords do not match.'); return; }
     setBusy(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword: pwd })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) { setDone(data.message || 'Password changed.'); setTimeout(() => navigate('/login'), 2500); }
-      else setError(data.error || 'Could not reset the password.');
-    } catch (err) {
-      setError('Cannot connect to server');
-    } finally { setBusy(false); }
+      const answer = await authApi.resetPassword(token, password);
+      setDone(answer?.message || 'Password changed.');
+      setTimeout(() => navigate('/login'), 2500);
+    } catch (requestError) {
+      const answer = requestError.response?.data;
+      if (!requestError.response) setError('Cannot connect to server');
+      else setError((typeof answer === 'object' && answer?.error) || 'Could not reset the password.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const box = { width: '100%', padding: '12px 14px 12px 40px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 15, boxSizing: 'border-box', outline: 'none' };
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)', padding: 16 }}>
-      <form onSubmit={submit} style={{ width: '100%', maxWidth: 400, background: '#fff', borderRadius: 14, padding: 32, boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <ShieldCheck size={22} color="#2563eb" />
-          <h2 style={{ margin: 0, fontSize: 20, color: '#0f172a' }}>Set a new password</h2>
+    <div className="tw:flex tw:min-h-screen tw:items-center tw:justify-center tw:bg-linear-135 tw:from-slate-900 tw:to-primary tw:p-4">
+      <form onSubmit={submit} className="tw:w-full tw:max-w-[400px] tw:rounded-[14px] tw:bg-background tw:p-8 tw:shadow-2xl">
+        <div className="tw:mb-1.5 tw:flex tw:items-center tw:gap-2.5">
+          <ShieldCheck className="tw:size-[22px] tw:text-primary" />
+          <h2 className="tw:m-0 tw:text-xl tw:text-foreground">Set a new password</h2>
         </div>
-        <p style={{ margin: '0 0 22px', color: '#64748b', fontSize: 13 }}>Committed Cargo Care - EagleView</p>
+        <p className="tw:mt-0 tw:mb-[22px] tw:text-[13px] tw:text-muted-foreground">Committed Cargo Care - EagleView</p>
 
-        {error && <div style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{error}</div>}
-        {done && <div style={{ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 14 }}>{done} Taking you to login...</div>}
+        {error && <Notice tone="error">{error}</Notice>}
+        {done && <Notice tone="success">{done} Taking you to login...</Notice>}
 
         {!done && token && (
           <>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>New password</label>
-            <div style={{ position: 'relative', margin: '6px 0 14px' }}>
-              <Lock size={16} color="#94a3b8" style={{ position: 'absolute', left: 13, top: 14 }} />
-              <input type={show ? 'text' : 'password'} value={pwd} onChange={e => setPwd(e.target.value)} style={box} autoFocus autoComplete="new-password" placeholder="At least 8 characters" />
-              <span onClick={() => setShow(s => !s)} style={{ position: 'absolute', right: 12, top: 12, cursor: 'pointer', color: '#94a3b8' }}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</span>
-            </div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Confirm new password</label>
-            <div style={{ position: 'relative', margin: '6px 0 20px' }}>
-              <Lock size={16} color="#94a3b8" style={{ position: 'absolute', left: 13, top: 14 }} />
-              <input type={show ? 'text' : 'password'} value={pwd2} onChange={e => setPwd2(e.target.value)} style={box} autoComplete="new-password" />
-            </div>
-            <button type="submit" disabled={busy} style={{ width: '100%', padding: 12, border: 'none', borderRadius: 8, background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 15, cursor: busy ? 'wait' : 'pointer' }}>
+            <PasswordBox id="new-password" label="New password">
+              <Input
+                id="new-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoFocus
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                data-allow-text=""
+                className={PASSWORD_BOX}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="tw:absolute tw:top-1/2 tw:right-2 tw:-translate-y-1/2 tw:text-muted-foreground tw:hover:bg-transparent"
+                onClick={() => setShowPassword((shown) => !shown)}
+              >
+                {showPassword ? <EyeOff className="tw:size-[18px]" /> : <Eye className="tw:size-[18px]" />}
+              </Button>
+            </PasswordBox>
+            <PasswordBox id="confirm-password" label="Confirm new password">
+              <Input
+                id="confirm-password"
+                type={showPassword ? 'text' : 'password'}
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                autoComplete="new-password"
+                data-allow-text=""
+                className={PASSWORD_BOX}
+              />
+            </PasswordBox>
+            <Button type="submit" variant="default" size="lg" disabled={busy} className="tw:mt-1.5 tw:h-auto tw:w-full tw:rounded-lg tw:py-3 tw:text-[15px] tw:font-bold">
               {busy ? 'Saving...' : 'Save new password'}
-            </button>
+            </Button>
           </>
         )}
-        <p style={{ textAlign: 'center', marginTop: 18, fontSize: 13 }}>
-          <span onClick={() => navigate('/login')} style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 600 }}>Back to login</span>
+        <p className="tw:mt-[18px] tw:text-center">
+          <Button variant="link" className="tw:text-[13px]" onClick={() => navigate('/login')}>Back to login</Button>
         </p>
       </form>
     </div>

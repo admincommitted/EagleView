@@ -1,15 +1,9 @@
-// Export FOB in one place - 12-Nov-2026.
-//
-// The invoice FOB (INR) was worked out only while the invoice was open in the Invoices tab form. A job read from a
-// file / Excel / AI PDF, or an older job, had no invoice FOB, so every item kept "item value x rate" as its FOB:
-// on a CIF invoice freight and insurance were never taken out (job 16754: FOB Rs 23,292 instead of Rs 18,844, so
-// drawback / RoDTEP estimates and the header FOB Rs were too high). The FOB worked out at Save
-// (apportionInvoiceCharges) also read an INR insurance as dollars, ADDED the discount and ignored commission.
+// Export FOB in one place, also for a job read from a file / Excel / AI PDF that never had the invoice open.
 //
 // Rule (same as the Invoices tab form): FOB (INR) = invoice value x rate - freight (CIF / CF) - insurance (CIF / CI),
 // each charge converted with the rate of its own currency (blank currency = the invoice currency, INR = 1, other
 // currencies = Currency master export rate). An item gets its share of the invoice FOB in proportion to its value.
-// 12-Nov-2026: commission, discount and other deductions are shown and sent to ICEGATE but no longer taken out of
+// Commission, discount and other deductions are shown and sent to ICEGATE but not taken out of
 // FOB - iCAFFE does not take them out (job 16518: commission USD 223 -> FOB Rs 21,14,825.00 = value - freight;
 // job 38962: other deduction EUR 740 -> FOB = invoice value).
 import { perUnit, normCur } from './cbicExchange';

@@ -1,156 +1,247 @@
-import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
-import axios from "axios";
-import { Landmark, Save, Send, RefreshCw, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Landmark, Loader2, RefreshCw, Save, Send } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, DataTable, Field, Input, Table, TableBody, TableCell, TableRow, Textarea } from '@/components/ui';
+import { settingsApi } from '../settingsApi';
+import { CheckboxField } from './SettingsParts/CheckboxField';
+import { CornerToast } from './SettingsParts/Notices';
+import { SettingsCard } from './SettingsParts/SettingsCard';
+import { useTimedNotice } from './SettingsParts/useTimedNotice';
 
-// 17-Nov-2026: new customs / trade updates by e-mail with the PDF (backend utils/cbicCustomsWatch.js,
-// API /api/settings/cbic-watch). Sources: CBIC latest updates (every 10 minutes), CBIC circulars, ICEGATE advisories,
-// ICEGATE latest updates, DGFT and pages added here (every hour). Each source can be switched off.
-const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
-const when = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); };
+// New customs / trade updates are mailed with their PDF by the backend (utils/cbicCustomsWatch.js).
+const EMAIL_PATTERN = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+const PAGE_LINE_PATTERN = /^(.*\|\s*)?https?:\/\/[^\s|]+$/i;
+const TOAST_MS = 6000;
+
+const formatWhen = (iso) => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  return isNaN(date) ? '' : date.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+const entryTitle = (entry, length) => [entry.number, entry.title].filter(Boolean).join(' - ').slice(0, length);
+const hasItems = (list) => Boolean(list && list.length);
+
+const EXCHANGE_RATE_TITLE = 'Mails the newest CBIC exchange rates with the change from the notification before - the mail that comes when the rates change';
+
+function SourcePages({ pages }) {
+  return (
+    <details className="tw:mt-1">
+      <summary className="tw:cursor-pointer tw:text-muted-foreground">Each page ({pages.length})</summary>
+      <Table className="tw:mt-0.5 tw:w-auto">
+        <TableBody>
+          {pages.map((page, index) => (
+            <TableRow key={index} className="tw:even:bg-transparent">
+              <TableCell className="tw:align-top">{String(page.label || '').replace(/^(ICEGATE advisories|DGFT) - /, '')}</TableCell>
+              {page.error ? <TableCell colSpan={2} className="tw:text-destructive">{page.error}</TableCell> : (
+                <>
+                  <TableCell className="tw:align-top">{page.count}</TableCell>
+                  <TableCell className="tw:whitespace-normal tw:align-top">
+                    {page.newest ? (
+                      <>
+                        <a href={page.newest.view} target="_blank" rel="noreferrer">{entryTitle(page.newest, 90)}</a>
+                        {page.newest.date ? ` (${page.newest.date})` : ''}
+                      </>
+                    ) : <span className="tw:text-muted-foreground/70">empty</span>}
+                  </TableCell>
+                </>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </details>
+  );
+}
+
+function LastResult({ state }) {
+  if (!state) return <span className="tw:text-muted-foreground/70">not checked yet</span>;
+  const { newest } = state;
+  return (
+    <>
+      <span className={state.ok ? 'tw:text-success' : 'tw:text-destructive'}>
+        {formatWhen(state.at)}{state.ok ? ` - ${state.count} entries read` : ` - ${state.error}`}
+      </span>
+      {newest && (
+        <div>
+          Newest: <a href={newest.view} target="_blank" rel="noreferrer">{entryTitle(newest, 120)}</a>
+          {newest.date ? ` (${newest.dateLabel ? `${newest.dateLabel.toLowerCase()} ` : ''}${newest.date})` : ''}
+        </div>
+      )}
+      {Array.isArray(state.pages) && state.pages.length > 1 && <SourcePages pages={state.pages} />}
+    </>
+  );
+}
+
+function LastCheck({ last }) {
+  if (!last) return <div>Not checked yet - the first check runs 2 minutes after EagleView starts.</div>;
+  let outcome = 'nothing new';
+  if (last.error) outcome = <span className="tw:text-destructive">{last.error}</span>;
+  else if (hasItems(last.sent)) outcome = <b>mailed {last.sent.join(', ')}</b>;
+  else if (hasItems(last.seeded)) outcome = 'present entries noted';
+  else if (last.first) outcome = 'present notifications noted';
+  return (
+    <div>
+      Last check {formatWhen(last.at)}{last.by && last.by !== 'Auto' ? ` (by ${last.by})` : ''}: {outcome}
+      {hasItems(last.failed) && (
+        <span className="tw:text-destructive"> - not mailed: {last.failed.map((failure) => `${failure.number} (${failure.error})`).join('; ')}</span>
+      )}
+    </div>
+  );
+}
+
+const checkSummary = (result) => {
+  const parts = [];
+  if (hasItems(result.sent)) parts.push(`Mailed: ${result.sent.join(', ')}`);
+  if (hasItems(result.seeded)) parts.push(`First look at ${result.seeded.length} page(s): what is there now is noted, new ones are mailed from now on`);
+  if (hasItems(result.failed)) parts.push(`Not mailed: ${result.failed.map((failure) => failure.number).join(', ')}`);
+  if (hasItems(result.errors)) parts.push(`${result.errors.length} page(s) could not be read`);
+  const failed = hasItems(result.failed) || (hasItems(result.errors) && !hasItems(result.sent));
+  return [parts.length ? parts.join('. ') : 'Nothing new.', failed ? 'error' : 'success'];
+};
 
 export default function CbicWatchCard() {
-  const [to, setTo] = useState("");
-  const [on, setOn] = useState(true);
-  const [st, setSt] = useState(null);
-  const [off, setOff] = useState([]);
-  const [pages, setPages] = useState("");
-  const [busy, setBusy] = useState("");
-  const [toast, setToast] = useState(null);
-  const show = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 6000); };
+  const [sendTo, setSendTo] = useState('');
+  const [mailNew, setMailNew] = useState(true);
+  const [status, setStatus] = useState(null);
+  const [offSources, setOffSources] = useState([]);
+  const [pages, setPages] = useState('');
+  const [busy, setBusy] = useState('');
+  const [notice, showNotice] = useTimedNotice(TOAST_MS);
+
+  const takeStatus = (watch) => {
+    setStatus(watch);
+    setSendTo(watch.to || '');
+    setMailNew(watch.on !== false);
+    setOffSources((watch.sources || []).filter((source) => !source.on).map((source) => source.id));
+    setPages(watch.pages || '');
+  };
 
   const load = async () => {
-    try { const r = await axios.get("/api/settings/cbic-watch"); took(r.data); } catch (e) { /* not reachable */ }
+    try {
+      takeStatus(await settingsApi.cbicWatch());
+    } catch {
+      // backend not reachable: the card stays empty
+    }
   };
-  const took = (d) => { setSt(d); setTo(d.to || ""); setOn(d.on !== false); setOff((d.sources || []).filter(x => !x.on).map(x => x.id)); setPages(d.pages || ""); };
+
   useEffect(() => { load(); }, []);
 
+  const errorOf = (error, fallback) => error.response?.data?.error || fallback;
+
   const save = async (extra = {}) => {
-    const list = to.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
-    const bad = list.filter(x => !EMAIL_RE.test(x));
-    if (!list.length) { show("Enter at least one e-mail id", "error"); return false; }
-    if (bad.length) { show("Not an e-mail id: " + bad.join(", "), "error"); return false; }
-    const bp = pages.split(/\r?\n/).map(l => l.trim()).filter(Boolean).filter(l => !/^(.*\|\s*)?https?:\/\/[^\s|]+$/i.test(l));
-    if (bp.length) { show("Not a page address (http:// or https://): " + bp[0], "error"); return false; }
-    setBusy("save");
-    try { const r = await axios.post("/api/settings/cbic-watch", { to: list.join(", "), on, off, pages, ...extra }); took(r.data); show("Customs and trade updates saved ✅"); return true; }
-    catch (e) { show(e?.response?.data?.error || "Could not save", "error"); return false; }
-    finally { setBusy(""); }
-  };
-  const test = async () => {
-    if (!(await save())) return;
-    setBusy("test");
-    try { const r = await axios.post("/api/settings/cbic-watch/test"); show(`Test mail sent to ${r.data.to.join(", ")}${r.data.pdf ? " with the PDF of " + r.data.number : " (PDF not attached: " + r.data.pdfError + ")"}`); }
-    catch (e) { show(e?.response?.data?.error || "Test mail failed", "error"); }
-    finally { setBusy(""); }
-  };
-  // 20-Nov-2026: a test mail of the newest CBIC exchange rates (the table that is mailed when they change)
-  const testRates = async () => {
-    if (!(await save())) return;
-    setBusy("testRates");
-    try { const r = await axios.post("/api/settings/cbic-watch/test", { source: "cbic_exrate" }); show(`Exchange-rate test mail sent to ${r.data.to.join(", ")} (notification ${r.data.number})`); }
-    catch (e) { show(e?.response?.data?.error || "Test mail failed", "error"); }
-    finally { setBusy(""); }
-  };
-  const check = async () => {
-    if (!(await save())) return;
-    setBusy("check");
+    const emails = sendTo.split(/[,;\s]+/).map((email) => email.trim()).filter(Boolean);
+    const badEmails = emails.filter((email) => !EMAIL_PATTERN.test(email));
+    if (!emails.length) { showNotice('Enter at least one e-mail id', 'error'); return false; }
+    if (badEmails.length) { showNotice(`Not an e-mail id: ${badEmails.join(', ')}`, 'error'); return false; }
+    const badPages = pages.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line) => !PAGE_LINE_PATTERN.test(line));
+    if (badPages.length) { showNotice(`Not a page address (http:// or https://): ${badPages[0]}`, 'error'); return false; }
+    setBusy('save');
     try {
-      const r = await axios.post("/api/settings/cbic-watch/check");
-      const d = r.data;
-      if (d.busy) { show("A check is already running - try again in a minute.", "error"); return; }
-      if (d.error) { show(d.error, "error"); return; }
-      const parts = [];
-      if (d.sent && d.sent.length) parts.push("Mailed: " + d.sent.join(", "));
-      if (d.seeded && d.seeded.length) parts.push(`First look at ${d.seeded.length} page(s): what is there now is noted, new ones are mailed from now on`);
-      if (d.failed && d.failed.length) parts.push("Not mailed: " + d.failed.map(f => f.number).join(", "));
-      if (d.errors && d.errors.length) parts.push(`${d.errors.length} page(s) could not be read`);
-      show(parts.length ? parts.join(". ") : "Nothing new.", (d.failed && d.failed.length) || (d.errors && d.errors.length && !(d.sent && d.sent.length)) ? "error" : "success");
-    } catch (e) { show(e?.response?.data?.error || "Check failed", "error"); }
-    finally { setBusy(""); load(); }
+      takeStatus(await settingsApi.saveCbicWatch({ to: emails.join(', '), on: mailNew, off: offSources, pages, ...extra }));
+      showNotice('Customs and trade updates saved ✅');
+      return true;
+    } catch (error) {
+      showNotice(errorOf(error, 'Could not save'), 'error');
+      return false;
+    } finally {
+      setBusy('');
+    }
   };
 
-  const card = { background: "var(--bg-panel,#fff)", border: "1px solid var(--border-color,#e2e8f0)", borderRadius: "10px", padding: "20px 24px", marginBottom: "16px" };
-  const lab = { display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#475569", marginBottom: "4px" };
-  const inp = { width: "100%", padding: "8px 12px", border: "1px solid var(--border-color,#94a3b8)", borderRadius: "6px", fontSize: "0.875rem", color: "var(--text-main,#0f172a)", backgroundColor: "#fff", outline: "none", boxSizing: "border-box", textTransform: "none" };
-  const hint = { fontSize: "0.72rem", color: "#64748b", marginTop: "4px", textTransform: "none" };
-  const btn = (primary) => ({ padding: "8px 16px", background: primary ? "var(--primary-color-start,#3b82f6)" : "#fff", color: primary ? "white" : "#0f172a", border: primary ? "none" : "1px solid #cbd5e1", borderRadius: "6px", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" });
-  const spin = <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />;
-  const last = st && st.last;
+  const sendTest = async () => {
+    if (!(await save())) return;
+    setBusy('test');
+    try {
+      const result = await settingsApi.testCbicWatch();
+      showNotice(`Test mail sent to ${result.to.join(', ')}${result.pdf ? ` with the PDF of ${result.number}` : ` (PDF not attached: ${result.pdfError})`}`);
+    } catch (error) {
+      showNotice(errorOf(error, 'Test mail failed'), 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const sendRatesTest = async () => {
+    if (!(await save())) return;
+    setBusy('testRates');
+    try {
+      const result = await settingsApi.testCbicWatch({ source: 'cbic_exrate' });
+      showNotice(`Exchange-rate test mail sent to ${result.to.join(', ')} (notification ${result.number})`);
+    } catch (error) {
+      showNotice(errorOf(error, 'Test mail failed'), 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const checkNow = async () => {
+    if (!(await save())) return;
+    setBusy('check');
+    try {
+      const result = await settingsApi.checkCbicWatch();
+      if (result.busy) { showNotice('A check is already running - try again in a minute.', 'error'); return; }
+      if (result.error) { showNotice(result.error, 'error'); return; }
+      showNotice(...checkSummary(result));
+    } catch (error) {
+      showNotice(errorOf(error, 'Check failed'), 'error');
+    } finally {
+      setBusy('');
+      load();
+    }
+  };
+
+  const toggleSource = (id, isOn) => setOffSources((current) => (isOn ? current.filter((sourceId) => sourceId !== id) : [...current, id]));
+
+  const sourceColumns = [
+    {
+      key: 'label', header: 'Source', className: 'tw:whitespace-normal tw:align-top',
+      cell: (source) => (
+        <CheckboxField checked={!offSources.includes(source.id)} onCheckedChange={(isOn) => toggleSource(source.id, isOn)}
+          label={source.label}
+          note={<a href={source.site} target="_blank" rel="noreferrer">{String(source.site).replace(/^https?:\/\//, '').slice(0, 60)}</a>} />
+      ),
+    },
+    { key: 'every', header: 'Checked', className: 'tw:align-top', cell: (source) => `every ${source.every}` },
+    { key: 'state', header: 'Last result', className: 'tw:whitespace-normal tw:align-top', cell: (source) => <LastResult state={source.state} /> },
+  ];
+
+  const actions = [
+    { id: 'save', label: 'Save', icon: Save, variant: 'default', onClick: () => save() },
+    { id: 'test', label: 'Send a test mail', icon: Send, onClick: sendTest },
+    { id: 'testRates', label: 'Exchange-rate test mail', icon: Send, onClick: sendRatesTest, title: EXCHANGE_RATE_TITLE },
+    { id: 'check', label: 'Check now', icon: RefreshCw, onClick: checkNow },
+  ];
 
   return (
-    <div style={card} className="ev-trade-watch">
-      {/* e-mail ids and page addresses are case-sensitive to read - keep them as typed (index.css puts inputs in capitals) */}
-      <style>{'.ev-trade-watch input, .ev-trade-watch textarea { text-transform: none !important; }'}</style>
-      {toast && createPortal(
-        <div style={{ position: "fixed", top: "80px", right: "16px", zIndex: 100000, maxWidth: 520, background: toast.type === "error" ? "#fef2f2" : "#f0fdf4", border: "1px solid " + (toast.type === "error" ? "#fca5a5" : "#86efac"), color: toast.type === "error" ? "#dc2626" : "#16a34a", padding: "12px 18px", borderRadius: "8px", fontWeight: 600, fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-          {toast.type === "error" ? <XCircle size={16} /> : <CheckCircle size={16} />} {toast.msg}
-        </div>, document.body)}
-      <h4 style={{ margin: "0 0 4px 0", fontSize: "0.85rem", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-        <Landmark size={14} /> Customs and trade updates
-      </h4>
-      <p style={{ ...hint, margin: "0 0 14px 0" }}>New notifications, circulars, advisories and public notices are mailed with their PDF. The first look at a source only notes what is there now; after that every new entry is mailed once.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", alignItems: "end", marginBottom: "12px" }}>
-        <div>
-          <label style={lab}>Send to</label>
-          <input style={inp} value={to} onChange={e => setTo(e.target.value)} placeholder="admin@committedcargo.com, impops@committedcargo.com" />
-          <div style={hint}>More than one: separate with a comma. Sent with the SMTP set up above.</div>
-        </div>
-        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.82rem", fontWeight: 600, color: "#334155", paddingBottom: "22px", textTransform: "none" }}>
-          <input type="checkbox" checked={on} onChange={e => setOn(e.target.checked)} /> Mail new ones
-        </label>
+    <SettingsCard icon={Landmark} title="Customs and trade updates" className="tw:normal-case"
+      description="New notifications, circulars, advisories and public notices are mailed with their PDF. The first look at a source only notes what is there now; after that every new entry is mailed once.">
+      <CornerToast notice={notice} />
+      <div className="tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-end">
+        <Field layout="col" label="Send to" className="tw:flex-1" note="More than one: separate with a comma. Sent with the SMTP set up above.">
+          <Input className="tw:normal-case" data-allow-text="" value={sendTo} onChange={(event) => setSendTo(event.target.value)}
+            placeholder="admin@committedcargo.com, impops@committedcargo.com" />
+        </Field>
+        <CheckboxField label="Mail new ones" checked={mailNew} onCheckedChange={setMailNew} className="tw:md:pb-5" />
       </div>
-      <div style={{ marginBottom: "12px", overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem", color: "#334155", textTransform: "none" }}>
-          <thead><tr style={{ textAlign: "left", color: "#64748b" }}><th style={{ padding: "4px 8px 4px 0" }}>Source</th><th style={{ padding: 4 }}>Checked</th><th style={{ padding: 4 }}>Last result</th></tr></thead>
-          <tbody>{(st && st.sources ? st.sources : []).map(x => {
-            const s2 = x.state; const isOn = !off.includes(x.id);
-            return (
-              <tr key={x.id} style={{ borderTop: "1px solid #eef2f6", opacity: isOn ? 1 : 0.55 }}>
-                <td style={{ padding: "5px 8px 5px 0" }}>
-                  <label style={{ display: "flex", gap: "6px", alignItems: "flex-start", cursor: "pointer" }}>
-                    <input type="checkbox" checked={isOn} onChange={e => setOff(o => e.target.checked ? o.filter(i => i !== x.id) : [...o, x.id])} style={{ marginTop: 2 }} />
-                    <span><b style={{ fontWeight: 600 }}>{x.label}</b><br /><a href={x.site} target="_blank" rel="noreferrer" style={{ color: "#64748b" }}>{String(x.site).replace(/^https?:\/\//, "").slice(0, 60)}</a></span>
-                  </label>
-                </td>
-                <td style={{ padding: 5, whiteSpace: "nowrap", verticalAlign: "top" }}>every {x.every}</td>
-                <td style={{ padding: 5, verticalAlign: "top" }}>
-                  {!s2 ? <span style={{ color: "#94a3b8" }}>not checked yet</span> : <>
-                    <span style={{ color: s2.ok ? "#16a34a" : "#dc2626" }}>{when(s2.at)}{s2.ok ? ` - ${s2.count} entries read` : ` - ${s2.error}`}</span>
-                    {s2.newest && <div>Newest: <a href={s2.newest.view} target="_blank" rel="noreferrer">{[s2.newest.number, s2.newest.title].filter(Boolean).join(" - ").slice(0, 120)}</a>{s2.newest.date ? ` (${s2.newest.dateLabel ? s2.newest.dateLabel.toLowerCase() + " " : ""}${s2.newest.date})` : ""}</div>}
-                    {/* 19-Nov-2026: each page of the source (ICEGATE's 13 advisory categories, e.g. "Integrate with ICEGATE on API's"; DGFT's 4 lists) */}
-                    {Array.isArray(s2.pages) && s2.pages.length > 1 && (
-                      <details style={{ marginTop: 3 }}>
-                        <summary style={{ cursor: "pointer", color: "#475569" }}>Each page ({s2.pages.length})</summary>
-                        <table style={{ borderCollapse: "collapse", marginTop: 2 }}><tbody>{s2.pages.map((pg, i) => (
-                          <tr key={i} style={{ borderTop: "1px dotted #e2e8f0" }}>
-                            <td style={{ padding: "2px 8px 2px 0", whiteSpace: "nowrap", verticalAlign: "top" }}>{String(pg.label || "").replace(/^(ICEGATE advisories|DGFT) - /, "")}</td>
-                            {pg.error ? <td style={{ padding: 2, color: "#dc2626" }}>{pg.error}</td> : <>
-                              <td style={{ padding: "2px 8px 2px 0", whiteSpace: "nowrap", verticalAlign: "top" }}>{pg.count}</td>
-                              <td style={{ padding: 2, verticalAlign: "top" }}>{pg.newest ? <><a href={pg.newest.view} target="_blank" rel="noreferrer">{[pg.newest.number, pg.newest.title].filter(Boolean).join(" - ").slice(0, 90)}</a>{pg.newest.date ? ` (${pg.newest.date})` : ""}</> : <span style={{ color: "#94a3b8" }}>empty</span>}</td>
-                            </>}
-                          </tr>))}</tbody></table>
-                      </details>)}
-                  </>}
-                </td>
-              </tr>);
-          })}</tbody>
-        </table>
+
+      <DataTable columns={sourceColumns} rows={(status && status.sources) || []} stickyHeader={false} emptyText="No sources"
+        rowClassName={(source) => cn(offSources.includes(source.id) && 'tw:opacity-55')} />
+
+      <Field layout="col" label="Other pages to watch (for example a Custom House public notice page)" labelClassName="tw:whitespace-normal"
+        note="One page per line: a name, a bar ( | ), then the page address. Every PDF link that newly appears on the page is mailed. Up to 20 pages.">
+        <Textarea className="tw:min-h-16 tw:normal-case" data-allow-text="" value={pages} onChange={(event) => setPages(event.target.value)}
+          placeholder={'ACC Delhi public notices | https://...\nMumbai Customs Zone-I public notices | https://...'} />
+      </Field>
+
+      <div className="tw:flex tw:flex-wrap tw:gap-2">
+        {actions.map(({ id, label, icon: Icon, variant, onClick, title }) => (
+          <Button key={id} variant={variant} size="lg" disabled={Boolean(busy)} onClick={onClick} title={title}>
+            {busy === id ? <Loader2 className="tw:animate-spin" /> : <Icon />}{label}
+          </Button>
+        ))}
       </div>
-      <div style={{ marginBottom: "12px" }}>
-        <label style={lab}>Other pages to watch (for example a Custom House public notice page)</label>
-        <textarea style={{ ...inp, minHeight: "64px", fontFamily: "inherit", resize: "vertical" }} value={pages} onChange={e => setPages(e.target.value)} placeholder={"ACC Delhi public notices | https://...\nMumbai Customs Zone-I public notices | https://..."} />
-        <div style={hint}>One page per line: a name, a bar ( | ), then the page address. Every PDF link that newly appears on the page is mailed. Up to 20 pages.</div>
-      </div>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
-        <button style={btn(true)} disabled={!!busy} onClick={() => save()}>{busy === "save" ? spin : <Save size={14} />}Save</button>
-        <button style={btn(false)} disabled={!!busy} onClick={test}>{busy === "test" ? spin : <Send size={14} />}Send a test mail</button>
-        <button style={btn(false)} disabled={!!busy} onClick={testRates} title="Mails the newest CBIC exchange rates with the change from the notification before - the mail that comes when the rates change">{busy === "testRates" ? spin : <Send size={14} />}Exchange-rate test mail</button>
-        <button style={btn(false)} disabled={!!busy} onClick={check}>{busy === "check" ? spin : <RefreshCw size={14} />}Check now</button>
-      </div>
-      <div style={{ fontSize: "0.78rem", color: "#475569", textTransform: "none" }}>
-        {last ? <div style={{ marginBottom: 8 }}>Last check {when(last.at)}{last.by && last.by !== "Auto" ? ` (by ${last.by})` : ""}: {last.error ? <span style={{ color: "#dc2626" }}>{last.error}</span> : last.sent && last.sent.length ? <b>mailed {last.sent.join(", ")}</b> : last.seeded && last.seeded.length ? "present entries noted" : last.first ? "present notifications noted" : "nothing new"}{last.failed && last.failed.length ? <span style={{ color: "#dc2626" }}> - not mailed: {last.failed.map(f => f.number + " (" + f.error + ")").join("; ")}</span> : null}</div> : <div style={{ marginBottom: 8 }}>Not checked yet - the first check runs 2 minutes after EagleView starts.</div>}
-      </div>
-    </div>
+
+      <div className="tw:text-[11px] tw:text-muted-foreground"><LastCheck last={status && status.last} /></div>
+    </SettingsCard>
   );
 }

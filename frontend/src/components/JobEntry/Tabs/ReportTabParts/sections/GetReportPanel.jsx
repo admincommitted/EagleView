@@ -1,10 +1,15 @@
-// Report list of Import > Report (28-Oct-2026): all job reports in one grouped list, with search, favourites,
-// record counts, quick print per report and "Send checklist to mail". Click a report to see it on the right.
-import React from 'react';
-import { getParties } from '../../../../../utils/partiesCache'; // shared copy of the party list, 09-Nov-2026
-import { Sheet, FileSpreadsheet, FileText, ListChecks, Calculator, Files, Paperclip, Printer, Download, RefreshCw, Search, Star, Mail, Receipt, Tags, BadgePercent, Ship, Container, Landmark, X, Send, Pill, Stamp } from 'lucide-react';
+// All job reports in one grouped list, with search, favourites, record counts, quick print per report and
+// "Send checklist to mail". Click a report to see it on the right.
+import { useEffect, useId, useState } from 'react';
+import toast from 'react-hot-toast';
+import { BadgePercent, Calculator, Container, Download, Files, FileSpreadsheet, FileText, Landmark, ListChecks, Mail, Paperclip, Pill, Printer, Receipt, RefreshCw, Search, Send, Sheet, Ship, Stamp, Star, Tags, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { errorMessage } from '@/services/axiosInstance';
+import { Badge, Button, Checkbox, Input, Label } from '@/components/ui';
+import { getParties } from '../../../../../utils/partiesCache';
+import { jobEntryApi } from '../../../jobEntryApi';
 
-export const REPORTS = [
+const REPORTS = [
   { id: 'eannex', group: 'Checklists', name: 'Checklist', sub: 'Bill of Entry checklist (standard format)', icon: ListChecks, landscape: false, own: true, main: true },
   { id: 'chachecklist', group: 'Checklists', name: 'CHA Checklist', sub: 'Invoice-wise items with value and each duty; Excel', icon: Sheet, landscape: true, main: true },
   { id: 'invoicewise', group: 'Checklists', name: 'Invoice Wise Checklist', sub: 'Each invoice with its items and duty', icon: Receipt, landscape: true, main: true },
@@ -18,144 +23,265 @@ export const REPORTS = [
   { id: 'containers', group: 'Shipment', name: 'Container Details', sub: 'Containers and seals', icon: Container, landscape: false },
   { id: 'bond', group: 'Shipment', name: 'Bond Details', sub: 'Bonds of a warehouse B/E', icon: Landmark, landscape: false },
   { id: 'docs', group: 'Documents', name: 'Supporting Documents', sub: 'e-Sanchit documents of the job', icon: Paperclip, landscape: false },
-  // 14-Nov-2026
   { id: 'adc', group: 'Other Sheets', name: 'ADC Sheet', sub: 'Drugs Controller (CDSCO port office) NOC particulars - batch, mfg, expiry', icon: Pill, landscape: true },
   { id: 'stampduty', group: 'Other Sheets', name: 'Stamp Duty Sheet', sub: 'B/E value and stamp duty at the rate set on the sheet', icon: Stamp, landscape: false },
 ];
 const GROUPS = ['Checklists', 'Duty & Classification', 'Invoice & Annexure', 'Shipment', 'Documents', 'Other Sheets'];
-// favourites are saved per user in the database (/api/user-prefs, 28-Oct-2026); the browser copy is only a fallback
-// while the server is not reached, and is moved to the server the first time
+
+// favourites are saved per user on the server; the browser copy is only a fallback while the server is not reached,
+// and is moved to the server the first time
 const FAV_KEY = 'import_report_favs';
-const readFavs = () => { try { const v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
-const prefApi = async (method, value) => {
-  const token = localStorage.getItem('token');
-  const res = await fetch('/api/user-prefs/' + FAV_KEY, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: method === 'PUT' ? JSON.stringify({ value }) : undefined });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok || d.success === false) throw new Error(d.error || ('HTTP ' + res.status));
-  return d;
+const validIds = (value) => (Array.isArray(value) ? value.filter((id) => typeof id === 'string' && REPORTS.some((report) => report.id === id)) : []);
+const readLocalFavs = () => {
+  try {
+    return validIds(JSON.parse(localStorage.getItem(FAV_KEY) || '[]'));
+  } catch {
+    return [];
+  }
 };
-const validIds = (v) => (Array.isArray(v) ? v.filter(id => typeof id === 'string' && REPORTS.some(r => r.id === id)) : []);
-const list = (v) => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } } return Array.isArray(v) ? v : []; };
+const keepLocalFavs = (ids) => {
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify(ids));
+  } catch {
+    // private mode: the server copy is enough
+  }
+};
+const savedOrThrow = (result) => {
+  if (result.success === false) throw new Error(result.error || 'not saved');
+  return result;
+};
+const loadServerFavs = async () => savedOrThrow(await jobEntryApi.userPref(FAV_KEY));
+const saveServerFavs = async (ids) => savedOrThrow(await jobEntryApi.saveUserPref(FAV_KEY, ids));
+
+const jsonList = (value) => {
+  if (typeof value !== 'string') return Array.isArray(value) ? value : [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+async function importerEmail(partyId) {
+  const party = (await getParties()).find((row) => String(row.id) === String(partyId));
+  return party && (party.email || (party.branches || []).map((branch) => branch.email1).find(Boolean));
+}
+
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const GROUP_LABEL = 'tw:text-[10.5px] tw:font-extrabold tw:tracking-wider tw:text-muted-foreground tw:uppercase';
+
+function useFavourites() {
+  const [favs, setFavs] = useState(readLocalFavs);
+  const [favSync, setFavSync] = useState('loading'); // loading | saved | offline
+
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      try {
+        const pref = await loadServerFavs();
+        if (!live) return;
+        if (pref.saved) {
+          const ids = validIds(pref.value);
+          setFavs(ids);
+          keepLocalFavs(ids);
+        } else {
+          const localIds = readLocalFavs();
+          if (localIds.length) {
+            try { await saveServerFavs(localIds); } catch { /* stays in the browser copy */ }
+          }
+        }
+        setFavSync('saved');
+      } catch {
+        if (live) setFavSync('offline');
+      }
+    };
+    load();
+    return () => { live = false; };
+  }, []);
+
+  const toggleFav = async (id) => {
+    const next = favs.includes(id) ? favs.filter((favId) => favId !== id) : [...favs, id];
+    setFavs(next);
+    keepLocalFavs(next);
+    try {
+      await saveServerFavs(next);
+      setFavSync('saved');
+    } catch (error) {
+      setFavSync('offline');
+      toast.error('Favourite not saved to server: ' + errorMessage(error));
+    }
+  };
+
+  return { favs, favSync, toggleFav };
+}
+
+function ReportListRow({ report, selected, favourite, count, onPick, onToggleFav, onPrint }) {
+  const Icon = report.icon;
+  const pickOnKey = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onPick(); }
+  };
+  return (
+    <div
+      role="option"
+      aria-selected={selected}
+      tabIndex={0}
+      onClick={onPick}
+      onKeyDown={pickOnKey}
+      className={cn(
+        'tw:flex tw:cursor-pointer tw:items-center tw:gap-2 tw:border-l-[3px] tw:py-1.5 tw:pr-2 tw:pl-2.5 tw:hover:bg-accent tw:focus-visible:outline-2 tw:focus-visible:-outline-offset-2 tw:focus-visible:outline-primary',
+        selected ? 'tw:border-l-primary tw:bg-secondary' : 'tw:border-l-transparent'
+      )}
+    >
+      <Icon className={cn('tw:size-[15px] tw:shrink-0', report.main ? 'tw:text-[#dc2626]' : selected ? 'tw:text-primary' : 'tw:text-muted-foreground')} />
+      <div className="tw:min-w-0 tw:flex-1">
+        <div className={cn('tw:truncate tw:text-[12.5px]', report.main || selected ? 'tw:font-bold' : 'tw:font-semibold', report.main ? 'tw:text-[#b91c1c]' : 'tw:text-primary')}>
+          {report.name}
+          {count !== undefined && <Badge variant={count ? 'info' : 'neutral'} className="tw:ml-1.5">{count}</Badge>}
+        </div>
+        <div className="tw:truncate tw:text-[10.5px] tw:text-muted-foreground">{report.sub}</div>
+      </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        title={favourite ? 'Remove from favourites' : 'Add to favourites'}
+        className={favourite ? 'tw:text-[#f59e0b]' : 'tw:text-muted-foreground'}
+        onClick={(event) => { event.stopPropagation(); onToggleFav(); }}
+      >
+        <Star className="tw:size-[13px]" fill={favourite ? '#f59e0b' : 'none'} />
+      </Button>
+      <Button variant="ghost" size="icon-sm" title={`Print ${report.name}`} className="tw:text-muted-foreground" onClick={(event) => { event.stopPropagation(); onPrint(); }}>
+        <Printer className="tw:size-[13px]" />
+      </Button>
+    </div>
+  );
+}
+
+function MailBox({ reportName, mail, onChange, onSend, onClose }) {
+  return (
+    <div className="tw:flex tw:flex-col tw:gap-1.5 tw:rounded-md tw:border tw:border-border tw:bg-page tw:p-2">
+      <div className="tw:flex tw:items-center tw:justify-between">
+        <b className="tw:text-entry">Send "{reportName}" by mail</b>
+        <Button variant="ghost" size="icon-sm" title="Close" onClick={onClose}><X className="tw:size-[13px]" /></Button>
+      </div>
+      <Input placeholder="To (comma for more)" value={mail.to} onChange={(event) => onChange({ to: event.target.value })} />
+      <Input placeholder="Subject" value={mail.subject} onChange={(event) => onChange({ subject: event.target.value })} />
+      <Button variant="default" disabled={mail.sending} onClick={onSend}><Send /> {mail.sending ? 'Sending...' : 'Send'}</Button>
+    </div>
+  );
+}
 
 export default function GetReportPanel({ ctx }) {
   const { exportReportExcel, reportType, setReportType, landscape, setLandscape, watermark, setWatermark, onPrint, printReportId, handleExportExcel, onRefresh, jobData, allItems, esanchitDocs, sendReportMail } = ctx;
-  const [q, setQ] = React.useState('');
-  const [favs, setFavs] = React.useState(() => validIds(readFavs()));
-  const [favSync, setFavSync] = React.useState('loading'); // loading | saved | offline
-  React.useEffect(() => {
-    let live = true;
-    prefApi('GET').then(async d => {
-      if (!live) return;
-      if (d.saved) { const v = validIds(d.value); setFavs(v); try { localStorage.setItem(FAV_KEY, JSON.stringify(v)); } catch (e) { /* private mode */ } }
-      else { const local = validIds(readFavs()); if (local.length) await prefApi('PUT', local).catch(() => {}); }
-      setFavSync('saved');
-    }).catch(() => { if (live) setFavSync('offline'); });
-    return () => { live = false; };
-  }, []);
-  const [mail, setMail] = React.useState(null); // { to, subject, sending }
-  const cur = REPORTS.find(r => r.id === reportType) || REPORTS[0];
+  const watermarkId = useId();
+  const [query, setQuery] = useState('');
+  const { favs, favSync, toggleFav } = useFavourites();
+  const [mail, setMail] = useState(null); // { to, subject, sending }
+  const current = REPORTS.find((report) => report.id === reportType) || REPORTS[0];
+  const invoiceCount = (jobData?.invoices || []).length;
+  const itemCount = (allItems || []).length;
   const counts = {
-    invoicewise: (jobData?.invoices || []).length, chachecklist: (allItems || []).length, dutysheet: (allItems || []).length, classification: (allItems || []).length, annexure: (allItems || []).length,
-    invparticulars: (jobData?.invoices || []).length, containers: list(jobData?.containers).length, bond: list(jobData?._bondRows).filter(b => b && b.bondNo).length, docs: (esanchitDocs || []).length,
+    invoicewise: invoiceCount, chachecklist: itemCount, dutysheet: itemCount, classification: itemCount, annexure: itemCount, invparticulars: invoiceCount,
+    containers: jsonList(jobData?.containers).length, bond: jsonList(jobData?._bondRows).filter((bond) => bond?.bondNo).length, docs: (esanchitDocs || []).length,
   };
-  const toggleFav = (id) => {
-    const next = favs.includes(id) ? favs.filter(x => x !== id) : [...favs, id];
-    setFavs(next);
-    try { localStorage.setItem(FAV_KEY, JSON.stringify(next)); } catch (e) { /* private mode */ }
-    prefApi('PUT', next).then(() => setFavSync('saved')).catch(e => { setFavSync('offline'); ctx.toastError && ctx.toastError('Favourite not saved to server: ' + e.message); });
-  };
-  const pick = (r) => { setReportType(r.id); setLandscape(r.landscape); };
-  const term = q.trim().toLowerCase();
-  const match = (r) => !term || `${r.name} ${r.sub} ${r.group}`.toLowerCase().includes(term);
+
+  const pick = (report) => { setReportType(report.id); setLandscape(report.landscape); };
+  const term = query.trim().toLowerCase();
+  const matches = (report) => !term || `${report.name} ${report.sub} ${report.group}`.toLowerCase().includes(term);
   const sections = [
-    ...(favs.length ? [{ title: favSync === 'offline' ? 'Favourites (not saved to server)' : 'Favourites', items: REPORTS.filter(r => favs.includes(r.id) && match(r)) }] : []),
-    ...GROUPS.map(g => ({ title: g, items: REPORTS.filter(r => r.group === g && match(r)) })),
-  ].filter(s => s.items.length);
+    ...(favs.length ? [{ title: favSync === 'offline' ? 'Favourites (not saved to server)' : 'Favourites', reports: REPORTS.filter((report) => favs.includes(report.id) && matches(report)) }] : []),
+    ...GROUPS.map((group) => ({ title: group, reports: REPORTS.filter((report) => report.group === group && matches(report)) })),
+  ].filter((section) => section.reports.length);
 
-  const openMail = () => {
+  const openMail = async () => {
     const jobNo = jobData?.jobNo && jobData.jobNo !== 'DRAFT' ? jobData.jobNo : 'DRAFT';
-    setMail({ to: '', subject: `${cur.name} - Job ${jobNo}${jobData?.nameOfImporter ? ' - ' + jobData.nameOfImporter : ''}`, sending: false });
-    // importer's e-mail from the Party master, when the job has the importer party
-    const pid = jobData?.importerPartyId;
-    if (pid) getParties().then(d => { const p = (Array.isArray(d) ? d : (d && d.data) || []).find(x => String(x.id) === String(pid)); const e = p && (p.email || (p.branches || []).map(b => b.email1).find(Boolean)); if (e) setMail(m => (m && !m.to ? { ...m, to: e } : m)); }).catch(() => {});
-  };
-  const send = async () => {
-    const to = String(mail.to || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
-    if (!to.length || to.some(e => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))) return ctx.toastError('Enter valid e-mail address(es), separated by comma');
-    setMail(m => ({ ...m, sending: true }));
-    const ok = await sendReportMail(to.join(','), mail.subject);
-    setMail(ok ? null : (m => ({ ...m, sending: false })));
+    setMail({ to: '', subject: `${current.name} - Job ${jobNo}${jobData?.nameOfImporter ? ' - ' + jobData.nameOfImporter : ''}`, sending: false });
+    if (!jobData?.importerPartyId) return;
+    try {
+      const email = await importerEmail(jobData.importerPartyId);
+      if (email) setMail((open) => (open && !open.to ? { ...open, to: email } : open));
+    } catch {
+      // no importer e-mail: the user types it
+    }
   };
 
-  const label = { fontSize: '10.5px', fontWeight: 800, color: 'var(--text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.05em' };
-  const iconBtn = { background: 'none', border: 'none', padding: '3px', cursor: 'pointer', display: 'flex', borderRadius: '4px', color: 'var(--text-muted, #64748b)' };
+  const send = async () => {
+    const recipients = String(mail.to || '').split(/[;,]/).map((address) => address.trim()).filter(Boolean);
+    if (!recipients.length || recipients.some((address) => !EMAIL_PATTERN.test(address))) {
+      toast.error('Enter valid e-mail address(es), separated by comma');
+      return;
+    }
+    setMail((open) => ({ ...open, sending: true }));
+    const sent = await sendReportMail(recipients.join(','), mail.subject);
+    setMail(sent ? null : (open) => ({ ...open, sending: false }));
+  };
+
   return (
-    <div className="no-print" style={{ background: 'var(--bg-panel, #fff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color, #e2e8f0)', background: 'var(--primary-bg-light, #eff6ff)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-          <div style={{ fontWeight: 800, fontSize: '14px' }}>Reports</div>
-          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--bg-panel, #fff)', border: '1px solid var(--border-color, #cbd5e1)' }} title="Job these reports are for">
+    <div className="no-print tw:flex tw:h-full tw:flex-col tw:overflow-hidden tw:rounded-lg tw:border tw:border-border tw:bg-card">
+      <div className="tw:border-b tw:border-border tw:bg-secondary tw:px-3 tw:py-2.5">
+        <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
+          <div className="tw:text-sm tw:font-extrabold">Reports</div>
+          <Badge variant="outline" className="tw:text-[11px]" title="Job these reports are for">
             Job: {jobData?.jobNo && jobData.jobNo !== 'DRAFT' ? jobData.jobNo : 'not saved'}
-          </span>
+          </Badge>
         </div>
-        <div style={{ position: 'relative', marginTop: '8px' }}>
-          <Search size={13} style={{ position: 'absolute', left: '8px', top: '8px', color: 'var(--text-muted, #94a3b8)' }} />
-          <input className="input-field" placeholder="Search report..." value={q} onChange={e => setQ(e.target.value)} style={{ width: '100%', paddingLeft: '26px', fontSize: '12px', boxSizing: 'border-box' }} aria-label="Search report" />
-        </div>
+        <Input className="tw:mt-2" leftIcon={Search} placeholder="Search report..." value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search report" />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }} role="listbox" aria-label="Reports">
-        {sections.map(s => (
-          <div key={s.title}>
-            <div style={{ ...label, padding: '8px 12px 4px' }}>{s.title}</div>
-            {s.items.map(r => {
-              const Icon = r.icon, on = r.id === cur.id, fav = favs.includes(r.id);
-              return (
-                <div key={s.title + r.id} role="option" aria-selected={on} tabIndex={0} onClick={() => pick(r)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(r); } }}
-                  className="report-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px 6px 10px', cursor: 'pointer', borderLeft: on ? '3px solid var(--primary-color, #2563eb)' : '3px solid transparent', background: on ? 'var(--primary-bg-light, #eff6ff)' : 'transparent' }}>
-                  <Icon size={15} style={{ flexShrink: 0, color: r.main ? '#dc2626' : (on ? 'var(--primary-color, #2563eb)' : 'var(--text-muted, #64748b)') }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '12.5px', fontWeight: r.main || on ? 700 : 600, color: r.main ? '#b91c1c' : 'var(--primary-color, #1d4ed8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {r.name}{r.id in counts && <span style={{ marginLeft: '6px', fontSize: '10px', fontWeight: 700, padding: '0 6px', borderRadius: '8px', background: counts[r.id] ? '#dbeafe' : '#f1f5f9', color: counts[r.id] ? '#1e40af' : '#94a3b8' }}>{counts[r.id]}</span>}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.sub}</div>
-                  </div>
-                  <button type="button" title={fav ? 'Remove from favourites' : 'Add to favourites'} onClick={e => { e.stopPropagation(); toggleFav(r.id); }} style={{ ...iconBtn, color: fav ? '#f59e0b' : iconBtn.color }}><Star size={13} fill={fav ? '#f59e0b' : 'none'} /></button>
-                  <button type="button" title={`Print ${r.name}`} onClick={e => { e.stopPropagation(); pick(r); printReportId(r.id); }} style={iconBtn}><Printer size={13} /></button>
-                </div>
-              );
-            })}
+      <div className="tw:flex-1 tw:overflow-y-auto tw:py-1" role="listbox" aria-label="Reports">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <div className={cn(GROUP_LABEL, 'tw:px-3 tw:pt-2 tw:pb-1')}>{section.title}</div>
+            {section.reports.map((report) => (
+              <ReportListRow
+                key={section.title + report.id}
+                report={report}
+                selected={report.id === current.id}
+                favourite={favs.includes(report.id)}
+                count={counts[report.id]}
+                onPick={() => pick(report)}
+                onToggleFav={() => toggleFav(report.id)}
+                onPrint={() => { pick(report); printReportId(report.id); }}
+              />
+            ))}
           </div>
         ))}
-        {sections.length === 0 && <div style={{ padding: '16px', fontSize: '12px', color: 'var(--text-muted, #64748b)', textAlign: 'center' }}>No report matches "{q}"</div>}
+        {sections.length === 0 && <div className="tw:p-4 tw:text-center tw:text-entry tw:text-muted-foreground">No report matches "{query}"</div>}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--border-color, #e2e8f0)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '7px', fontSize: '12px' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={label}>Paper</span>
-          {cur.own ? <span style={{ color: 'var(--text-muted, #64748b)' }}>Checklist size</span> : <>
-            <label style={{ display: 'flex', gap: '4px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" checked={!landscape} onChange={() => setLandscape(false)} /> Portrait</label>
-            <label style={{ display: 'flex', gap: '4px', alignItems: 'center', cursor: 'pointer' }}><input type="radio" checked={landscape} onChange={() => setLandscape(true)} /> Landscape</label>
-          </>}
-          <label style={{ display: 'flex', gap: '4px', alignItems: 'center', cursor: 'pointer', marginLeft: 'auto' }}><input type="checkbox" checked={watermark} onChange={e => setWatermark(e.target.checked)} /> DRAFT mark</label>
+      <div className="tw:flex tw:flex-col tw:gap-[7px] tw:border-t tw:border-border tw:px-3 tw:py-2.5 tw:text-entry">
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2.5">
+          <span className={GROUP_LABEL}>Paper</span>
+          {current.own
+            ? <span className="tw:text-muted-foreground">Checklist size</span>
+            : (
+              <div className="tw:flex tw:gap-1">
+                <Button size="sm" variant={landscape ? 'outline' : 'default'} onClick={() => setLandscape(false)}>Portrait</Button>
+                <Button size="sm" variant={landscape ? 'default' : 'outline'} onClick={() => setLandscape(true)}>Landscape</Button>
+              </div>
+            )}
+          <div className="tw:ml-auto tw:flex tw:items-center tw:gap-1">
+            <Checkbox id={watermarkId} checked={watermark} onCheckedChange={(checked) => setWatermark(checked === true)} />
+            <Label htmlFor={watermarkId} className="tw:cursor-pointer">DRAFT mark</Label>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <button type="button" className="btn btn-primary" style={{ padding: '0.3rem 0.7rem', fontSize: '11px', flex: 1 }} onClick={onPrint}><Printer size={12} /> Print / PDF</button>
-          <button type="button" className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '11px' }} onClick={openMail} title="Send the report shown to an e-mail"><Mail size={12} /> Mail</button>
-          <button type="button" className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '11px' }} onClick={exportReportExcel} title="This report to Excel"><FileSpreadsheet size={12} /> Excel</button>
-          <button type="button" className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '11px' }} onClick={handleExportExcel} title="All job data (header, invoices, items, documents, duty) in one Excel file"><Download size={12} /></button>
-          <button type="button" className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '11px' }} onClick={onRefresh} title="Rebuild the report from the latest job data"><RefreshCw size={12} /></button>
+        <div className="tw:flex tw:flex-wrap tw:gap-1.5">
+          <Button variant="default" className="tw:flex-1" onClick={onPrint}><Printer /> Print / PDF</Button>
+          <Button onClick={openMail} title="Send the report shown to an e-mail"><Mail /> Mail</Button>
+          <Button onClick={exportReportExcel} title="This report to Excel"><FileSpreadsheet /> Excel</Button>
+          <Button size="icon" onClick={handleExportExcel} title="All job data (header, invoices, items, documents, duty) in one Excel file"><Download /></Button>
+          <Button size="icon" onClick={onRefresh} title="Rebuild the report from the latest job data"><RefreshCw /></Button>
         </div>
         {mail && (
-          <div style={{ border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '6px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--bg-app, #f8fafc)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><b style={{ fontSize: '12px' }}>Send "{cur.name}" by mail</b><button type="button" onClick={() => setMail(null)} style={iconBtn} title="Close"><X size={13} /></button></div>
-            <input className="input-field" placeholder="To (comma for more)" value={mail.to} onChange={e => setMail(m => ({ ...m, to: e.target.value }))} style={{ fontSize: '12px' }} />
-            <input className="input-field" placeholder="Subject" value={mail.subject} onChange={e => setMail(m => ({ ...m, subject: e.target.value }))} style={{ fontSize: '12px' }} />
-            <button type="button" className="btn btn-primary" disabled={mail.sending} onClick={send} style={{ padding: '0.3rem 0.7rem', fontSize: '11px' }}><Send size={12} /> {mail.sending ? 'Sending...' : 'Send'}</button>
-          </div>
+          <MailBox
+            reportName={current.name}
+            mail={mail}
+            onChange={(change) => setMail((open) => ({ ...open, ...change }))}
+            onSend={send}
+            onClose={() => setMail(null)}
+          />
         )}
       </div>
-      <style>{`.report-row:hover { background: var(--bg-app, #f1f5f9) !important; } .report-row:focus-visible { outline: 2px solid var(--primary-color, #2563eb); outline-offset: -2px; }`}</style>
     </div>
   );
 }

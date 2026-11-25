@@ -1,7 +1,11 @@
-// 04-Nov-2026 (v3): look and building blocks of the Accounts screens.
-// Same colours as the rest of EagleView (theme gradient, light-blue section strips, folder tabs, coloured action
-// buttons) with iCAFFE's screen layout: field boxes on top, an entry strip with Add, a grid, totals, an action bar.
-import React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import axiosInstance from '@/services/axiosInstance';
+import { cn } from '@/lib/utils';
+import {
+  Badge as UiBadge, Button, Input, Label, Popover, PopoverAnchor, PopoverContent,
+  Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow,
+  Tabs as UiTabs, TabsList, TabsTrigger,
+} from '@/components/ui';
 
 export const T = {
   grad: 'linear-gradient(135deg, var(--primary-color-start, #0284c7), var(--primary-color-end, #075985))',
@@ -14,59 +18,111 @@ export const T = {
   text: 'var(--text-main, #0f172a)', muted: 'var(--text-muted, #64748b)',
   dr: '#b91c1c', cr: '#047857', amber: '#b45309', amberBg: '#fffbeb', okBg: '#ecfdf5', drBg: '#fef2f2',
 };
-export const inr = (v, dec = 2) => (v === null || v === undefined || v === '' || isNaN(Number(v)) ? '' : Number(v).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }));
-export const fmtDate = (d) => { if (!d) return ''; const s = String(d).slice(0, 10); const [y, m, dd] = s.split('-'); return dd && m && y ? `${dd}/${m}/${y}` : s; };
-export const todayIso = () => new Date().toISOString().slice(0, 10);
-// 06-Nov-2026: the financial year is the one picked in the top bar (GlobalContext keeps it in window.__acctx)
-const ctxYear = () => { const c = (typeof window !== 'undefined' && window.__acctx) || {}; return c.fyStart && c.fyEnd ? [String(c.fyStart).slice(0, 10), String(c.fyEnd).slice(0, 10)] : null; };
-export const fyStart = () => { const y = ctxYear(); if (y) return y[0]; const d = new Date(); return (d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear()) + '-04-01'; };
-export const fyEnd = () => { const y = ctxYear(); return y ? y[1] : (Number(fyStart().slice(0, 4)) + 1) + '-03-31'; };
-export const fyId = () => ((typeof window !== 'undefined' && window.__acctx) || {}).fyId || '';
-export const api = async (url, opt) => {
-  const r = await fetch(url, opt);
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok || j.success === false) throw new Error(j.error || j.message || ('HTTP ' + r.status));
-  return j;
-};
-export const postJson = (url, body, method = 'POST') => api(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-// cached lookups; plain names go to /lookups/<name>
-const LOOKUPS = ['ledgers', 'groups', 'tdsnatures', 'costcentres', 'sac', 'years'];
-const cache = {};
-export const lookup = (path, fresh) => {
-  const url = '/api/accounts-hub/' + (LOOKUPS.includes(path) ? 'lookups/' + path : path);
-  const c = (typeof window !== 'undefined' && window.__acctx) || {}; const key = url + '#' + (c.branch || '') + '#' + (c.fyId || ''); // per top-bar branch / year
-  if (fresh) delete cache[key];
-  return (cache[key] = cache[key] || api(url).catch(() => { delete cache[key]; return []; }));
+export const inr = (value, decimals = 2) => (value === null || value === undefined || value === '' || isNaN(Number(value))
+  ? ''
+  : Number(value).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }));
+export const fmtDate = (date) => {
+  if (!date) return '';
+  const text = String(date).slice(0, 10);
+  const [year, month, day] = text.split('-');
+  return day && month && year ? `${day}/${month}/${year}` : text;
 };
+export const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// The financial year picked in the top bar (GlobalContext keeps it on window.__acctx).
+const topBarYear = () => {
+  const { fyStart: start, fyEnd: end } = window.__acctx || {};
+  return start && end ? [String(start).slice(0, 10), String(end).slice(0, 10)] : null;
+};
+export const fyStart = () => {
+  const year = topBarYear();
+  if (year) return year[0];
+  const today = new Date();
+  return `${today.getMonth() < 3 ? today.getFullYear() - 1 : today.getFullYear()}-04-01`;
+};
+export const fyEnd = () => {
+  const year = topBarYear();
+  return year ? year[1] : `${Number(fyStart().slice(0, 4)) + 1}-03-31`;
+};
+export const fyId = () => (window.__acctx || {}).fyId || '';
+
+// ------------------------------------------------------------------ http
+const asJson = (data) => (data && typeof data === 'object' ? data : {});
+const withoutApiPrefix = (url) => String(url).replace(/^\/api(?=\/)/, '');
+
+const request = async (config) => {
+  try {
+    const response = await axiosInstance.request({ ...config, url: withoutApiPrefix(config.url) });
+    const data = asJson(response.data);
+    if (data.success === false) throw new Error(data.error || data.message || `HTTP ${response.status}`);
+    return data;
+  } catch (error) {
+    if (!error.response) throw error;
+    const data = asJson(error.response.data);
+    throw new Error(data.error || data.message || `HTTP ${error.response.status}`);
+  }
+};
+
+// Takes '/accounts-hub/...' (an older URL that still starts with the api prefix works too) and fetch-style options
+// { method, headers, body }; resolves to the response JSON, rejects with Error(server message).
+export const api = (url, options = {}) => request({ url, method: options.method || 'GET', headers: options.headers, data: options.body });
+export const postJson = (url, body, method = 'POST') => request({ url, method, data: body });
+
+// cached lookups; plain names go to /lookups/<name>, one cache per top-bar branch and year
+const LOOKUPS = ['ledgers', 'groups', 'tdsnatures', 'costcentres', 'sac', 'years'];
+const lookupCache = {};
+const loadLookup = async (url, key) => {
+  try {
+    return await api(url);
+  } catch {
+    delete lookupCache[key];
+    return [];
+  }
+};
+export const lookup = (path, fresh) => {
+  const url = '/accounts-hub/' + (LOOKUPS.includes(path) ? 'lookups/' + path : path);
+  const { branch = '', fyId: yearId = '' } = window.__acctx || {};
+  const key = `${url}#${branch}#${yearId}`;
+  if (fresh) delete lookupCache[key];
+  lookupCache[key] ??= loadLookup(url, key);
+  return lookupCache[key];
+};
+
+const cssSize = (value) => (typeof value === 'number' ? `${value}px` : value);
 
 // ------------------------------------------------------------------ boxes
-// iCAFFE-style field box; with a title it gets the app's light-blue section strip
-export function Box({ title, right, children, style, pad = 10, bodyStyle }) {
+// field box; with a title it gets the light-blue section strip
+export function Box({ title, right, children, style, pad = 10, bodyStyle, className, bodyClassName }) {
   return (
-    <div style={{ background: T.box, border: `1px solid ${T.boxBorder}`, borderRadius: 6, overflow: 'hidden', minWidth: 0, ...style }}>
+    <div style={style} className={cn('tw:min-w-0 tw:overflow-hidden tw:rounded-md tw:border tw:border-primary/25 tw:bg-primary/5', className)}>
       {title && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: T.headBg, borderBottom: `1px solid ${T.headBorder}`, color: T.head, fontSize: 11.5, fontWeight: 800 }}>
-          <span>{title}</span><span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{right}</span>
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:border-b tw:border-primary/30 tw:bg-primary/10 tw:px-2.5 tw:py-1 tw:text-[11.5px] tw:font-extrabold tw:text-head">
+          <span>{title}</span>
+          <span className="tw:ml-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2">{right}</span>
         </div>
       )}
-      <div style={{ padding: pad, ...bodyStyle }}>{children}</div>
+      <div style={{ '--box-pad': cssSize(pad), ...bodyStyle }} className={cn('tw:p-(--box-pad)', bodyClassName)}>{children}</div>
     </div>
   );
 }
-export const Panel = ({ children, style, pad = 12 }) => <Box pad={pad} style={{ background: T.panel, ...style }}>{children}</Box>;
+export const Panel = ({ children, style, pad = 12, className }) => <Box pad={pad} style={style} className={cn('tw:bg-card', className)}>{children}</Box>;
 
-// folder tabs - the same .tab-container / .custom-tab look used on every other EagleView form
+// folder tabs over a sheet; tab: { id, label, icon }
 export function Tabs({ tabs, value, onChange, right }) {
   return (
-    <div className="tab-container" style={{ marginBottom: 0 }}>
-      {tabs.map(t => (
-        <div key={t.id} className={'custom-tab' + (t.id === value ? ' active' : '')} onClick={() => onChange(t.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {t.icon && <t.icon size={12} />}{t.label}
-        </div>
-      ))}
-      {right && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 4 }}>{right}</div>}
-    </div>
+    <UiTabs value={String(value)} onValueChange={(id) => onChange(tabs.find((tab) => String(tab.id) === id).id)}>
+      <div className="tw:flex tw:flex-wrap tw:items-end tw:gap-2 tw:border-b-2 tw:border-primary">
+        <TabsList className="tw:w-auto tw:flex-wrap tw:border-b-0">
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.id} value={String(tab.id)}>
+              {tab.icon && <tab.icon className="tw:size-3" />}{tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {right && <div className="tw:ml-auto tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:pb-1">{right}</div>}
+      </div>
+    </UiTabs>
   );
 }
 
@@ -75,51 +131,59 @@ export function Sheet({ tabs, tab, onTab, right, children }) {
   return (
     <div>
       <Tabs tabs={tabs} value={tab} onChange={onTab} right={right} />
-      <div style={{ background: T.panel, border: '1px solid #94a3b8', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+      <div className="tw:flex tw:flex-col tw:gap-2.5 tw:rounded-b-lg tw:border tw:border-t-0 tw:border-input tw:bg-card tw:p-3">{children}</div>
     </div>
   );
 }
 
 // ------------------------------------------------------------------ buttons
-// save = green, delete = red, clear = blue, print / search = light blue - as on iCAFFE, with the app's button classes
-export function Btn({ children, onClick, kind = 'plain', disabled, title, type = 'button', small }) {
-  const cls = { save: 'btn btn-success', primary: 'btn btn-primary', danger: 'btn btn-danger', clear: 'btn', plain: 'btn btn-secondary', ghost: 'btn' }[kind] || 'btn btn-secondary';
-  const ghost = kind === 'ghost' ? { background: 'transparent', color: T.head, border: '1px dashed ' + T.headBorder }
-    : kind === 'primary' ? { background: T.grad, color: '#fff', border: 'none', boxShadow: '0 2px 6px var(--primary-shadow, rgba(2,132,199,0.25))' }
-    : kind === 'clear' ? { background: '#fff', color: T.head, border: '1px solid ' + T.headBorder } : {};
+const BUTTON_VARIANT = { save: 'success', primary: 'default', danger: 'destructive', clear: 'outline', plain: 'secondary', ghost: 'ghost' };
+export function Btn({ children, onClick, kind = 'plain', disabled, title, type = 'button', small, className }) {
   return (
-    <button type={type} onClick={onClick} disabled={disabled} title={title} className={cls}
-      style={{ height: small ? 26 : 32, padding: small ? '0 10px' : '0 14px', fontSize: small ? 11 : 12, fontWeight: 700, borderRadius: 6, whiteSpace: 'nowrap',
-        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, gap: 6, ...ghost }}>
+    <Button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      variant={BUTTON_VARIANT[kind] || 'secondary'}
+      size={small ? 'default' : 'lg'}
+      className={cn('tw:font-bold', kind === 'ghost' && 'tw:border-dashed tw:border-primary/30', className)}
+    >
       {children}
-    </button>
+    </Button>
   );
 }
+
+const GOOD_NOTE = /^(Saved|Merged|Updated|Deleted|Closed|Re-opened)/;
 export function ActionBar({ children, note }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 10px', background: T.headBg, border: `1px solid ${T.headBorder}`, borderRadius: 6 }}>
+    <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:rounded-md tw:border tw:border-primary/30 tw:bg-primary/10 tw:px-2.5 tw:py-2">
       {children}
-      {note && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: /^(Saved|Merged|Updated|Deleted|Closed|Re-opened)/.test(note) ? T.cr : T.dr }}>{note}</span>}
+      {note && <span className={cn('tw:ml-auto tw:text-entry tw:font-bold', GOOD_NOTE.test(note) ? 'tw:text-success' : 'tw:text-destructive')}>{note}</span>}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ fields
-export function Field({ label, children, hint, required, span = 1, style }) {
+const COLUMN_SPAN = { 2: 'tw:md:col-span-2', 3: 'tw:md:col-span-3', 4: 'tw:md:col-span-4', 5: 'tw:md:col-span-5', 6: 'tw:md:col-span-6' };
+export function Field({ label, children, hint, required, span = 1, style, className }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, gridColumn: `span ${span}`, minWidth: 0, ...style }}>
-      <label style={{ margin: 0 }}>{label}{required && <span style={{ color: T.dr }}> *</span>}</label>
+    <div style={style} className={cn('tw:flex tw:min-w-0 tw:flex-col tw:gap-0.5', COLUMN_SPAN[span], className)}>
+      <Label required={required}>{label}</Label>
       {children}
-      {hint && <span style={{ fontSize: 10.5, color: T.muted }}>{hint}</span>}
+      {hint && <span className="tw:text-[10.5px] tw:text-muted-foreground">{hint}</span>}
     </div>
   );
 }
-// label left, field right (iCAFFE's top boxes)
+// label left, field right (stacked on a phone)
 export function Row({ label, children, required, w = 104 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${w}px minmax(0, 1fr)`, alignItems: 'center', gap: 8, minHeight: 30 }}>
-      <label style={{ margin: 0 }}>{label}{required && <span style={{ color: T.dr }}> *</span>}</label>
-      <div style={{ minWidth: 0 }}>{children}</div>
+    <div
+      style={{ '--row-label-w': `${w}px` }}
+      className="tw:grid tw:min-h-[30px] tw:grid-cols-1 tw:items-center tw:gap-x-2 tw:gap-y-0.5 tw:md:grid-cols-[var(--row-label-w)_minmax(0,1fr)]"
+    >
+      <Label required={required}>{label}</Label>
+      <div className="tw:min-w-0">{children}</div>
     </div>
   );
 }
@@ -127,153 +191,280 @@ export const inputStyle = { width: '100%', height: 28, borderRadius: 5, border: 
 export const roStyle = { ...inputStyle, background: '#eef2f6', color: '#334155' };
 export const mandStyle = { ...inputStyle, borderColor: '#f87171' };
 
+const SIDE_COLOR = { Dr: 'tw:text-destructive', Cr: 'tw:text-success' };
 export function Money({ v, side, strong, muted }) {
-  const color = side === 'Dr' ? T.dr : side === 'Cr' ? T.cr : T.text;
-  return <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: strong ? 800 : 600, color: muted ? T.muted : color, whiteSpace: 'nowrap' }}>{inr(v)}</span>;
+  return (
+    <span className={cn('tw:whitespace-nowrap tw:tabular-nums', strong ? 'tw:font-extrabold' : 'tw:font-semibold', muted ? 'tw:text-muted-foreground' : SIDE_COLOR[side] || 'tw:text-foreground')}>
+      {inr(v)}
+    </span>
+  );
 }
 
+const BADGE_VARIANT = { muted: 'neutral', ok: 'success', warn: 'warning', bad: 'danger', brand: 'info' };
 export function Badge({ children, tone = 'muted' }) {
-  const m = { muted: ['#eef2f6', T.inkSoft], ok: [T.okBg, T.cr], warn: [T.amberBg, T.amber], bad: [T.drBg, T.dr], brand: [T.headBg, T.head] }[tone] || ['#eef2f6', T.inkSoft];
-  return <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 4, fontSize: 10, fontWeight: 800, background: m[0], color: m[1], whiteSpace: 'nowrap' }}>{children}</span>;
+  return <UiBadge variant={BADGE_VARIANT[tone] || 'neutral'}>{children}</UiBadge>;
 }
-export const statusTone = (s) => (/approv/i.test(s) ? 'ok' : /reject|return/i.test(s) ? 'bad' : 'warn');
+export const statusTone = (status) => (/approv/i.test(status) ? 'ok' : /reject|return/i.test(status) ? 'bad' : 'warn');
 
-// 06-Nov-2026: type-ahead list used by every account / charge box (the browser's own <datalist> showed at most
-// 4,000 of the 7,600 iCAFFE ledgers, matched only from the start, and the box emptied itself while typing).
-// Matches every word typed, anywhere in the name ("kotak 2647" finds KOTAK MAHINDRA BANK A/C NO - 2647171181);
-// names starting with what was typed come first. Keys: Down / Up move, Enter or Tab picks, Esc closes,
-// F2 lists everything. The list floats over the page so a box near the bottom of a panel is not cut off.
-const normS = (s) => String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
-export function SuggestBox({ text, onText, items, getLabel, getSub, getKey, onPick, placeholder, style, disabled, autoFocus, max = 80, title }) {
-  const [open, setOpen] = React.useState(false);
-  const [all, setAll] = React.useState(false);       // F2 / first focus on a filled box: show everything
-  const [hi, setHi] = React.useState(0);
-  const [pos, setPos] = React.useState(null);
-  const ref = React.useRef(null); const listRef = React.useRef(null);
-  const place = () => { const r = ref.current && ref.current.getBoundingClientRect(); if (!r) return;
-    const below = window.innerHeight - r.bottom; const h = Math.min(300, Math.max(below - 12, 160));
-    setPos(below < 170 && r.top > below ? { left: r.left, width: Math.max(r.width, 300), bottom: window.innerHeight - r.top + 2, maxHeight: Math.min(300, r.top - 12) } : { left: r.left, width: Math.max(r.width, 300), top: r.bottom + 2, maxHeight: h }); };
-  React.useEffect(() => { if (!open) return; place(); const f = () => place(); window.addEventListener('scroll', f, true); window.addEventListener('resize', f);
-    return () => { window.removeEventListener('scroll', f, true); window.removeEventListener('resize', f); }; }, [open]);
-  const q = all ? '' : normS(text);
-  const matches = React.useMemo(() => {
+// Type-ahead list for every account / charge box: matches every word typed, anywhere in the name ("kotak 2647" finds
+// KOTAK MAHINDRA BANK A/C NO - 2647171181); names starting with the text come first. Down / Up move, Enter or Tab
+// picks, Esc closes, F2 lists everything.
+const normalise = (text) => String(text || '').toUpperCase().replace(/\s+/g, ' ').trim();
+const CLOSE_AFTER_BLUR_MS = 150;
+export function SuggestBox({ text, onText, items, getLabel, getSub, getKey, onPick, placeholder, style, className, disabled, autoFocus, max = 80, title, id, 'aria-invalid': invalid }) {
+  const [open, setOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const anchorRef = useRef(null);
+  const listRef = useRef(null);
+  const query = showAll ? '' : normalise(text);
+
+  const matches = useMemo(() => {
     if (!open) return [];
-    const words = q.split(' ').filter(Boolean); const a = [], b = [];
-    for (const it of items || []) { const l = normS(getLabel(it)); if (!words.every(w => l.includes(w))) continue; (q && l.startsWith(q) ? a : b).push(it); if (a.length >= max) break; }
-    return a.concat(b).slice(0, max);
-  }, [open, q, items]);
-  React.useEffect(() => { setHi(0); }, [q]);
-  React.useEffect(() => { const el = listRef.current && listRef.current.children[hi]; if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }, [hi]);
-  const pick = (it) => { onPick(it); setOpen(false); setAll(false); };
-  const onKey = (e) => {
-    if (e.key === 'F2') { e.preventDefault(); setAll(true); setOpen(true); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) { setOpen(true); return; } setHi(h => Math.min(h + 1, matches.length - 1)); return; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); return; }
-    if (e.key === 'Escape') { setOpen(false); setAll(false); return; }
-    if ((e.key === 'Enter' || e.key === 'Tab') && open && matches[hi] && (normS(text) || all)) { if (e.key === 'Enter') e.preventDefault(); pick(matches[hi]); }
+    const words = query.split(' ').filter(Boolean);
+    const startsWith = [];
+    const contains = [];
+    for (const item of items || []) {
+      const label = normalise(getLabel(item));
+      if (!words.every((word) => label.includes(word))) continue;
+      (query && label.startsWith(query) ? startsWith : contains).push(item);
+      if (startsWith.length >= max) break;
+    }
+    return startsWith.concat(contains).slice(0, max);
+  }, [open, query, items]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { setHighlighted(0); }, [query]);
+  useEffect(() => { listRef.current?.children[highlighted]?.scrollIntoView?.({ block: 'nearest' }); }, [highlighted]);
+
+  const close = () => { setOpen(false); setShowAll(false); };
+  const pick = (item) => { onPick(item); close(); };
+  const handleKeyDown = (event) => {
+    if (event.key === 'F2') { event.preventDefault(); setShowAll(true); setOpen(true); return; }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!open) { setOpen(true); return; }
+      setHighlighted((current) => Math.min(current + 1, matches.length - 1));
+      return;
+    }
+    if (event.key === 'ArrowUp') { event.preventDefault(); setHighlighted((current) => Math.max(current - 1, 0)); return; }
+    if (event.key === 'Escape') { close(); return; }
+    if ((event.key === 'Enter' || event.key === 'Tab') && open && matches[highlighted] && (normalise(text) || showAll)) {
+      if (event.key === 'Enter') event.preventDefault();
+      pick(matches[highlighted]);
+    }
   };
-  const nItems = (items || []).length;
+  const itemCount = (items || []).length;
+
   return (
-    <>
-      <input ref={ref} value={text} disabled={disabled} autoFocus={autoFocus} title={title} autoComplete="off" placeholder={placeholder} style={style}
-        onChange={e => { onText(e.target.value); setAll(false); setOpen(true); }}
-        onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onKeyDown={onKey}
-        onBlur={() => setTimeout(() => { setOpen(false); setAll(false); }, 150)} />
-      {open && pos && !disabled && (
-        <div ref={listRef} style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight, overflowY: 'auto', zIndex: 3000,
-          background: 'var(--bg-input, #fff)', color: 'var(--input-text, #0f172a)', border: '1px solid #94a3b8', borderRadius: 6, boxShadow: '0 8px 24px rgba(15,23,42,.18)', fontSize: 11.5 }}>
-          {matches.map((it, i) => (
-            <div key={getKey ? getKey(it) : i} onMouseDown={e => { e.preventDefault(); pick(it); }} onMouseEnter={() => setHi(i)}
-              style={{ padding: '5px 9px', cursor: 'pointer', background: i === hi ? 'rgba(56,189,248,.18)' : 'transparent', borderBottom: '1px solid rgba(148,163,184,.18)' }}>
-              <div style={{ fontWeight: 700 }}>{getLabel(it)}</div>
-              {getSub && getSub(it) ? <div style={{ fontSize: 10, opacity: 0.7 }}>{getSub(it)}</div> : null}
-            </div>))}
-          {!matches.length && <div style={{ padding: '8px 10px', opacity: 0.7 }}>{nItems ? 'Nothing matches "' + text + '"' : 'List is empty'}</div>}
-          {matches.length >= max && <div style={{ padding: '5px 10px', fontSize: 10, opacity: 0.7 }}>Showing the first {max} - type more to narrow</div>}
-        </div>)}
-    </>
+    <Popover open={open && !disabled} onOpenChange={(isOpen) => { if (!isOpen) close(); }}>
+      <PopoverAnchor asChild>
+        <div ref={anchorRef} className="tw:relative tw:flex tw:w-full tw:min-w-0">
+          <Input
+            id={id}
+            data-allow-text=""
+            value={text}
+            disabled={disabled}
+            autoFocus={autoFocus}
+            title={title}
+            autoComplete="off"
+            placeholder={placeholder}
+            style={style}
+            aria-invalid={invalid || undefined}
+            className={className}
+            onChange={(event) => { onText(event.target.value); setShowAll(false); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => setTimeout(close, CLOSE_AFTER_BLUR_MS)}
+          />
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        sideOffset={2}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        onInteractOutside={(event) => { if (anchorRef.current?.contains(event.target)) event.preventDefault(); }}
+        className="tw:max-h-[min(300px,var(--radix-popover-content-available-height))] tw:w-(--radix-popover-trigger-width) tw:min-w-[300px] tw:overflow-y-auto tw:p-0 tw:text-[11.5px]"
+      >
+        <div ref={listRef}>
+          {matches.map((item, index) => (
+            <div
+              key={getKey ? getKey(item) : index}
+              onMouseDown={(event) => { event.preventDefault(); pick(item); }}
+              onMouseEnter={() => setHighlighted(index)}
+              className={cn('tw:cursor-pointer tw:border-b tw:border-border/40 tw:px-2 tw:py-1', index === highlighted && 'tw:bg-accent tw:text-accent-foreground')}
+            >
+              <div className="tw:font-bold">{getLabel(item)}</div>
+              {getSub?.(item) ? <div className="tw:text-[10px] tw:opacity-70">{getSub(item)}</div> : null}
+            </div>
+          ))}
+        </div>
+        {!matches.length && <div className="tw:px-2.5 tw:py-2 tw:opacity-70">{itemCount ? `Nothing matches "${text}"` : 'List is empty'}</div>}
+        {matches.length >= max && <div className="tw:px-2.5 tw:py-1 tw:text-[10px] tw:opacity-70">Showing the first {max} - type more to narrow</div>}
+      </PopoverContent>
+    </Popover>
   );
 }
 
-// ledger picker: type to search, shows the group; value = ledger id
-// 06-Nov-2026: what is typed stays in the box (it used to be wiped while typing / on leaving the box); a name that
-// is not a ledger is shown in red until one is picked; leaving the box with exactly one match picks it.
+// ledger picker: value = ledger id. What is typed stays in the box; a name that is not a ledger shows red until one
+// is picked; typing an exact ledger name picks it.
 export function LedgerPicker({ value, onChange, list, placeholder = 'Type ledger name', id, autoFocus, disabled, mandatory }) {
-  const cur = list.find(l => String(l.id) === String(value));
-  const [text, setText] = React.useState(cur ? cur.name : '');
-  const prev = React.useRef(value);
-  React.useEffect(() => {
+  const current = list.find((ledger) => String(ledger.id) === String(value));
+  const [text, setText] = useState(current ? current.name : '');
+  const previousValue = useRef(value);
+  useEffect(() => {
     // follow the value only when it changes from outside (a picked ledger, a cleared form, a voucher opened)
-    if (cur && normS(cur.name) !== normS(text)) setText(cur.name);
-    else if (!value && prev.current && !cur) setText('');
-    prev.current = value;
-  }, [value, cur && cur.name]);
-  const exact = (t) => list.find(l => normS(l.name) === normS(t));
-  const typed = text && !value;
+    if (current && normalise(current.name) !== normalise(text)) setText(current.name);
+    else if (!value && previousValue.current && !current) setText('');
+    previousValue.current = value;
+  }, [value, current?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const exactMatch = (typed) => list.find((ledger) => normalise(ledger.name) === normalise(typed));
+  const typedNotPicked = Boolean(text && !value);
+  const choose = (ledger) => { previousValue.current = ledger.id; onChange(ledger.id, ledger); };
+
   return (
-    <SuggestBox text={text} items={list} getLabel={l => l.name} getSub={l => l.groupName || ''} getKey={l => l.id} disabled={disabled} autoFocus={autoFocus}
-      placeholder={list.length ? placeholder : 'No ledgers yet'} title={typed ? 'Pick the account from the list' : undefined}
-      style={(mandatory && !value) || typed ? mandStyle : inputStyle}
-      onText={t => { setText(t); const o = exact(t); if (o) { prev.current = o.id; onChange(o.id, o); } else if (value) { prev.current = ''; onChange('', null); } }}
-      onPick={o => { setText(o.name); prev.current = o.id; onChange(o.id, o); }} />
+    <SuggestBox
+      id={id}
+      text={text}
+      items={list}
+      getLabel={(ledger) => ledger.name}
+      getSub={(ledger) => ledger.groupName || ''}
+      getKey={(ledger) => ledger.id}
+      disabled={disabled}
+      autoFocus={autoFocus}
+      placeholder={list.length ? placeholder : 'No ledgers yet'}
+      title={typedNotPicked ? 'Pick the account from the list' : undefined}
+      aria-invalid={(mandatory && !value) || typedNotPicked}
+      onText={(typed) => {
+        setText(typed);
+        const ledger = exactMatch(typed);
+        if (ledger) choose(ledger);
+        else if (value) { previousValue.current = ''; onChange('', null); }
+      }}
+      onPick={(ledger) => { setText(ledger.name); choose(ledger); }}
+    />
   );
 }
 
-// current balance of a ledger (as iCAFFE shows next to the cash / bank book)
-export function useBalance(id) {
-  const [b, setB] = React.useState(null);
-  React.useEffect(() => { setB(null); if (id) api('/api/accounts-hub/ledger-balance/' + id).then(setB).catch(() => setB(null)); }, [id]);
-  return b;
+// current balance of a ledger (shown next to the cash / bank book)
+export function useBalance(ledgerId) {
+  const [balance, setBalance] = useState(null);
+  useEffect(() => {
+    setBalance(null);
+    if (!ledgerId) return;
+    const loadBalance = async () => {
+      try {
+        setBalance(await api(`/accounts-hub/ledger-balance/${ledgerId}`));
+      } catch {
+        setBalance(null);
+      }
+    };
+    loadBalance();
+  }, [ledgerId]);
+  return balance;
 }
 
 // totals strip under a voucher
 export function BalanceStrip({ dr, cr, extra }) {
-  const diff = Math.round((dr - cr) * 100) / 100;
-  const ok = dr > 0 && Math.abs(diff) < 0.01;
+  const difference = Math.round((dr - cr) * 100) / 100;
+  const balanced = dr > 0 && Math.abs(difference) < 0.01;
+  const started = Boolean(dr || cr);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '7px 12px', borderRadius: 6, flexWrap: 'wrap', fontSize: 11.5,
-      background: ok ? T.okBg : dr || cr ? T.amberBg : '#f1f5f9', border: `1px solid ${ok ? '#a7f3d0' : dr || cr ? '#fde68a' : T.rule}` }}>
-      <span style={{ fontWeight: 700, color: T.inkSoft }}>Dr. <Money v={dr} side="Dr" strong /></span>
-      <span style={{ fontWeight: 700, color: T.inkSoft }}>Cr. <Money v={cr} side="Cr" strong /></span>
+    <div className={cn(
+      'tw:flex tw:flex-wrap tw:items-center tw:gap-x-4.5 tw:gap-y-1 tw:rounded-md tw:border tw:px-3 tw:py-1.5 tw:text-[11.5px]',
+      balanced ? 'tw:border-success/40 tw:bg-success/10' : started ? 'tw:border-warning/40 tw:bg-warning/10' : 'tw:border-input tw:bg-muted'
+    )}>
+      <span className="tw:font-bold tw:text-foreground/80">Dr. <Money v={dr} side="Dr" strong /></span>
+      <span className="tw:font-bold tw:text-foreground/80">Cr. <Money v={cr} side="Cr" strong /></span>
       {extra}
-      <span style={{ marginLeft: 'auto', fontWeight: 800, color: ok ? T.cr : dr || cr ? T.amber : T.muted }}>
-        {ok ? 'Balanced' : dr || cr ? `Difference ${inr(Math.abs(diff))} ${diff > 0 ? 'Dr' : 'Cr'}` : 'Enter amounts'}
+      <span className={cn('tw:ml-auto tw:font-extrabold', balanced ? 'tw:text-success' : started ? 'tw:text-warning' : 'tw:text-muted-foreground')}>
+        {balanced ? 'Balanced' : started ? `Difference ${inr(Math.abs(difference))} ${difference > 0 ? 'Dr' : 'Cr'}` : 'Enter amounts'}
       </span>
     </div>
   );
 }
 
-// grid with the app's table look, inside a titled box
-export function Grid({ title, right, cols, rows, empty = 'No entries', foot, maxHeight = 320, minHeight, onRow, rowKey = (r, i) => i, activeKey }) {
+// grid inside a titled box; cols: [{ label, key, render(row, index), right, w, wrap }]
+export function Grid({ title, right, cols, rows, empty = 'No entries', foot, maxHeight = 320, minHeight, onRow, rowKey = (row, index) => index, activeKey }) {
+  const alignOf = (column) => (column.right ? 'tw:text-right' : 'tw:text-left');
   return (
-    <Box title={title} right={right} pad={0} style={{ background: T.panel }}>
-      <div style={{ overflow: 'auto', maxHeight, minHeight }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}><tr>{cols.map((c, i) => <th key={i} style={{ textAlign: c.right ? 'right' : 'left', width: c.w, background: '#f8fafc' }}>{c.label}</th>)}</tr></thead>
-          <tbody>
-            {rows.map((r, i) => { const k = rowKey(r, i); const on = activeKey !== undefined && String(k) === String(activeKey); return (
-              <tr key={k} className={onRow ? 'table-row-hover' : ''} onClick={onRow ? () => onRow(r) : undefined} style={{ borderTop: `1px solid ${T.ruleSoft}`, background: on ? T.headBg : i % 2 ? '#fbfdff' : '#fff' }}>
-                {cols.map((c, j) => <td key={j} style={{ textAlign: c.right ? 'right' : 'left', whiteSpace: c.wrap ? 'normal' : 'nowrap', verticalAlign: 'top', fontVariantNumeric: 'tabular-nums' }}>{c.render ? c.render(r, i) : r[c.key]}</td>)}
-              </tr>); })}
-            {!rows.length && <tr><td colSpan={cols.length} style={{ textAlign: 'center', color: T.muted, padding: '26px 8px' }}>{empty}</td></tr>}
-          </tbody>
-          {foot && rows.length > 0 && <tfoot style={{ position: 'sticky', bottom: 0 }}><tr style={{ background: T.headBg, fontWeight: 800 }}>{foot.map((f, i) => <td key={i} style={{ textAlign: cols[i] && cols[i].right ? 'right' : 'left', borderTop: `2px solid ${T.headBorder}`, whiteSpace: 'nowrap' }}>{f}</td>)}</tr></tfoot>}
-        </table>
-      </div>
+    <Box title={title} right={right} pad={0} className="tw:bg-card" style={{ '--grid-max-h': cssSize(maxHeight), '--grid-min-h': cssSize(minHeight) }}>
+      <Table containerClassName="tw:max-h-(--grid-max-h) tw:min-h-(--grid-min-h)">
+        <TableHeader sticky>
+          <TableRow className="tw:hover:bg-transparent">
+            {cols.map((column, index) => (
+              <TableHead key={index} style={column.w ? { '--col-w': cssSize(column.w) } : undefined} className={cn(alignOf(column), column.w && 'tw:w-(--col-w)')}>
+                {column.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row, index) => {
+            const key = rowKey(row, index);
+            const active = activeKey !== undefined && String(key) === String(activeKey);
+            return (
+              <TableRow
+                key={key}
+                data-state={active ? 'selected' : undefined}
+                onClick={onRow ? () => onRow(row) : undefined}
+                className={cn(onRow && 'tw:cursor-pointer')}
+              >
+                {cols.map((column, columnIndex) => (
+                  <TableCell key={columnIndex} className={cn(alignOf(column), 'tw:align-top tw:tabular-nums', column.wrap && 'tw:whitespace-normal')}>
+                    {column.render ? column.render(row, index) : row[column.key]}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          })}
+          {!rows.length && (
+            <TableRow className="tw:hover:bg-transparent">
+              <TableCell colSpan={cols.length} className="tw:py-6 tw:text-center tw:text-muted-foreground">{empty}</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+        {foot && rows.length > 0 && (
+          <TableFooter className="tw:sticky tw:bottom-0">
+            <TableRow className="tw:bg-accent tw:font-extrabold tw:hover:bg-accent">
+              {foot.map((cell, index) => (
+                <TableCell key={index} className={cn(cols[index]?.right ? 'tw:text-right' : 'tw:text-left', 'tw:border-t-2 tw:border-t-primary/30')}>{cell}</TableCell>
+              ))}
+            </TableRow>
+          </TableFooter>
+        )}
+      </Table>
     </Box>
   );
 }
 
+const lineTotal = (lines, side) => lines.filter((line) => line.dc === side).reduce((sum, line) => sum + Number(line.amount || 0), 0);
+
 // read-only posting
 export function PostingTable({ lines, title = 'Posting' }) {
-  const dr = lines.filter(l => l.dc === 'Dr').reduce((s, l) => s + Number(l.amount || 0), 0);
-  const cr = lines.filter(l => l.dc === 'Cr').reduce((s, l) => s + Number(l.amount || 0), 0);
   return (
-    <Grid title={title} maxHeight={360}
-      cols={[{ label: 'Account Name', render: l => <div><div style={{ fontWeight: 700 }}>{l.ledgerName || l.name}</div>{(l.groupName || l.remarks) && <div style={{ fontSize: 10, color: T.muted }}>{[l.groupName, l.remarks].filter(Boolean).join(' - ')}</div>}</div>, wrap: true },
-        { label: 'Debit', right: true, w: 140, render: l => (l.dc === 'Dr' ? <Money v={l.amount} side="Dr" /> : '') },
-        { label: 'Credit', right: true, w: 140, render: l => (l.dc === 'Cr' ? <Money v={l.amount} side="Cr" /> : '') }]}
-      rows={lines} foot={['Total', <Money v={dr} side="Dr" strong />, <Money v={cr} side="Cr" strong />]} />
+    <Grid
+      title={title}
+      maxHeight={360}
+      rows={lines}
+      cols={[
+        {
+          label: 'Account Name',
+          wrap: true,
+          render: (line) => (
+            <div>
+              <div className="tw:font-bold">{line.ledgerName || line.name}</div>
+              {(line.groupName || line.remarks) && <div className="tw:text-[10px] tw:text-muted-foreground">{[line.groupName, line.remarks].filter(Boolean).join(' - ')}</div>}
+            </div>
+          ),
+        },
+        { label: 'Debit', right: true, w: 140, render: (line) => (line.dc === 'Dr' ? <Money v={line.amount} side="Dr" /> : '') },
+        { label: 'Credit', right: true, w: 140, render: (line) => (line.dc === 'Cr' ? <Money v={line.amount} side="Cr" /> : '') },
+      ]}
+      foot={['Total', <Money key="dr" v={lineTotal(lines, 'Dr')} side="Dr" strong />, <Money key="cr" v={lineTotal(lines, 'Cr')} side="Cr" strong />]}
+    />
   );
 }
 export const thS = { textAlign: 'left' };
@@ -281,21 +472,25 @@ export const tdS = { verticalAlign: 'top' };
 
 export function Empty({ title, children, action }) {
   return (
-    <div style={{ padding: '30px 20px', textAlign: 'center', color: T.muted }}>
-      <div style={{ fontWeight: 800, color: T.head, fontSize: 13, marginBottom: 4 }}>{title}</div>
-      <div style={{ fontSize: 12, marginBottom: action ? 12 : 0 }}>{children}</div>
+    <div className="tw:px-5 tw:py-7.5 tw:text-center tw:text-muted-foreground">
+      <div className="tw:mb-1 tw:text-[13px] tw:font-extrabold tw:text-head">{title}</div>
+      <div className={cn('tw:text-entry', action && 'tw:mb-3')}>{children}</div>
       {action}
     </div>
   );
 }
 
 // red / amber note under a party picker: blacklisted, inactive, MSME 45-day rule
-export function PartyNote({ b }) {
-  if (!b) return null;
-  const items = [];
-  if (Number(b.isBlacklisted)) items.push(['bad', 'Blacklisted party' + (b.blacklistReason ? ': ' + b.blacklistReason : '')]);
-  if (b.isActive !== undefined && b.isActive !== null && Number(b.isActive) === 0) items.push(['bad', 'This account is marked inactive']);
-  if (b.msmeNo) items.push(['warn', 'MSME supplier - pay within ' + (Number(b.msmeAgreementDays) || 45) + ' days']);
-  if (!items.length) return null;
-  return <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>{items.map(([t, m], i) => <Badge key={i} tone={t}>{m}</Badge>)}</div>;
+export function PartyNote({ b: party }) {
+  if (!party) return null;
+  const notes = [];
+  if (Number(party.isBlacklisted)) notes.push(['bad', 'Blacklisted party' + (party.blacklistReason ? ': ' + party.blacklistReason : '')]);
+  if (party.isActive !== undefined && party.isActive !== null && Number(party.isActive) === 0) notes.push(['bad', 'This account is marked inactive']);
+  if (party.msmeNo) notes.push(['warn', 'MSME supplier - pay within ' + (Number(party.msmeAgreementDays) || 45) + ' days']);
+  if (!notes.length) return null;
+  return (
+    <div className="tw:mt-1 tw:flex tw:flex-wrap tw:gap-1.5">
+      {notes.map(([tone, text]) => <Badge key={text} tone={tone}>{text}</Badge>)}
+    </div>
+  );
 }

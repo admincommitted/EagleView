@@ -1,14 +1,11 @@
-// CBIC rate of exchange - one place for the per-100 rule. 30-Oct-2026
+// CBIC rate of exchange - one place for the per-100 rule.
 //
 // CBIC notifies the rate of exchange in two schedules. Schedule I is rupees per 1 unit of foreign currency.
 // Schedule II is rupees per 100 units and holds exactly two currencies - Japanese Yen and Korean Won. A rate
 // read off the notification (or typed from it) for those two is therefore a per-100 figure.
 //
-// The import side already worked this way: its exchange-rate rows carry { rate, unitInRs } and every rupee
-// figure divides by unitInRs. The export side did not - it multiplied the invoice value by the typed rate, so
-// a JPY invoice came out 100 times too big (invoice FOB, item FOB, PMV, IGST taxable value, drawback, RoDTEP
-// and the FOB on the filed Shipping Bill). Proved on 30-Oct-2026: 1,000,000 JPY at the notified 55.50 per 100
-// gave Rs 5,55,00,000 instead of Rs 5,55,000.
+// Every rupee figure divides by the unit (exchange-rate rows carry { rate, unitInRs }): 1,000,000 JPY at the
+// notified 55.50 per 100 is Rs 5,55,000, not Rs 5,55,00,000.
 export const PER_100_CURRENCIES = ['JPY', 'KRW'];
 
 export const normCur = (c) => String(c || '').trim().toUpperCase();

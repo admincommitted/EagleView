@@ -1,53 +1,74 @@
-// Certificate of origin (draft for the chamber of commerce / export council) - filled from the saved AWB
-// (11-Nov-2026, see docKit.jsx).
-import React from 'react';
-import { DocWindow, In, Tx, box, cap, title, dmy, kg, flightText } from './docKit';
+// Certificate of origin (draft for the chamber of commerce / export council), filled from the saved AWB.
+import DocumentModal from './DocumentModal';
+import { DocInput } from './docKit';
+import { flightText, joinFilled, kg, placeAndDate } from './docFormat';
 
 const COUNTRY = { IN: 'INDIA', GB: 'UNITED KINGDOM', US: 'UNITED STATES', AE: 'UNITED ARAB EMIRATES', DE: 'GERMANY', FR: 'FRANCE', NL: 'NETHERLANDS', SG: 'SINGAPORE', HK: 'HONG KONG', CN: 'CHINA', JP: 'JAPAN' };
 
-export default function CertificateOfOriginModal({ isOpen, onClose, awbNumber, awbId, awbType }) {
+function ExporterDeclaration({ doc, country }) {
   return (
-    <DocWindow isOpen={isOpen} onClose={onClose} title="Certificate of Origin" fileName={`COO_${awbNumber || ''}`} awbId={awbId} awbType={awbType}>
-      {(d) => {
-        const oc = d.origin.country || 'IN';
-        return (
-          <>
-            <h1 style={{ ...title, marginBottom: '10px' }}>CERTIFICATE OF ORIGIN</h1>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody>
-              <tr>
-                <td style={{ ...box, width: '55%' }}><span style={cap}>1. Exporter / consignor (name, address, country)</span><Tx name="exporter" v={d.shipperBlock} rows={5} /></td>
-                <td style={box}><span style={cap}>Certificate No.</span><In name="certNo" v="" /><span style={{ ...cap, marginTop: '8px' }}>Issued in</span><In name="issuedIn" v={COUNTRY[oc] || oc} /></td>
-              </tr>
-              <tr>
-                <td style={box}><span style={cap}>2. Consignee (name, address, country)</span><Tx name="consignee" v={d.consigneeBlock} rows={5} /></td>
-                <td style={box}><span style={cap}>Invoice No. and date</span><In name="invoice" v="" /><span style={{ ...cap, marginTop: '8px' }}>Country of origin of the goods</span><In name="coo" v={COUNTRY[oc] || oc} /></td>
-              </tr>
-              <tr>
-                <td style={box}><span style={cap}>3. Means of transport and route</span><In name="transport" v={['BY AIR', d.airline.name, flightText(d), d.mawbNo ? 'AWB ' + d.mawbNo : '', d.hawbNo ? 'HAWB ' + d.hawbNo : ''].filter(Boolean).join('  ')} /></td>
-                <td style={box}><span style={cap}>Port of loading / discharge</span><In name="ports" v={[d.origin.name || d.origin.code, d.destination.name || d.destination.code].filter(Boolean).join(' / ')} /></td>
-              </tr>
-            </tbody></table>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
-              <thead><tr>{['Marks and numbers', 'Number and kind of packages; description of goods', 'HS code', 'Gross weight / quantity'].map(h => <th key={h} style={{ ...box, background: '#eef2f7', fontSize: '10px', textAlign: 'left' }}>{h}</th>)}</tr></thead>
-              <tbody><tr>
-                <td style={{ ...box, width: '17%' }}><Tx name="marks" v={d.hawbNo || d.awbNo} rows={7} /></td>
-                <td style={box}><Tx name="goods" v={`${d.pieces || ''} PACKAGES\n${d.goods || ''}`} rows={7} /></td>
-                <td style={{ ...box, width: '13%' }}><Tx name="hs" v={(d.hsCodes || []).join('\n')} rows={7} /></td>
-                <td style={{ ...box, width: '16%' }}><Tx name="qty" v={d.gross ? `${kg(d.gross)} KGS` : ''} rows={7} /></td>
-              </tr></tbody>
-            </table>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}><tbody><tr>
-              <td style={{ ...box, width: '50%', height: '130px' }}><span style={cap}>Declaration by the exporter</span>
-                <div style={{ fontSize: '10px' }}>The undersigned declares that the details and statements above are correct and that all the goods were produced in {COUNTRY[oc] || oc}.</div>
-                <div style={{ marginTop: '40px', fontSize: '10px' }}>Place and date: <In name="expPlace" v={`${d.executed.place || d.company.city || ''} ${dmy(d.today)}`} w="60%" /></div>
-                <div style={{ marginTop: '6px', fontSize: '10px' }}>Signature and stamp of the exporter</div></td>
-              <td style={box}><span style={cap}>Certification</span>
-                <div style={{ fontSize: '10px' }}>It is certified, on the basis of the documents produced, that the declaration by the exporter is correct.</div>
-                <div style={{ marginTop: '58px', fontSize: '10px' }}>Place, date, signature and stamp of the certifying authority</div></td>
-            </tr></tbody></table>
-          </>
-        );
-      }}
-    </DocWindow>
+    <>
+      <div className="tw:text-[10px]">The undersigned declares that the details and statements above are correct and that all the goods were produced in {country}.</div>
+      <div className="tw:mt-[40px] tw:text-[10px]">Place and date: <DocInput name="expPlace" value={placeAndDate(doc)} className="tw:w-[60%]" /></div>
+      <div className="tw:mt-[6px] tw:text-[10px]">Signature and stamp of the exporter</div>
+    </>
   );
+}
+
+function Certification() {
+  return (
+    <>
+      <div className="tw:text-[10px]">It is certified, on the basis of the documents produced, that the declaration by the exporter is correct.</div>
+      <div className="tw:mt-[58px] tw:text-[10px]">Place, date, signature and stamp of the certifying authority</div>
+    </>
+  );
+}
+
+const COO_SHEET = {
+  title: 'Certificate of Origin',
+  filePrefix: 'COO',
+  blocks: (doc) => {
+    const countryCode = doc.origin.country || 'IN';
+    const country = COUNTRY[countryCode] || countryCode;
+    const transport = joinFilled(['BY AIR', doc.airline.name, flightText(doc), doc.mawbNo ? 'AWB ' + doc.mawbNo : '', doc.hawbNo ? 'HAWB ' + doc.hawbNo : ''], '  ');
+    return [
+      { kind: 'title', text: 'CERTIFICATE OF ORIGIN', className: 'tw:mb-[10px]' },
+      {
+        kind: 'fields', rows: [
+          [
+            { label: '1. Exporter / consignor (name, address, country)', name: 'exporter', value: doc.shipperBlock, lines: 5, className: 'tw:w-[55%]' },
+            { label: 'Certificate No.', name: 'certNo', value: '', moreGap: 'tw:mt-[8px]', more: [{ label: 'Issued in', name: 'issuedIn', value: country }] },
+          ],
+          [
+            { label: '2. Consignee (name, address, country)', name: 'consignee', value: doc.consigneeBlock, lines: 5 },
+            { label: 'Invoice No. and date', name: 'invoice', value: '', moreGap: 'tw:mt-[8px]', more: [{ label: 'Country of origin of the goods', name: 'coo', value: country }] },
+          ],
+          [
+            { label: '3. Means of transport and route', name: 'transport', value: transport },
+            { label: 'Port of loading / discharge', name: 'ports', value: joinFilled([doc.origin.name || doc.origin.code, doc.destination.name || doc.destination.code], ' / ') },
+          ],
+        ],
+      },
+      {
+        kind: 'grid', className: 'tw:mt-[8px]',
+        columns: [{ header: 'Marks and numbers' }, { header: 'Number and kind of packages; description of goods' }, { header: 'HS code' }, { header: 'Gross weight / quantity' }],
+        rows: [[
+          { name: 'marks', value: doc.hawbNo || doc.awbNo, lines: 7, className: 'tw:w-[17%]' },
+          { name: 'goods', value: `${doc.pieces || ''} PACKAGES\n${doc.goods || ''}`, lines: 7 },
+          { name: 'hs', value: (doc.hsCodes || []).join('\n'), lines: 7, className: 'tw:w-[13%]' },
+          { name: 'qty', value: doc.gross ? `${kg(doc.gross)} KGS` : '', lines: 7, className: 'tw:w-[16%]' },
+        ]],
+      },
+      {
+        kind: 'fields', className: 'tw:mt-[8px]', rows: [[
+          { label: 'Declaration by the exporter', className: 'tw:h-[130px] tw:w-[50%]', content: <ExporterDeclaration doc={doc} country={country} /> },
+          { label: 'Certification', content: <Certification /> },
+        ]],
+      },
+    ];
+  },
+};
+
+export default function CertificateOfOriginModal(props) {
+  return <DocumentModal {...props} sheet={COO_SHEET} />;
 }

@@ -1,20 +1,25 @@
-import React from 'react';
 import useExportInvoiceTab from './ExportInvoiceTabParts/useExportInvoiceTab';
-import ActionsSection from './ExportInvoiceTabParts/sections/ActionsSection';
+import InvoiceListSection from './ExportInvoiceTabParts/sections/InvoiceListSection';
+import InvoiceDetailsSection from './ExportInvoiceTabParts/sections/InvoiceDetailsSection';
 import ChargesSection from './ExportInvoiceTabParts/sections/ChargesSection';
-import BuyerDetailsSection from './ExportInvoiceTabParts/sections/BuyerDetailsSection';
-import { INV_CSS } from './ExportInvoiceTabParts/sections/invCompact';
+import InvoiceActionsBar from './ExportInvoiceTabParts/sections/InvoiceActionsBar';
+import OtherDetailsModal from './ExportInvoiceTabParts/sections/OtherDetailsModal';
+import BuyerDetailsModal from './ExportInvoiceTabParts/sections/BuyerDetailsModal';
 
-// ExportInvoiceTab: state/logic in ./ExportInvoiceTabParts/use*.jsx, screen sections in ./ExportInvoiceTabParts/sections/.
 export default function ExportInvoiceTab() {
-  const ctx = {};
-  Object.assign(ctx, useExportInvoiceTab(ctx));
-  return <div className="ivd" onChangeCapture={ctx.markInvTouched} onInputCapture={ctx.markInvTouched} onClickCapture={ctx.markInvTouched} style={{ display: 'flex', flexDirection: 'column', gap: '6px', height: '100%', overflowY: 'auto', paddingRight: '0.5rem' }}>
-      <style>{INV_CSS}</style>
-      
-      <ActionsSection ctx={ctx} />
-
+  const ctx = useExportInvoiceTab();
+  const touch = ctx.markInvTouched;
+  return (
+    <div
+      className="tw:flex tw:h-full tw:min-w-0 tw:flex-col tw:gap-1.5 tw:overflow-y-auto tw:pr-2 tw:text-entry"
+      onChangeCapture={touch} onInputCapture={touch} onClickCapture={touch} onPointerDownCapture={touch} onKeyDownCapture={touch}
+    >
+      <InvoiceListSection ctx={ctx} />
+      <InvoiceDetailsSection ctx={ctx} />
       <ChargesSection ctx={ctx} />
-      <BuyerDetailsSection ctx={ctx} />
-    </div>;
+      <InvoiceActionsBar ctx={ctx} />
+      <OtherDetailsModal ctx={ctx} />
+      <BuyerDetailsModal ctx={ctx} />
+    </div>
+  );
 }

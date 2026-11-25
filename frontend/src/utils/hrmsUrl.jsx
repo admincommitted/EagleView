@@ -1,4 +1,4 @@
-// HRMS was separated from EDI on 22-Oct-2026. It is its own app now:
+// HRMS is its own app:
 //   dev:        hrms-frontend  -> http://<host>:5174
 //   production: hrms-backend serves the built UI -> http://<host>:5100
 // Set VITE_HRMS_URL in frontend/.env to override (e.g. https://hrms.yourcompany.com).
@@ -16,5 +16,5 @@ export const hrmsUrl = (path = '/') => base() + path;
 // Route element that forwards old in-app HR links to the HRMS app.
 export function GoToHrms({ path = '/' }) {
   useEffect(() => { window.location.replace(hrmsUrl(path)); }, [path]);
-  return <div style={{ padding: 24 }}>Opening HRMS…</div>;
+  return <div className="tw:p-6">Opening HRMS…</div>;
 }

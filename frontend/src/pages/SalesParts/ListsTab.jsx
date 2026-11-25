@@ -1,47 +1,120 @@
 // Sales > Lists: the pick lists used on customers and enquiries (industries, sources, competitors, lost reasons,
-// departments, commodities). A value in use is switched off, not deleted. 11-Nov-2026.
-import React from 'react';
+// departments, commodities). A value in use is switched off, not deleted.
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus } from 'lucide-react';
-import { api, C, inp, btn } from './salesUi';
+import { Button, Card, CardContent, CardFooter, CardHeader, CardTitle, Input } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { salesHubApi } from './salesApi';
+import { Muted } from './salesWidgets';
 
-const NAMES = { INDUSTRY: 'Industries', SOURCE: 'Lead sources', COMPETITOR: 'Competitors', LOST_REASON: 'Lost reasons', DEPARTMENT: 'Contact departments', COMMODITY: 'Commodities' };
+const LIST_NAMES = {
+  INDUSTRY: 'Industries', SOURCE: 'Lead sources', COMPETITOR: 'Competitors', LOST_REASON: 'Lost reasons', DEPARTMENT: 'Contact departments', COMMODITY: 'Commodities',
+};
 
-function KindBox({ kind, rows, canManage, onChange }) {
-  const [v, setV] = React.useState(''); const [edit, setEdit] = React.useState({});
-  const add = async () => { try { await api('/lookups', { method: 'POST', body: { kind, value: v } }); setV(''); onChange(); } catch (e) { toast.error(e.message); } };
-  const put = async (r, body) => { try { await api('/lookups/' + r.id, { method: 'PUT', body }); setEdit(o => ({ ...o, [r.id]: undefined })); onChange(); } catch (e) { toast.error(e.message); } };
+function LookupRow({ row, canManage, editing, onStartEdit, onEditText, onCancelEdit, onSave }) {
   return (
-    <section style={{ background: '#fff', border: '1px solid ' + C.line, borderRadius: '6px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <h4 style={{ margin: 0, padding: '8px 12px', fontSize: '12.5px', color: C.head, borderBottom: '1px solid ' + C.line }}>{NAMES[kind] || kind} <span style={{ color: C.mute, fontWeight: 400 }}>({rows.filter(r => r.isActive).length})</span></h4>
-      <div style={{ maxHeight: '320px', overflow: 'auto', padding: '4px 0' }}>
-        {rows.length === 0 && <div style={{ padding: '6px 12px', fontSize: '12px', color: C.mute }}>Empty - add the first one below.</div>}
-        {rows.map(r => (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 12px', fontSize: '12px', opacity: r.isActive ? 1 : 0.5 }}>
-            {edit[r.id] !== undefined
-              ? <input style={{ ...inp, padding: '3px 6px' }} autoFocus value={edit[r.id]} onChange={e => setEdit(o => ({ ...o, [r.id]: e.target.value }))} onKeyDown={e => { if (e.key === 'Enter') put(r, { value: edit[r.id] }); if (e.key === 'Escape') setEdit(o => ({ ...o, [r.id]: undefined })); }} onBlur={() => put(r, { value: edit[r.id] })} />
-              : <span style={{ flex: 1, cursor: canManage ? 'text' : 'default', textDecoration: r.isActive ? 'none' : 'line-through' }} onClick={() => canManage && setEdit(o => ({ ...o, [r.id]: r.value }))} title={canManage ? 'Click to rename' : ''}>{r.value}</span>}
-            {canManage && edit[r.id] === undefined && <button type="button" style={{ ...btn('ghost'), padding: '1px 6px', fontSize: '11px' }} onClick={() => put(r, { isActive: !r.isActive })}>{r.isActive ? 'Switch off' : 'Switch on'}</button>}
-          </div>
-        ))}
-      </div>
-      {canManage && (
-        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderTop: '1px solid ' + C.line, marginTop: 'auto' }}>
-          <input style={inp} value={v} placeholder="New value" onChange={e => setV(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && v.trim()) add(); }} />
-          <button type="button" style={btn()} disabled={!v.trim()} onClick={add}><Plus size={12} /> Add</button>
-        </div>
+    <div className={cn('tw:flex tw:items-center tw:gap-1.5 tw:px-3 tw:py-0.5 tw:text-entry', !row.isActive && 'tw:opacity-50')}>
+      {editing !== undefined ? (
+        <Input
+          autoFocus
+          data-allow-text=""
+          value={editing}
+          onChange={(event) => onEditText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') onSave({ value: editing });
+            if (event.key === 'Escape') onCancelEdit();
+          }}
+          onBlur={() => onSave({ value: editing })}
+        />
+      ) : (
+        <span
+          className={cn('tw:flex-1', canManage ? 'tw:cursor-text' : 'tw:cursor-default', !row.isActive && 'tw:line-through')}
+          onClick={() => canManage && onStartEdit()}
+          title={canManage ? 'Click to rename' : ''}
+        >
+          {row.value}
+        </span>
       )}
-    </section>
+      {canManage && editing === undefined && (
+        <Button variant="ghost" size="sm" onClick={() => onSave({ isActive: !row.isActive })}>{row.isActive ? 'Switch off' : 'Switch on'}</Button>
+      )}
+    </div>
+  );
+}
+
+function LookupList({ kind, rows, canManage, onChange }) {
+  const [newValue, setNewValue] = useState('');
+  const [edits, setEdits] = useState({});
+  const setEdit = (id, text) => setEdits((current) => ({ ...current, [id]: text }));
+
+  const add = async () => {
+    try {
+      await salesHubApi.addLookup(kind, newValue);
+      setNewValue('');
+      onChange();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const save = async (row, change) => {
+    try {
+      await salesHubApi.updateLookup(row.id, change);
+      setEdit(row.id, undefined);
+      onChange();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  return (
+    <Card className="tw:min-h-0">
+      <CardHeader className="tw:justify-start tw:border-b tw:border-border tw:py-2">
+        <CardTitle>{LIST_NAMES[kind] || kind}</CardTitle>
+        <span className="tw:font-normal tw:text-muted-foreground">({rows.filter((row) => row.isActive).length})</span>
+      </CardHeader>
+      <CardContent className="tw:max-h-[320px] tw:gap-0 tw:overflow-auto tw:px-0 tw:py-1">
+        {rows.length === 0 && <Muted className="tw:px-3 tw:py-1.5 tw:text-entry">Empty - add the first one below.</Muted>}
+        {rows.map((row) => (
+          <LookupRow
+            key={row.id}
+            row={row}
+            canManage={canManage}
+            editing={edits[row.id]}
+            onStartEdit={() => setEdit(row.id, row.value)}
+            onEditText={(text) => setEdit(row.id, text)}
+            onCancelEdit={() => setEdit(row.id, undefined)}
+            onSave={(change) => save(row, change)}
+          />
+        ))}
+      </CardContent>
+      {canManage && (
+        <CardFooter className="tw:mt-auto tw:gap-1.5">
+          <Input
+            data-allow-text=""
+            value={newValue}
+            placeholder="New value"
+            onChange={(event) => setNewValue(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter' && newValue.trim()) add(); }}
+          />
+          <Button disabled={!newValue.trim()} onClick={add}><Plus /> Add</Button>
+        </CardFooter>
+      )}
+    </Card>
   );
 }
 
 export default function ListsTab({ meta, reloadMeta }) {
-  const kinds = meta.lookupKinds || Object.keys(NAMES);
+  const kinds = meta.lookupKinds || Object.keys(LIST_NAMES);
   return (
     <div>
-      <div style={{ fontSize: '12px', color: C.grey, marginBottom: '10px' }}>These lists fill the drop-downs on customers, contacts, lanes and (next) enquiries and quotations. Click a value to rename it; a value no longer used is switched off so old records keep it.</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
-        {kinds.map(k => <KindBox key={k} kind={k} rows={(meta.lookups || {})[k] || []} canManage={meta.canManage} onChange={reloadMeta} />)}
+      <Muted className="tw:mb-2.5 tw:text-entry">
+        These lists fill the drop-downs on customers, contacts, lanes and (next) enquiries and quotations. Click a value to rename it; a value no longer used
+        is switched off so old records keep it.
+      </Muted>
+      <div className="tw:grid tw:grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] tw:gap-2.5">
+        {kinds.map((kind) => <LookupList key={kind} kind={kind} rows={(meta.lookups || {})[kind] || []} canManage={meta.canManage} onChange={reloadMeta} />)}
       </div>
     </div>
   );

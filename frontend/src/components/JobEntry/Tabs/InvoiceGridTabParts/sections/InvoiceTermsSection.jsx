@@ -1,334 +1,234 @@
-// Screen section: Invoice Terms
-// Split out of InvoiceGridTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import { CheckSquare, Plus, X } from 'lucide-react';
-import React from 'react';
+import { Fragment, useMemo, useState } from 'react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Button, ComboInput, DataTable, Field, FlagInput, Input, Modal, NumberInput, SelectBox } from '@/components/ui';
+
+const MISC_CHARGES = [
+  'BROKERAGE AND COMMISSIONS', 'COST OF CONTAINERS', 'COST OF PACKING', 'HANDLING CHARGES', 'COST OF GOODS AND SERVICES', 'DOCUMENTATION',
+  'COUNTRY OF ORIGIN CERTIFICATE', 'LOYALTIES AND LICENCE FEES', 'VALUE OF PROCEEDS WHICH ACCURE', 'COST OF WARRANTY SERVICES', 'OTHER COST OR PAYMENT',
+  'OTHER CHARGES AND PAYMENT', 'LOADING CHARGES', 'UNLOADING CHARGES',
+];
+const icegateCodeOf = (charge) => String.fromCharCode(65 + MISC_CHARGES.indexOf(charge));
+const MISC_CHARGE_OPTIONS = MISC_CHARGES.map((charge) => ({ value: charge, label: `${icegateCodeOf(charge)} - ${charge}` }));
+
+const INCLUDED_CHARGES = [
+  { label: 'Local Agency Comm.', amount: 'agencyCommAmount', currency: 'agencyCommCurrency', rate: 'agencyCommRate' },
+  { label: 'Loading', amount: 'loadingAmount', currency: 'loadingCurrency', rate: 'loadingRate' },
+  { label: 'Miscellaneous', amount: 'miscCharges', currency: 'miscCurrency', rate: 'miscChargesRate' },
+  { label: 'HSS', amount: 'hssLoadAmount', currency: 'hssCurrency', rate: 'hssLoadRate' },
+  { label: 'Discount', amount: 'discountAmount', currency: 'discountCurrency', rate: 'discountRate' },
+];
+
+const EMPTY_MISC_ROW = { desc: '', amount: '', rate: '' };
+const TERMS_ROW = 'tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-center tw:md:gap-3';
+
+const filled = (value) => String(value ?? '').trim() !== '';
+
+const parseRows = (rows) => {
+  if (Array.isArray(rows)) return rows;
+  try {
+    return JSON.parse(rows) || [];
+  } catch {
+    return [];
+  }
+};
+
+function CurrencyInput({ name, form, currencies, onChange, required, className }) {
+  return (
+    <ComboInput name={name} upper maxLength={3} required={required} className={className} placeholder={form.currency || 'CUR'}
+      options={currencies} getValue={(currency) => currency.currencyCode} getLabel={(currency) => currency.currencyName}
+      value={form[name] ?? (form.currency || '')} onValueChange={(value) => onChange(name, value)} />
+  );
+}
+
+function TermsModal({ open, term, form, currencies, setField, onConfirm, onClose }) {
+  const declaresFreight = term === 'FOB' || term === 'CI';
+  const declaresInsurance = term === 'FOB' || term === 'CF';
+  return (
+    <Modal open={open} title={<>Invoice Terms <b>({term})</b></>} width={650} onClose={onClose} onOk={onConfirm} closeOnOutside={false}>
+      {!declaresFreight && !declaresInsurance && (
+        <p className="tw:m-0 tw:text-entry tw:text-muted-foreground">Terms {term || '(none)'} include freight and insurance - nothing to declare here.</p>
+      )}
+      {declaresFreight && (
+        <div className={TERMS_ROW}>
+          <Field label="Freight Value" required labelWidth="104px" className="tw:flex-1">
+            <NumberInput name="freightValue" required value={form.freightValue || ''} onValueChange={(value) => setField('freightValue', value)} />
+          </Field>
+          <Field label="Currency" required><CurrencyInput name="freightCurrency" required className="tw:w-[70px] tw:flex-none" form={form} currencies={currencies} onChange={setField} /></Field>
+          <Field label="Rate" required><NumberInput name="freightRate" required className="tw:w-14" value={form.freightRate || ''} onValueChange={(value) => setField('freightRate', value)} /></Field>
+          <Field label="Actual?" required hint="Is the freight the actual amount paid (Y/N)">
+            <FlagInput name="whetherFreightActual" required value={form.whetherFreightActual || ''} onValueChange={(value) => setField('whetherFreightActual', value)} />
+          </Field>
+        </div>
+      )}
+      {declaresInsurance && (
+        <div className={TERMS_ROW}>
+          <Field label="Insurance Value" required labelWidth="104px" className="tw:flex-1">
+            <NumberInput name="insuranceValue" required value={form.insuranceValue || ''} onValueChange={(value) => setField('insuranceValue', value)} />
+          </Field>
+          <Field label="Currency" required><CurrencyInput name="insuranceCurrency" required className="tw:w-[70px] tw:flex-none" form={form} currencies={currencies} onChange={setField} /></Field>
+          <Field label="Rate" required><NumberInput name="insuranceRate" required className="tw:w-14" value={form.insuranceRate || ''} onValueChange={(value) => setField('insuranceRate', value)} /></Field>
+          <span className="tw:hidden tw:md:block tw:md:w-[86px]" />
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function IncludedChargesModal({ open, form, currencies, setField, onFieldChange, onClose }) {
+  return (
+    <Modal open={open} title="Miscellaneous Charges Specified in Invoice" width={600} onClose={onClose} onOk={onClose} closeOnOutside={false}>
+      <div className="tw:grid tw:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.5fr)] tw:items-center tw:gap-2">
+        {['Charge Name', 'Charges', 'Curr', 'Rate %'].map((heading) => <span key={heading} className="tw:text-[11px] tw:font-bold tw:text-head">{heading}</span>)}
+        {INCLUDED_CHARGES.map((charge) => (
+          <Fragment key={charge.label}>
+            <span className="tw:text-entry">{charge.label}</span>
+            <NumberInput name={charge.amount} value={form[charge.amount] || ''} onValueChange={(value) => setField(charge.amount, value)} />
+            <ComboInput name={charge.currency} upper maxLength={3} options={currencies} getValue={(currency) => currency.currencyCode} getLabel={(currency) => currency.currencyName}
+              value={form[charge.currency] || ''} onValueChange={(value) => setField(charge.currency, value)} />
+            <NumberInput name={charge.rate} value={form[charge.rate] || ''} onValueChange={(value) => setField(charge.rate, value)} />
+          </Fragment>
+        ))}
+        <span className="tw:text-entry">Nature of Discount</span>
+        <Input name="natureOfDiscount" className="tw:col-span-3" value={form.natureOfDiscount || ''} onChange={onFieldChange} />
+        <span className="tw:text-entry">Landing %</span>
+        <NumberInput name="landingRate" placeholder="blank = default" title="Landing charges % (ICEGATE landingRate); leave blank unless a different rate is declared"
+          value={form.landingRate || ''} onValueChange={(value) => setField('landingRate', value)} />
+      </div>
+    </Modal>
+  );
+}
+
+function NotIncludedChargesModal({ open, rows, onRowsChange, onClose }) {
+  const [draft, setDraft] = useState(EMPTY_MISC_ROW);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const updateDraft = (key) => (value) => setDraft((previous) => ({ ...previous, [key]: value }));
+
+  const saveDraft = () => {
+    if (!draft.desc) return toast.error('Select the charge');
+    if (filled(draft.amount) === filled(draft.rate)) return toast.error('Give an amount OR a rate');
+    const row = { desc: draft.desc, code: icegateCodeOf(draft.desc), amount: draft.amount.trim(), rate: draft.rate.trim() };
+    onRowsChange(editingIndex === null ? [...rows, row] : rows.map((existing, index) => (index === editingIndex ? row : existing)));
+    setDraft(EMPTY_MISC_ROW);
+    setEditingIndex(null);
+  };
+
+  const columns = [
+    { key: 'edit', header: 'Edit', width: 60, cell: (row, index) => <Button variant="link" size="sm" onClick={() => { setDraft({ desc: row.desc, amount: row.amount || '', rate: row.rate || '' }); setEditingIndex(index); }}><Pencil /> Edit</Button> },
+    { key: 'remove', header: 'Remove', width: 80, cell: (_, index) => <Button variant="link" size="sm" className="tw:text-destructive" onClick={() => onRowsChange(rows.filter((__, other) => other !== index))}><Trash2 /> Remove</Button> },
+    { key: 'desc', header: 'Miscellaneous Desc.', cell: (row) => `${row.code ? `${row.code} - ` : ''}${row.desc}` },
+    { key: 'amount', header: 'Amount', align: 'right', width: 100 },
+    { key: 'rate', header: 'Rate', align: 'right', width: 80 },
+  ];
+
+  return (
+    <Modal open={open} title="Discount / Miscellaneous Details" width={720} onClose={onClose} onOk={onClose} closeOnOutside={false}>
+      <div className="tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-end tw:md:gap-3">
+        <Field label="Misc Desc" required layout="col" className="tw:md:flex-[2]">
+          <SelectBox required value={draft.desc} onValueChange={updateDraft('desc')} placeholder="Select Charge" options={MISC_CHARGE_OPTIONS} />
+        </Field>
+        <Field label="Amount" layout="col" className="tw:flex-1"><NumberInput value={draft.amount} onValueChange={updateDraft('amount')} /></Field>
+        <span className="tw:pb-1 tw:text-entry tw:font-bold tw:text-muted-foreground">OR</span>
+        <Field label="Rate" layout="col" className="tw:flex-1"><NumberInput value={draft.rate} onValueChange={updateDraft('rate')} /></Field>
+        <Button variant="default" onClick={saveDraft}><Plus /> {editingIndex === null ? 'Add' : 'Update'}</Button>
+      </div>
+
+      <div className="tw:flex tw:flex-wrap tw:gap-4 tw:rounded-sm tw:bg-destructive/5 tw:px-2 tw:py-1.5 tw:text-[11px] tw:text-destructive">
+        <b>For Invoice Terms CI:</b>
+        <span>(1) D - Handling Charges</span><span>(2) M - Loading Charges</span><span>(3) N - Unloading Charges</span>
+      </div>
+
+      <DataTable columns={columns} rows={rows} rowKey={(_, index) => index} selectedKey={editingIndex} emptyText="No charges" containerClassName="tw:min-h-[120px] tw:rounded-sm tw:border tw:border-border" />
+    </Modal>
+  );
+}
+
+const ADDRESS_COLUMNS = [
+  { key: 'address1', header: 'Address1' },
+  { key: 'address2', header: 'Address2' },
+  { key: 'city', header: 'City' },
+  { key: 'state', header: 'State' },
+];
+
+function supplierAddresses(parties, supplierName) {
+  const party = parties.find((candidate) => String(candidate.name || '').trim().toUpperCase() === String(supplierName || '').trim().toUpperCase());
+  if (!party) return [];
+  if (party.branches?.length) {
+    return party.branches.map((branch) => ({ address1: branch.address1, address2: branch.address2, city: branch.city, state: branch.state, pin: branch.pinCode, country: branch.country }));
+  }
+  return [{ address1: party.street, address2: '', city: party.city, state: party.stateProvince, pin: party.zipPostcode, country: party.countryCode }];
+}
+
+function AddressSearchModal({ open, parties, supplierName, onPick, onClose }) {
+  const [filter, setFilter] = useState('');
+  const [picked, setPicked] = useState(null);
+  const addresses = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    return supplierAddresses(parties, supplierName).filter((address) => !query || Object.values(address).some((part) => String(part || '').toLowerCase().includes(query)));
+  }, [parties, supplierName, filter]);
+
+  const take = (address) => { onPick(address); setPicked(null); };
+
+  return (
+    <Modal open={open} title="Search supplier address" width={600} onClose={onClose} onOk={() => (addresses[picked] ? take(addresses[picked]) : onClose())}>
+      <Field label="Find" labelWidth="40px">
+        <Input placeholder="Enter filter" value={filter} onChange={(event) => setFilter(event.target.value)} autoFocus />
+      </Field>
+      <DataTable
+        columns={ADDRESS_COLUMNS}
+        rows={addresses}
+        rowKey={(_, index) => index}
+        selectedKey={picked}
+        onRowClick={(_, index) => setPicked(index)}
+        onRowDoubleClick={take}
+        rowTitle="Double-click to take this address"
+        emptyText={supplierName ? 'No address for this supplier in the Party master' : 'Choose the Supplier Name first'}
+        containerClassName="tw:h-[250px] tw:rounded-sm tw:border tw:border-border"
+      />
+    </Modal>
+  );
+}
 
 export default function InvoiceTermsSection({ ctx }) {
-  const { masters, activeTerm, handleInvoiceFieldChange, invoiceFormData, isAddressModalOpen, isMiscIncludedModalOpen, isMiscNotIncludedModalOpen, isTermsModalOpen, jobData, setInvoiceFormData, setIsAddressModalOpen, setIsMiscIncludedModalOpen, setIsMiscNotIncludedModalOpen, setIsTermsModalOpen, setJobData } = ctx;
-  // ---- misc charges (not included) rows ----
-  // ICEGATE misc-charge directory: codes A..N in directory order (30-Oct-2026 - before only D / M / N were mapped and
-  // the other 11 charges went out with a blank code, which ICES rejects). D, M, N are confirmed from filed BEs.
-  const MISC_DESC = ['BROKERAGE AND COMMISSIONS', 'COST OF CONTAINERS', 'COST OF PACKING', 'HANDLING CHARGES', 'COST OF GOODS AND SERVICES', 'DOCUMENTATION',
-    'COUNTRY OF ORIGIN CERTIFICATE', 'LOYALTIES AND LICENCE FEES', 'VALUE OF PROCEEDS WHICH ACCURE', 'COST OF WARRANTY SERVICES', 'OTHER COST OR PAYMENT',
-    'OTHER CHARGES AND PAYMENT', 'LOADING CHARGES', 'UNLOADING CHARGES'];
-  const MISC_CODE = Object.fromEntries(MISC_DESC.map((d, i) => [d, String.fromCharCode(65 + i)]));
-  const [miscForm, setMiscForm] = React.useState({ desc: '', amount: '', rate: '' });
-  const [miscEdit, setMiscEdit] = React.useState(null);
-  const miscRows = (() => { let r = invoiceFormData.miscChargeRows; if (typeof r === 'string') { try { r = JSON.parse(r); } catch (e) { r = []; } } return Array.isArray(r) ? r : []; })();
-  const saveMiscRows = (rows) => setInvoiceFormData(prev => ({ ...prev, miscChargeRows: rows }));
-  const addMiscRow = () => {
-    if (!miscForm.desc) { window.alert('Select the charge'); return; }
-    const a = String(miscForm.amount).trim(), r = String(miscForm.rate).trim();
-    if ((a && r) || (!a && !r)) { window.alert('Give an amount OR a rate'); return; }
-    const row = { desc: miscForm.desc, code: MISC_CODE[miscForm.desc] || '', amount: a, rate: r };
-    saveMiscRows(miscEdit !== null ? miscRows.map((x, i) => i === miscEdit ? row : x) : [...miscRows, row]);
-    setMiscForm({ desc: '', amount: '', rate: '' }); setMiscEdit(null);
+  const {
+    masters, activeTerm, handleInvoiceFieldChange, invoiceFormData: form, setInvoiceFormData,
+    isTermsModalOpen, setIsTermsModalOpen, isMiscIncludedModalOpen, setIsMiscIncludedModalOpen,
+    isMiscNotIncludedModalOpen, setIsMiscNotIncludedModalOpen, isAddressModalOpen, setIsAddressModalOpen,
+  } = ctx;
+  const currencies = masters?.currencies || [];
+  const setField = (name, value) => handleInvoiceFieldChange({ target: { name, value } });
+
+  const confirmTerms = () => {
+    const both = (amount, rate) => filled(form[amount]) && filled(form[rate]);
+    if (both('freightValue', 'freightRate') || both('insuranceValue', 'insuranceRate')) {
+      return toast.error('Give freight / insurance as an amount OR a rate %, not both');
+    }
+    setIsTermsModalOpen(false);
+    setInvoiceFormData((previous) => ({ ...previous, terms: activeTerm, termsOfInvoice: activeTerm }));
   };
-  // ---- supplier address search (Party master) ----
-  const [addrFilter, setAddrFilter] = React.useState('');
-  const [addrPick, setAddrPick] = React.useState(-1);
-  const addresses = React.useMemo(() => {
-    const p = (masters?.parties || []).find(x => String(x.name || '').trim().toUpperCase() === String(invoiceFormData.supplierName || '').trim().toUpperCase());
-    if (!p) return [];
-    const list = (p.branches && p.branches.length ? p.branches.map(b => ({ address1: b.address1, address2: b.address2, city: b.city, state: b.state, pin: b.pinCode, country: b.country }))
-      : [{ address1: p.street, address2: '', city: p.city, state: p.stateProvince, pin: p.zipPostcode, country: p.countryCode }]);
-    const q = addrFilter.trim().toLowerCase();
-    return list.filter(a => !q || Object.values(a).some(v => String(v || '').toLowerCase().includes(q)));
-  }, [masters, invoiceFormData.supplierName, addrFilter]);
-  const pickAddress = (a) => {
-    setInvoiceFormData(prev => ({ ...prev, supplierAddress1: a.address1 || '', supplierAddress2: [a.address2, a.city].filter(Boolean).join(', '), supplierAddress3: [a.state, a.pin].filter(Boolean).join(' '), supplierCountry: a.country || prev.supplierCountry }));
-    setIsAddressModalOpen(false); setAddrPick(-1);
+
+  const pickSupplierAddress = (address) => {
+    setInvoiceFormData((previous) => ({
+      ...previous,
+      supplierAddress1: address.address1 || '',
+      supplierAddress2: [address.address2, address.city].filter(Boolean).join(', '),
+      supplierAddress3: [address.state, address.pin].filter(Boolean).join(' '),
+      supplierCountry: address.country || previous.supplierCountry,
+    }));
+    setIsAddressModalOpen(false);
   };
+
   return (
     <>
-    {/* Incoterm Modal */}
-      {isTermsModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '650px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#334155', fontWeight: 'normal' }}>
-                Invoice Terms <strong style={{ color: 'var(--text-main, var(--text-main, #0f172a))' }}>({activeTerm})</strong>
-              </h3>
-              <X size={18} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setIsTermsModalOpen(false)} />
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              {(activeTerm === 'FOB' || activeTerm === 'CI') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ width: '120px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Freight Value</label>
-                  <input type="text" name="freightValue" className="input-field mandatory-field" value={invoiceFormData.freightValue || ''} onChange={handleInvoiceFieldChange} style={{ width: '120px', color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #ef4444' }} />
-                  
-                  <label style={{ width: '60px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Currency</label>
-                  <input list="currency-list" name="freightCurrency" type="text" className="input-field mandatory-field" value={invoiceFormData.freightCurrency ?? (invoiceFormData.currency || '')} onChange={(e) => handleInvoiceFieldChange({ target: { name: 'freightCurrency', value: e.target.value.toUpperCase() } })} style={{ width: '60px', color: 'var(--primary-color-end)', background: '#f0fdf4', border: '1px solid #ef4444', textAlign: 'center' }} />
-                  
-                  <label style={{ width: '40px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Rate</label>
-                  <input type="text" name="freightRate" className="input-field mandatory-field" value={invoiceFormData.freightRate || ''} onChange={handleInvoiceFieldChange} style={{ width: '50px', color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #ef4444', textAlign: 'center' }} />
-                  <label style={{ color: 'var(--text-main, #1e293b)', whiteSpace: 'nowrap' }} title="Is the freight the actual amount paid (Y/N)">Actual?</label>
-                  <input type="text" name="whetherFreightActual" maxLength={1} className="input-field mandatory-field" value={invoiceFormData.whetherFreightActual || ''} onChange={(e) => handleInvoiceFieldChange({ target: { name: 'whetherFreightActual', value: e.target.value.toUpperCase() } })} style={{ width: '40px', color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #ef4444', textAlign: 'center' }} />
-                </div>
-              )}
-
-              {(activeTerm === 'FOB' || activeTerm === 'CF') && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ width: '120px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Insurance Value</label>
-                  <input type="text" name="insuranceValue" className="input-field mandatory-field" value={invoiceFormData.insuranceValue || ''} onChange={handleInvoiceFieldChange} style={{ width: '120px', color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #ef4444' }} />
-                  
-                  <label style={{ width: '60px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Currency</label>
-                  <input list="currency-list" name="insuranceCurrency" type="text" className="input-field mandatory-field" value={invoiceFormData.insuranceCurrency ?? (invoiceFormData.currency || '')} onChange={(e) => handleInvoiceFieldChange({ target: { name: 'insuranceCurrency', value: e.target.value.toUpperCase() } })} style={{ width: '60px', color: 'var(--primary-color-end)', background: '#f0fdf4', border: '1px solid #ef4444', textAlign: 'center' }} />
-                  
-                  <label style={{ width: '40px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Rate</label>
-                  <input type="text" name="insuranceRate" className="input-field mandatory-field" value={invoiceFormData.insuranceRate || ''} onChange={handleInvoiceFieldChange} style={{ width: '50px', color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #ef4444', textAlign: 'center' }} />
-
-                </div>
-              )}
-
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: 'var(--bg-panel, #ffffff)' }}>
-              <button onClick={() => {
-                // ICEGATE: freight / insurance as amount OR rate, not both
-                const both = (a, b) => String(invoiceFormData[a] ?? '').trim() && String(invoiceFormData[b] ?? '').trim();
-                if (both('freightValue', 'freightRate') || both('insuranceValue', 'insuranceRate')) { window.alert('Give freight / insurance as an amount OR a rate %, not both'); return; }
-                setIsTermsModalOpen(false); setInvoiceFormData(prev => ({...prev, terms: activeTerm, termsOfInvoice: activeTerm})); }} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsTermsModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      {/* Misc Charges Modal (Included) */}
-      {isMiscIncludedModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#334155', fontWeight: 'normal' }}>
-                Miscellaneous Charges Specified in Invoice
-              </h3>
-              <X size={18} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setIsMiscIncludedModalOpen(false)} />
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center', fontWeight: 'bold', color: 'var(--text-main, var(--text-main, #1e293b))' }}>
-                <div>Charge Name</div>
-                <div>Charges</div>
-                <div>Curr</div>
-                <div>Rate %</div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>Local Agency Comm.</div>
-                  <input type="text" name="agencyCommAmount" value={invoiceFormData.agencyCommAmount || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="agencyCommCurrency" value={invoiceFormData.agencyCommCurrency || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="agencyCommRate" value={invoiceFormData.agencyCommRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>Loading</div>
-                  <input type="text" name="loadingAmount" value={invoiceFormData.loadingAmount || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="loadingCurrency" value={invoiceFormData.loadingCurrency || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="loadingRate" value={invoiceFormData.loadingRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>Miscellaneous</div>
-                <input type="text" name="miscCharges" value={invoiceFormData.miscCharges || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ color: 'var(--primary-color-end)', border: '1px solid #cbd5e1' }} />
-                <input type="text" name="miscCurrency" value={invoiceFormData.miscCurrency || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ color: 'var(--primary-color-end)', border: '1px solid #cbd5e1' }} />
-                <input type="text" name="miscChargesRate" value={invoiceFormData.miscChargesRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>HSS</div>
-                <input type="text" name="hssLoadAmount" value={invoiceFormData.hssLoadAmount || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                <input type="text" name="hssCurrency" value={invoiceFormData.hssCurrency || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                <input type="text" name="hssLoadRate" value={invoiceFormData.hssLoadRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr 0.8fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>Discount</div>
-                  <input type="text" name="discountAmount" value={invoiceFormData.discountAmount || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="discountCurrency" value={invoiceFormData.discountCurrency || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-                  <input type="text" name="discountRate" value={invoiceFormData.discountRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 3.8fr', gap: '8px', alignItems: 'center' }}>
-                <div>Nature of Discount</div>
-                  <input type="text" name="natureOfDiscount" value={invoiceFormData.natureOfDiscount || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ border: '1px solid #cbd5e1' }} />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1.5fr', gap: '8px', alignItems: 'center' }}>
-                <div>Landing %</div>
-                {/* 30-Oct-2026: a real box - filed as landingRate (landing charges % ; blank = ICES default) */}
-                <input type="text" name="landingRate" inputMode="decimal" placeholder="blank = default" title="Landing charges % (ICEGATE landingRate); leave blank unless a different rate is declared" value={invoiceFormData.landingRate || ''} onChange={handleInvoiceFieldChange} className="input-field" style={{ color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #cbd5e1' }} />
-              </div>
-
-              {/* 30-Oct-2026: "Cumulative Misc. Charge" moved to the toolbar (Cumulative ... Apply), where it is split over the invoices */}
-
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: 'var(--bg-panel, #ffffff)' }}>
-              <button onClick={() => setIsMiscIncludedModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsMiscIncludedModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      {/* Misc Charges Modal (Not Included) */}
-      {isMiscNotIncludedModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '700px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#334155', fontWeight: 'normal' }}>
-                Discount/Miscellaneous Details
-              </h3>
-              <X size={18} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setIsMiscNotIncludedModalOpen(false)} />
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              {/* rows kept on the invoice (miscChargeRows) and sent as misc_chModel. The boxes were not saved before. 28-Oct-2026 */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
-                <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Misc Desc</label>
-                  <select className="input-field mandatory-field" value={miscForm.desc} onChange={(e) => setMiscForm({ ...miscForm, desc: e.target.value })} style={{ border: '1px solid #ef4444', color: 'var(--primary-color-end, var(--primary-color-end))' }}>
-                    <option value="">Select Charge</option>
-                    {MISC_DESC.map(d => <option key={d} value={d}>{(MISC_CODE[d] ? MISC_CODE[d] + ' - ' : '') + d}</option>)}
-                  </select>
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Amount</label>
-                  <input type="text" className="input-field" value={miscForm.amount} onChange={(e) => setMiscForm({ ...miscForm, amount: e.target.value })} style={{ border: '1px solid #cbd5e1' }} />
-                </div>
-                <div style={{ paddingBottom: '6px', fontWeight: 'bold', color: 'var(--text-main, var(--text-main, #1e293b))' }}>OR</div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Rate</label>
-                  <input type="text" className="input-field" value={miscForm.rate} onChange={(e) => setMiscForm({ ...miscForm, rate: e.target.value })} style={{ border: '1px solid #cbd5e1' }} />
-                </div>
-                <button type="button" onClick={addMiscRow} className="btn btn-primary" style={{ background: 'var(--primary-color-start)', color: '#fff', border: 'none', padding: '6px 12px', fontSize: '13px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Plus size={14} /> {miscEdit !== null ? 'Update' : 'Add'}
-                </button>
-              </div>
-
-              <div style={{ background: 'var(--bg-panel, #ffffff)', padding: '8px', borderRadius: '4px', color: '#ef4444', fontSize: '11px', display: 'flex', gap: '16px' }}>
-                <span style={{ fontWeight: 'bold' }}>For Invoice Terms CI:</span>
-                <span>(1) D - Handling Charges</span>
-                <span>(2) M - Loading Charges</span>
-                <span>(3) N - Unloading Charges</span>
-              </div>
-
-              <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden', minHeight: '120px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                  <thead style={{ background: 'var(--primary-bg-light, var(--primary-bg-light))', color: '#334155' }}>
-                    <tr>
-                      <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid var(--border-color, #cbd5e1)', borderRight: '1px solid var(--border-color, #cbd5e1)', width: '40px' }}>Edit</th>
-                      <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid var(--border-color, #cbd5e1)', borderRight: '1px solid var(--border-color, #cbd5e1)', width: '60px' }}>Remove</th>
-                      <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid var(--border-color, #cbd5e1)', borderRight: '1px solid var(--border-color, #cbd5e1)' }}>Miscellaneous Desc.</th>
-                      <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid var(--border-color, #cbd5e1)', borderRight: '1px solid var(--border-color, #cbd5e1)', width: '100px' }}>Amount</th>
-                      <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid var(--border-color, #cbd5e1)', borderRight: '1px solid var(--border-color, #cbd5e1)', width: '80px' }}>Rate</th>
-                      <th style={{ padding: '6px', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {miscRows.map((r, i) => (
-                      <tr key={i} style={{ background: miscEdit === i ? '#fefce8' : undefined }}>
-                        <td style={{ padding: '6px', cursor: 'pointer', color: 'var(--primary-color-start)' }} onClick={() => { setMiscForm({ desc: r.desc || '', amount: r.amount || '', rate: r.rate || '' }); setMiscEdit(i); }}>Edit</td>
-                        <td style={{ padding: '6px', cursor: 'pointer', color: '#dc2626' }} onClick={() => saveMiscRows(miscRows.filter((_, j) => j !== i))}>Remove</td>
-                        <td style={{ padding: '6px' }}>{(r.code ? r.code + ' - ' : '') + r.desc}</td>
-                        <td style={{ padding: '6px', textAlign: 'right' }}>{r.amount}</td>
-                        <td style={{ padding: '6px', textAlign: 'right' }}>{r.rate}</td>
-                        <td></td>
-                      </tr>
-                    ))}
-                    {!miscRows.length && <tr><td colSpan="6" style={{ padding: '10px', textAlign: 'center', color: '#94a3b8' }}>No charges</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-              
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: 'var(--bg-panel, #ffffff)' }}>
-              <button onClick={() => setIsMiscNotIncludedModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <CheckSquare size={14} /> Ok
-              </button>
-              <button onClick={() => setIsMiscNotIncludedModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <X size={14} /> Cancel
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      {/* Address Search Modal */}
-      {isAddressModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#334155', fontWeight: 'normal' }}>Search</h3>
-            </div>
-            
-            <div style={{ padding: '0 16px 16px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <label style={{ color: '#334155' }}>Find</label>
-                <input type="text" className="input-field" placeholder="ENTER FILTER" value={addrFilter} onChange={(e) => setAddrFilter(e.target.value)} style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              
-              <div style={{ border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '2px', overflow: 'hidden', height: '250px', overflowY: 'auto', marginTop: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', whiteSpace: 'nowrap' }}>
-                  <thead style={{ background: 'var(--bg-panel, #ffffff)', color: '#334155' }}>
-                    <tr>
-                      <th style={{ padding: '4px 8px', borderRight: '1px solid var(--border-color, #cbd5e1)', borderBottom: '1px solid var(--border-color, #cbd5e1)', width: '30px' }}></th>
-                      <th style={{ padding: '4px 8px', textAlign: 'left', borderRight: '1px solid var(--border-color, #cbd5e1)', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>Address1</th>
-                      <th style={{ padding: '4px 8px', textAlign: 'left', borderRight: '1px solid var(--border-color, #cbd5e1)', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>Address2</th>
-                      <th style={{ padding: '4px 8px', textAlign: 'left', borderRight: '1px solid var(--border-color, #cbd5e1)', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>City</th>
-                      <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>State</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* addresses of the supplier party from the Party master (the list was always empty) 28-Oct-2026 */}
-                    {addresses.map((a, i) => (
-                      <tr key={i} style={{ cursor: 'pointer', background: addrPick === i ? '#fefce8' : undefined }} onClick={() => setAddrPick(i)} onDoubleClick={() => { setAddrPick(i); pickAddress(a); }}>
-                        <td style={{ padding: '4px 8px' }}><input type="radio" readOnly checked={addrPick === i} /></td>
-                        <td style={{ padding: '4px 8px' }}>{a.address1}</td><td style={{ padding: '4px 8px' }}>{a.address2}</td>
-                        <td style={{ padding: '4px 8px' }}>{a.city}</td><td style={{ padding: '4px 8px' }}>{a.state}</td>
-                      </tr>
-                    ))}
-                    {!addresses.length && <tr><td colSpan="5" style={{ padding: '10px', textAlign: 'center', color: '#94a3b8' }}>{invoiceFormData.supplierName ? 'No address for this supplier in the Party master' : 'Choose the Supplier Name first'}</td></tr>}
-                    </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              <button onClick={() => { if (addresses[addrPick]) pickAddress(addresses[addrPick]); else setIsAddressModalOpen(false); }} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsAddressModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
-
-      {/* SVB Loading Modal */}
+      <TermsModal open={isTermsModalOpen} term={activeTerm} form={form} currencies={currencies} setField={setField}
+        onConfirm={confirmTerms} onClose={() => setIsTermsModalOpen(false)} />
+      <IncludedChargesModal open={isMiscIncludedModalOpen} form={form} currencies={currencies} setField={setField}
+        onFieldChange={handleInvoiceFieldChange} onClose={() => setIsMiscIncludedModalOpen(false)} />
+      <NotIncludedChargesModal open={isMiscNotIncludedModalOpen} rows={parseRows(form.miscChargeRows)}
+        onRowsChange={(rows) => setInvoiceFormData((previous) => ({ ...previous, miscChargeRows: rows }))}
+        onClose={() => setIsMiscNotIncludedModalOpen(false)} />
+      <AddressSearchModal open={isAddressModalOpen} parties={masters?.parties || []} supplierName={form.supplierName}
+        onPick={pickSupplierAddress} onClose={() => setIsAddressModalOpen(false)} />
     </>
   );
 }

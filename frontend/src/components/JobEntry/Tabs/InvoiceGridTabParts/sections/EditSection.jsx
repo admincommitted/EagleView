@@ -1,136 +1,107 @@
-// Screen section: Edit
-// Split out of InvoiceGridTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
+import { useEffect } from 'react';
 import { Copy, Download, Edit, FileText, RefreshCw } from 'lucide-react';
-import React from 'react';
-import askConfirm from '../../../../common/askConfirm'; // EagleView question window, 20-Nov-2026
+import askConfirm from '../../../../common/askConfirm';
+import { Badge, Button, DataTable, FileButton, Label, NumberInput } from '@/components/ui';
+
+const SCREEN_ONLY_FIELDS = new Set(['enterFilter', 'searchBy', 'searchByCert', 'searchByWh', 'cumulativeFreight', 'cumulativeInsurance', 'cumulativeMiscCharge', 'items']);
+
+const sameText = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+
+const amountOrRate = (amount, rate, currency) => {
+  if (String(amount ?? '').trim()) return currency ? `${amount} ${currency}` : String(amount);
+  return String(rate ?? '').trim() ? `${rate}%` : '';
+};
+
+const invoiceName = (invoice, fallback) => (invoice?.invNo ? `invoice ${invoice.invNo}` : fallback);
+
+const INVOICE_COLUMNS = [
+  { key: 'edit', header: 'Edit', align: 'center', width: 30, cell: () => <Edit className="tw:inline tw:size-3.5 tw:text-primary" /> },
+  { key: 'srNo', header: 'Inv SrNo', width: 50, cell: (_, index) => index + 1 },
+  { key: 'invNo', header: 'Invoice No' },
+  { key: 'invDate', header: 'Invoice Date', cell: (invoice) => invoice.invDate || invoice.invoiceDate },
+  { key: 'value', header: 'Value', align: 'right', cell: (invoice) => invoice.value || invoice.invValue },
+  { key: 'currency', header: 'Currency', cell: (invoice) => (invoice.currency || invoice.invoiceCurrency) && <Badge variant="info" className="tw:rounded-sm">{invoice.currency || invoice.invoiceCurrency}</Badge> },
+  { key: 'terms', header: 'Terms', cell: (invoice) => invoice.terms || invoice.termsOfInvoice },
+  { key: 'freight', header: 'Freight', align: 'right', cell: (invoice) => amountOrRate(invoice.freightValue, invoice.freightRate, invoice.freightCurrency) },
+  { key: 'insurance', header: 'Insurance', align: 'right', cell: (invoice) => amountOrRate(invoice.insuranceValue, invoice.insuranceRate, invoice.insuranceCurrency) },
+  { key: 'misc', header: 'Miscellaneous', align: 'right', cell: (invoice) => amountOrRate(invoice.miscCharges, invoice.miscChargesRate, invoice.miscCurrency) },
+  { key: 'hss', header: 'HSS', align: 'right', cell: (invoice) => amountOrRate(invoice.hssLoadAmount, invoice.hssLoadRate, invoice.hssCurrency) },
+];
+
+const CUMULATIVE_FIELDS = [
+  { key: 'cumulativeFreight', label: 'Freight' },
+  { key: 'cumulativeInsurance', label: 'Insurance' },
+  { key: 'cumulativeMiscCharge', label: 'Misc' },
+];
 
 export default function EditSection({ ctx }) {
-  const { checkAll, checkedIds, fileInputRefInv, handleApplyCumulative, handleCopyFromOtherJob, handleDownloadSample, handleReadExcel, handleRecalculateDutyAllInv, handleUpdateExchangeRate, invoices, jobData, selectedRowId, setJobData, setSelectedRowId, toggleCheck } = ctx;
-  const cumBox = (k, ph) => <input type="text" inputMode="decimal" placeholder={ph} title={'Cumulative ' + ph + ' for the whole job - "Apply" splits it over the invoices by invoice value'} value={jobData?.[k] || ''} onChange={(e) => { const v = e.target.value; setJobData(prev => ({ ...prev, [k]: v })); }} className="input-field" style={{ width: '80px', fontSize: '11px', padding: '2px 4px' }} />;
-  const amtOrRate = (amt, rate, cur) => String(amt ?? '').trim() ? `${amt}${cur ? ' ' + cur : ''}` : (String(rate ?? '').trim() ? `${rate}%` : '');
-  // 30-Oct-2026: the invoice form is replaced when another row is clicked, so anything typed and not put in with
-  // SAVE / MODIFY used to disappear silently. The row is only switched after asking.
-  // boxes the screen fills by itself (defaults / filters) - not the operator's typing
-  const SKIP = new Set(['enterFilter', 'searchBy', 'searchByCert', 'searchByWh', 'cumulativeFreight', 'cumulativeInsurance', 'cumulativeMiscCharge']);
-  const invoiceDirty = () => {
-    const f = document.getElementById('invoice-form'); if (!f || !selectedRowId) return false;
-    const cur = (invoices || []).find(iv => iv.id === selectedRowId) || {};
-    const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
-    for (const el of f.querySelectorAll('input[name], select[name], textarea[name]')) {
-      if (el.type === 'checkbox' || el.type === 'radio' || el.disabled || el.readOnly) continue;
-      const k = el.name; if (!k || SKIP.has(k)) continue;
-      // a key the row does not carry yet counts as a change only when something was actually typed
-      if (!same(el.value, cur[k] ?? '')) return true;
-    }
-    return false;
+  const {
+    invoices, invoiceFormData, selectedRowId, setSelectedRowId, checkedIds, toggleCheck, checkAll,
+    jobData, setJobData, registerPendingEdits,
+    handleApplyCumulative, handleReadExcel, handleDownloadSample, handleRecalculateDutyAllInv, handleUpdateExchangeRate, handleCopyFromOtherJob,
+  } = ctx;
+
+  const openInvoice = invoices.find((invoice) => invoice.id === selectedRowId);
+
+  const hasUnsavedChanges = () => {
+    if (!openInvoice) return false;
+    return Object.keys({ ...openInvoice, ...invoiceFormData })
+      .filter((key) => !SCREEN_ONLY_FIELDS.has(key))
+      .some((key) => !sameText(invoiceFormData[key], openInvoice[key]));
   };
-  // Validate / File BE read the job, not this form, so they ask here whether anything is still untyped-in.
-  const { registerPendingEdits } = ctx;
-  React.useEffect(() => {
-    if (typeof registerPendingEdits !== 'function') return undefined;
-    return registerPendingEdits('invoices', () => {
-      if (!invoiceDirty()) return '';
-      const cur = (invoices || []).find(iv => iv.id === selectedRowId) || {};
-      const which = cur.invNo ? 'Invoice ' + cur.invNo : 'The open invoice';
-      return which + ' has changes that were not put in with MODIFY - they are not part of the BE yet.';
-    });
-  }); // no dependency list: the check must close over the current invoices / selected row
-  const pickInvoice = async (id) => {
-    if (id === selectedRowId) return;
-    // 20-Nov-2026: asked in an EagleView window with named buttons, not the browser's OK / Cancel box
-    if (invoiceDirty()) { const lbl = (r) => r && r.invNo ? 'invoice ' + r.invNo : 'the other invoice'; const cur = (invoices || []).find(iv => iv.id === selectedRowId); const nxt = (invoices || []).find(iv => iv.id === id); const which = cur && cur.invNo ? 'Invoice ' + cur.invNo : 'This invoice'; if (!(await askConfirm({ title: 'Changes not put in', message: which + ' has changes that were not put in with MODIFY.', note: 'Drop the changes: ' + lbl(nxt) + ' opens, and what was typed here is lost.\nStay here: press MODIFY first, then open ' + lbl(nxt) + '.', okLabel: 'Drop the changes', cancelLabel: 'Stay here' }))) return; }
-    setSelectedRowId(id);
+
+  useEffect(() =>
+    registerPendingEdits?.('invoices', () =>
+      hasUnsavedChanges() ? `${openInvoice.invNo ? `Invoice ${openInvoice.invNo}` : 'The open invoice'} has changes that were not put in with MODIFY - they are not part of the BE yet.` : ''
+    )
+  );
+
+  const pickInvoice = async (invoice) => {
+    if (invoice.id === selectedRowId) return;
+    if (hasUnsavedChanges()) {
+      const nextName = invoiceName(invoice, 'the other invoice');
+      const dropChanges = await askConfirm({
+        title: 'Changes not put in',
+        message: `${openInvoice.invNo ? `Invoice ${openInvoice.invNo}` : 'This invoice'} has changes that were not put in with MODIFY.`,
+        note: `Drop the changes: ${nextName} opens, and what was typed here is lost.\nStay here: press MODIFY first, then open ${nextName}.`,
+        okLabel: 'Drop the changes',
+        cancelLabel: 'Stay here',
+      });
+      if (!dropChanges) return;
+    }
+    setSelectedRowId(invoice.id);
   };
 
   return (
     <>
-    {/* Top Grid Area (approx 40% of screen height) */}
-      <div className="glass-panel" style={{ flex: '0 0 180px', display: 'flex', flexDirection: 'column', overflow: 'hidden', marginBottom: '4px' }}>
-        <div style={{ overflowX: 'auto', overflowY: 'auto', height: '100%' }}>
-          <table className="data-grid" style={{ width: '100%', borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
-            <thead style={{ background: 'var(--primary-bg-light, var(--primary-bg-light))', color: '#334155', position: 'sticky', top: 0, zIndex: 1 }}>
-              <tr>
-                <th style={{ width: '30px', textAlign: 'center' }}>
-                  <input type="checkbox" checked={invoices.length > 0 && checkedIds.length === invoices.length} onChange={checkAll} style={{ margin: 0, cursor: 'pointer' }} />
-                </th>
-                <th style={{ width: '30px', textAlign: 'center' }}>Edit</th>
-                <th style={{ width: '50px' }}>Inv SrNo</th>
-                <th>Invoice No</th>
-                <th>Invoice Date</th>
-                <th style={{ textAlign: 'right' }}>Value</th>
-                <th>Currency</th>
-                <th>Terms</th>
-                <th style={{ textAlign: 'right' }}>Freight</th>
-                <th style={{ textAlign: 'right' }}>Insurance</th>
-                <th style={{ textAlign: 'right' }}>Miscellaneous</th>
-                <th style={{ textAlign: 'right' }}>HSS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv, idx) => (
-                <tr 
-                  key={inv.id} 
-                  onClick={() => pickInvoice(inv.id)}
-                  style={{ 
-                    background: selectedRowId === inv.id ? '#fefce8' : 'transparent',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" checked={checkedIds.includes(inv.id)} onChange={() => toggleCheck(inv.id)} style={{ margin: 0, cursor: 'pointer' }} />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <Edit size={14} color="var(--primary-text, var(--primary-color-start))" />
-                  </td>
-                  <td>{idx + 1}</td>
-                  <td>{inv.invNo}</td>
-                  <td>{inv.invDate || inv.invoiceDate}</td>
-                  <td style={{ textAlign: 'right' }}>{inv.value || inv.invValue}</td>
-                  <td>{inv.currency || inv.invoiceCurrency}</td>
-                  <td>{inv.terms || inv.termsOfInvoice}</td>
-                  {/* amount, or rate % when only a rate was given (the grid read fields that do not exist) 28-Oct-2026 */}
-                  <td style={{ textAlign: 'right' }}>{amtOrRate(inv.freightValue, inv.freightRate, inv.freightCurrency)}</td>
-                  <td style={{ textAlign: 'right' }}>{amtOrRate(inv.insuranceValue, inv.insuranceRate, inv.insuranceCurrency)}</td>
-                  <td style={{ textAlign: 'right' }}>{amtOrRate(inv.miscCharges, inv.miscChargesRate, inv.miscCurrency)}</td>
-                  <td style={{ textAlign: 'right' }}>{amtOrRate(inv.hssLoadAmount, inv.hssLoadRate, inv.hssCurrency)}</td>
-                </tr>
-              ))}
-              {invoices.length === 0 && (
-                <tr><td colSpan="12" style={{ textAlign: 'center', padding: '1rem', color: '#94a3b8' }}>No Invoices found</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="glass-panel tw:mb-1 tw:h-[180px] tw:flex-none tw:overflow-hidden">
+        <DataTable
+          columns={INVOICE_COLUMNS}
+          rows={invoices}
+          selectedKey={selectedRowId}
+          onRowClick={pickInvoice}
+          selection={{ keys: checkedIds, onToggle: toggleCheck, onToggleAll: checkAll }}
+          emptyText="No invoices yet - fill the form below and press Save"
+          containerClassName="tw:h-full"
+        />
       </div>
 
-      {/* Middle Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '6px 8px', background: 'var(--bg-panel, #ffffff)', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '4px', marginBottom: '8px', overflowX: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', borderRight: '1px solid var(--border-color, #cbd5e1)', paddingRight: '8px' }}>
-          {/* 30-Oct-2026: job-level amounts that "Apply" splits over the invoices (the old checkbox did nothing) */}
-          <label style={{ fontWeight: '600', color: 'var(--text-main, var(--text-main, #1e293b))', whiteSpace: 'nowrap' }}>Cumulative</label>
-          {cumBox('cumulativeFreight', 'Freight')}{cumBox('cumulativeInsurance', 'Insurance')}{cumBox('cumulativeMiscCharge', 'Misc')}
-          <button type="button" onClick={handleApplyCumulative} className="btn btn-secondary" title="Split the cumulative amounts over the invoices by invoice value" style={{ padding: '3px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>Apply</button>
+      <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:overflow-x-auto tw:rounded-sm tw:border tw:border-border tw:bg-page tw:px-2 tw:py-1.5 tw:lg:flex-nowrap">
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1 tw:border-border tw:lg:flex-nowrap tw:lg:border-r tw:lg:pr-2">
+          <Label className="tw:font-semibold">Cumulative</Label>
+          {CUMULATIVE_FIELDS.map(({ key, label }) => (
+            <NumberInput key={key} placeholder={label} className="tw:w-20" value={jobData[key] || ''}
+              title={`Cumulative ${label} for the whole job - "Apply" splits it over the invoices by invoice value`}
+              onValueChange={(value) => setJobData((previous) => ({ ...previous, [key]: value }))} />
+          ))}
+          <Button onClick={handleApplyCumulative} title="Split the cumulative amounts over the invoices by invoice value">Apply</Button>
         </div>
-        
-        <input type="file" accept=".xls, .xlsx, .csv" ref={fileInputRefInv} style={{ display: 'none' }} onChange={handleReadExcel} />
-        <button onClick={() => fileInputRefInv.current && fileInputRefInv.current.click()} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <FileText size={12} /> Read Excel
-        </button>
-        <button onClick={handleDownloadSample} className="btn btn-secondary" style={{ background: 'var(--primary-text, var(--primary-color-start))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Download size={12} /> Download Sample
-          </button>
-        <button onClick={handleRecalculateDutyAllInv} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
-            <RefreshCw size={12} /> Re-Calculate Duty All Inv
-          </button>
-        <button onClick={handleUpdateExchangeRate} className="btn btn-secondary" style={{ background: 'var(--primary-text, var(--primary-color-start))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <RefreshCw size={12} /> Update Exchange Rate
-          </button>
-        <button onClick={handleCopyFromOtherJob} className="btn btn-secondary" style={{ background: 'var(--primary-color-end, var(--primary-color-end))', color: '#fff', border: 'none', padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
-            <Copy size={12} /> Copy From Other Job
-          </button>
+        <FileButton accept=".xls, .xlsx, .csv" onChange={handleReadExcel}><FileText /> Read Excel</FileButton>
+        <Button onClick={handleDownloadSample}><Download /> Download Sample</Button>
+        <Button className="tw:ml-auto" onClick={handleRecalculateDutyAllInv}><RefreshCw /> Re-Calculate Duty All Inv</Button>
+        <Button onClick={handleUpdateExchangeRate}><RefreshCw /> Update Exchange Rate</Button>
+        <Button className="tw:ml-auto" onClick={handleCopyFromOtherJob}><Copy /> Copy From Other Job</Button>
       </div>
-
-      {/* Bottom Form Area */}
     </>
   );
 }

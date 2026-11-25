@@ -1,42 +1,143 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Warehouse, Search, Link, AlertCircle, Plane, Ship, Truck, Inbox, RefreshCw, PenLine, CheckCircle } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle, Inbox, Link, Loader2, PenLine, Plane, RefreshCw, Search, Ship, Truck, Warehouse, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge, Button, DataTable, Input, Modal } from '@/components/ui';
+import { jobEntryApi } from './jobEntryApi';
 
 /**
- * WhBeSelectorModal - choose the warehouse (into-bond, BE type W) BE that an Ex-Bond BE clears.
- *
- * Props:
+ * Choose the warehouse (into-bond, BE type W) BE that an Ex-Bond BE clears.
  *   importerName / iecCode / customsPort - this job's importer and port (matching WH BEs are listed first)
  *   excludeJobId     - this job's own id (so its own quantities are not counted as cleared)
  *   onSelect(whJob)  - called with the chosen WH BE row
  *   onManual()       - "Enter WH BE manually" (WH BE filed outside this software)
- *   onClose()
- *
- * 28-Oct-2026: redesigned - grid rows with the WH BE No / Date, IGM, status and mode; chips for "This importer" /
- * "All" and "Filed only"; keyboard (Up / Down, Enter = link, Esc = close); double-click a row to link.
+ * Keyboard: Up / Down, Enter = link, Esc = close; double-click a row to link.
  */
-const C = {
-  accent: '#7c3aed', accentDark: '#6d28d9', accentSoft: '#f5f3ff', accentLine: '#ddd6fe',
-  text: 'var(--text-main, #0f172a)', muted: 'var(--text-muted, #64748b)', line: 'var(--border-color, #e2e8f0)',
-  panel: 'var(--bg-panel, #ffffff)', soft: 'var(--bg-input, #f8fafc)', amber: '#b45309', amberSoft: '#fef3c7', green: '#166534', greenSoft: '#dcfce7',
+const displayDate = (value) => {
+  if (!value) return '';
+  const parts = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(String(value));
+  const date = parts ? new Date(+parts[1], +parts[2] - 1, +parts[3]) : new Date(value);
+  return isNaN(date) ? String(value) : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-const COLS = '34px minmax(120px,1.1fr) minmax(170px,2fr) minmax(100px,0.9fr) minmax(120px,1.1fr) minmax(110px,1fr) minmax(110px,0.9fr)';
 
-const fmtDate = (d) => {
-  if (!d) return '';
-  const m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(String(d));
-  const dt = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
-  return isNaN(dt) ? String(d) : dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-const ModeIcon = ({ mode }) => (mode === 'AIR' ? <Plane size={13} /> : mode === 'SEA' ? <Ship size={13} /> : <Truck size={13} />);
+function ModeIcon({ mode }) {
+  if (mode === 'AIR') return <Plane className="tw:size-[13px]" />;
+  if (mode === 'SEA') return <Ship className="tw:size-[13px]" />;
+  return <Truck className="tw:size-[13px]" />;
+}
 
-function Chip({ active, onClick, children, title }) {
+function Chip({ active, onClick, title, children }) {
   return (
-    <button type="button" onClick={onClick} title={title}
-      style={{ padding: '5px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-        border: `1px solid ${active ? C.accent : C.line}`, background: active ? C.accentSoft : C.panel, color: active ? C.accentDark : C.muted }}>
+    <Button size="sm" onClick={onClick} title={title}
+      className={cn('tw:h-7 tw:rounded-full tw:px-3', active ? 'tw:border-primary tw:bg-primary/10 tw:text-primary' : 'tw:text-muted-foreground')}>
       {children}
-    </button>
+    </Button>
+  );
+}
+
+function CellLines({ main, sub, mainClassName, title }) {
+  return (
+    <div className="tw:flex tw:min-w-0 tw:flex-col tw:gap-0.5" title={title}>
+      <span className={cn('tw:truncate', mainClassName)}>{main}</span>
+      {sub && <span className="tw:truncate tw:text-[10px] tw:text-muted-foreground">{sub}</span>}
+    </div>
+  );
+}
+
+function columnsFor(selectedId) {
+  return [
+    {
+      key: 'pick',
+      header: '',
+      width: '34px',
+      cell: (job) => (
+        <span className={cn('tw:flex tw:size-3.5 tw:items-center tw:justify-center tw:rounded-full tw:border-2', job.id === selectedId ? 'tw:border-primary' : 'tw:border-input')}>
+          {job.id === selectedId && <span className="tw:size-1.5 tw:rounded-full tw:bg-primary" />}
+        </span>
+      ),
+    },
+    {
+      key: 'job',
+      header: 'JOB',
+      cell: (job) => (
+        <CellLines main={job.jobNo} mainClassName={cn('tw:font-bold', job.id === selectedId && 'tw:text-primary')}
+          sub={`${displayDate(job.jobDate)}${job.invoiceNo ? ` · Inv ${job.invoiceNo}` : ''}`} />
+      ),
+    },
+    {
+      key: 'importer',
+      header: 'IMPORTER',
+      cell: (job) => (
+        <CellLines main={job.importerName || '—'} title={job.importerName}
+          sub={`${job.iecCode ? `IEC ${job.iecCode}` : ''}${job.matchImporter ? ' · same importer' : ''}`} />
+      ),
+    },
+    {
+      key: 'warehouse',
+      header: 'WAREHOUSE',
+      cell: (job) => (
+        <div className="tw:flex tw:min-w-0 tw:flex-col tw:items-start tw:gap-0.5">
+          <Badge variant="info" className="tw:max-w-full tw:rounded-sm tw:font-mono tw:text-[11px]">{job.warehouseCode || '—'}</Badge>
+          <span className="tw:text-[10px] tw:text-muted-foreground">{job.customsPort || ''}{job.matchPort ? ' · same port' : ''}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'whBe',
+      header: 'WH BE NO / DATE',
+      cell: (job) => (job.beNo
+        ? <CellLines main={job.beNo} mainClassName="tw:font-mono tw:font-bold" sub={displayDate(job.beDate)} />
+        : <Badge variant="warning">Not filed</Badge>),
+    },
+    {
+      key: 'igm',
+      header: 'IGM / AWB',
+      cell: (job) => (
+        <CellLines main={job.igmNo || job.mawbNo || job.hawbNo || '—'} mainClassName="tw:font-mono"
+          sub={job.igmNo ? 'IGM' : job.mawbNo ? 'MAWB' : job.hawbNo ? 'HAWB' : ''} />
+      ),
+    },
+    {
+      key: 'status',
+      header: 'STATUS',
+      cell: (job) => (
+        <div className="tw:flex tw:flex-col tw:gap-0.5">
+          <span className="tw:flex tw:items-center tw:gap-1.5">
+            <Badge variant={job.beNo ? 'success' : 'neutral'}>{job.status || 'DRAFT'}</Badge>
+            <span className="tw:flex tw:text-muted-foreground" title={job.shipmentMode}><ModeIcon mode={job.shipmentMode} /></span>
+          </span>
+          {job.exBondCount > 0 && <span className="tw:text-[10px] tw:text-muted-foreground">{job.exBondCount} ex-bond{job.exBondCount > 1 ? 's' : ''} so far</span>}
+        </div>
+      ),
+    },
+  ];
+}
+
+function LoadError({ error, onRetry, className }) {
+  return (
+    <div className={cn('tw:flex tw:items-center tw:gap-2 tw:rounded-md tw:border tw:border-destructive/30 tw:bg-destructive/5 tw:px-3.5 tw:py-3 tw:text-left tw:text-entry tw:text-destructive', className)}>
+      <AlertCircle className="tw:size-4" /> {error}
+      <Button variant="destructive" size="sm" className="tw:ml-auto" onClick={onRetry}>Retry</Button>
+    </div>
+  );
+}
+
+function EmptyList({ loading, error, onRetry, hasJobs, search, filedOnly, onShowAll }) {
+  if (loading) return <span className="tw:inline-flex tw:items-center tw:gap-2"><Loader2 className="tw:size-4 tw:animate-spin" /> Loading...</span>;
+  if (error) return <LoadError error={error} onRetry={onRetry} />;
+  if (!hasJobs) {
+    return (
+      <div className="tw:whitespace-normal tw:py-6">
+        <Inbox className="tw:mx-auto tw:size-[34px] tw:text-input" />
+        <div className="tw:mt-2 tw:text-[13px] tw:font-bold tw:text-foreground">No warehouse BE saved yet</div>
+        <div className="tw:mt-1 tw:text-[11px]">Save the warehouse job first (BE Type = W), or enter the WH BE No / Date yourself if it was filed elsewhere.</div>
+      </div>
+    );
+  }
+  return (
+    <div className="tw:py-5 tw:text-entry">
+      Nothing matches{search ? <> &quot;<b>{search}</b>&quot;</> : ''}{filedOnly ? ' among filed WH BEs' : ''}.{' '}
+      <Button variant="link" size="sm" className="tw:font-semibold" onClick={onShowAll}>Show all</Button>
+    </div>
   );
 }
 
@@ -45,101 +146,107 @@ export default function WhBeSelectorModal({ importerId, importerName, iecCode, c
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState(null);
-  const [scope, setScope] = useState('mine');       // 'mine' = this importer, 'all'
+  const [selectedId, setSelectedId] = useState(null);
+  const [scope, setScope] = useState('mine'); // 'mine' = this importer, 'all'
   const [filedOnly, setFiledOnly] = useState(false);
   const listRef = useRef(null);
 
-  useEffect(() => { fetchWhJobs(); }, []); // eslint-disable-line
-
-  async function fetchWhJobs() {
-    setLoading(true); setError('');
+  const loadWarehouseBes = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      const params = new URLSearchParams();
-      if (importerId) params.append('importerId', importerId);
-      if (importerName) params.append('importerName', importerName);
-      if (iecCode) params.append('iecCode', iecCode);
-      if (customsPort) params.append('customsPort', customsPort);
-      if (excludeJobId) params.append('excludeJobId', excludeJobId);
-      const res = await fetch(`/api/warehouse-be/list?${params}`);
-      const data = await res.json();
-      if (data.success) setJobs(data.data || []);
-      else setError(data.error || 'Could not load the warehouse BEs');
-    } catch (e) {
-      setError('Network error: ' + e.message);
+      const filters = { importerId, importerName, iecCode, customsPort, excludeJobId };
+      const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
+      const answer = await jobEntryApi.warehouseBeList(params);
+      if (answer.success) setJobs(answer.data || []);
+      else setError(answer.error || 'Could not load the warehouse BEs');
+    } catch (loadError) {
+      setError(loadError.response ? (loadError.response.data?.error || 'Could not load the warehouse BEs') : 'Network error: ' + loadError.message);
     } finally {
       setLoading(false);
     }
-  }
+  }, [importerId, importerName, iecCode, customsPort, excludeJobId]);
 
-  const mine = jobs.filter(j => j.matchImporter);
+  useEffect(() => { loadWarehouseBes(); }, [loadWarehouseBes]);
+
+  const mine = jobs.filter((job) => job.matchImporter);
   const useMine = scope === 'mine' && mine.length > 0;
-  const s = search.trim().toLowerCase();
+  const query = search.trim().toLowerCase();
   const filtered = (useMine ? mine : jobs)
-    .filter(j => !filedOnly || j.beNo)
-    .filter(j => !s || [j.jobNo, j.beNo, j.iecCode, j.warehouseCode, j.importerName, j.igmNo, j.mawbNo, j.hawbNo, j.invoiceNo]
-      .some(v => String(v || '').toLowerCase().includes(s)))
-    .slice().sort((a, b) => (b.matchImporter - a.matchImporter) || (b.matchPort - a.matchPort) || (!!b.beNo - !!a.beNo));
+    .filter((job) => !filedOnly || job.beNo)
+    .filter((job) => !query || [job.jobNo, job.beNo, job.iecCode, job.warehouseCode, job.importerName, job.igmNo, job.mawbNo, job.hawbNo, job.invoiceNo]
+      .some((value) => String(value || '').toLowerCase().includes(query)))
+    .sort((first, second) => (second.matchImporter - first.matchImporter) || (second.matchPort - first.matchPort) || (!!second.beNo - !!first.beNo));
+  // the selection is kept only while it is in the visible list
+  const selected = filtered.find((job) => job.id === selectedId) || null;
 
-  // keep the selection inside the visible list
-  useEffect(() => { if (selected && !filtered.some(j => j.id === selected.id)) setSelected(null); }, [search, scope, filedOnly, jobs.length]); // eslint-disable-line
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedId]);
 
-  function link(job) {
-    const j = job || selected;
-    if (!j) return;
-    onSelect(j);
+  const link = (job = selected) => {
+    if (!job) return;
+    onSelect(job);
     onClose();
-  }
+  };
 
-  function onKeyDown(e) {
-    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
-    if (e.key === 'Enter' && selected) { e.preventDefault(); link(); return; }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (!filtered.length) return;
-      const i = filtered.findIndex(j => j.id === selected?.id);
-      const n = e.key === 'ArrowDown' ? Math.min(filtered.length - 1, i + 1) : Math.max(0, i < 0 ? 0 : i - 1);
-      setSelected(filtered[n]);
-      const row = listRef.current && listRef.current.querySelector(`[data-row="${filtered[n].id}"]`);
-      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
-    }
-  }
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && selected) { event.preventDefault(); link(); return; }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    if (!filtered.length) return;
+    const index = filtered.findIndex((job) => job.id === selectedId);
+    const next = event.key === 'ArrowDown' ? Math.min(filtered.length - 1, index + 1) : Math.max(0, index < 0 ? 0 : index - 1);
+    setSelectedId(filtered[next].id);
+  };
 
-  const th = { fontSize: '10px', fontWeight: 700, color: C.muted, letterSpacing: '0.04em', padding: '8px 10px', whiteSpace: 'nowrap' };
-  const cell = { padding: '10px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '2px' };
-  const sub = { fontSize: '10px', color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
-  const one = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+  const showAll = () => { setSearch(''); setFiledOnly(false); setScope('all'); };
+  const countText = loading ? 'Loading...' : `${filtered.length} of ${jobs.length} warehouse BE${jobs.length !== 1 ? 's' : ''}`;
 
-  // 13-Nov-2026: drawn on <body> above the app header - inside the job screen the top menu bar covered the window's
-  // title and search box on a 900-px-high screen
-  return createPortal(
-    <div onKeyDown={onKeyDown} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 10050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div role="dialog" aria-label="Select Warehouse BE"
-        style={{ background: C.panel, borderRadius: '14px', width: '1000px', maxWidth: '100%', maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(15,23,42,0.35)', overflow: 'hidden' }}>
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 20px 12px' }}>
-          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: C.accentSoft, color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Warehouse size={20} />
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      width={1000}
+      title={<span className="tw:flex tw:items-center tw:gap-2 tw:font-bold"><Warehouse className="tw:size-5 tw:text-primary" /> Select Warehouse BE</span>}
+      description="Link the into-bond (W) BE this Ex-Bond clears. WH BE No, warehouse code and the balance quantity fill in automatically."
+      bodyClassName="tw:p-0 tw:gap-0"
+      footer={(
+        <div className="tw:flex tw:w-full tw:flex-wrap tw:items-center tw:justify-end tw:gap-2">
+          <div className="tw:min-w-[220px] tw:flex-1 tw:text-[11px] tw:text-muted-foreground">
+            {selected ? (
+              <>
+                <div className="tw:flex tw:items-center tw:gap-1.5 tw:truncate tw:font-semibold tw:text-primary">
+                  <CheckCircle className="tw:size-[13px]" /> {selected.jobNo} · {selected.beNo ? `WH BE ${selected.beNo}` : 'WH BE not filed'} · {selected.warehouseCode || 'no WH code'}
+                </div>
+                {!selected.beNo && <div className="tw:mt-0.5 tw:text-warning">Not filed yet: enter the WH BE No / Date in the Job Header after linking.</div>}
+              </>
+            ) : (
+              <span>{countText} · ↑ ↓ to move, Enter to link</span>
+            )}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: '15px', color: C.text }}>Select Warehouse BE</div>
-            <div style={{ fontSize: '11px', color: C.muted, marginTop: '2px' }}>
-              Link the into-bond (W) BE this Ex-Bond clears. WH BE No, warehouse code and the balance quantity fill in automatically.
-            </div>
-          </div>
-          <button type="button" onClick={onClose} title="Close (Esc)" style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: '4px', borderRadius: '6px' }}><X size={18} /></button>
+          {onManual && <Button size="lg" onClick={() => { onManual(); onClose(); }}><PenLine /> Enter WH BE manually</Button>}
+          <Button size="lg" onClick={onClose}>Cancel</Button>
+          <Button size="lg" variant="default" disabled={!selected} onClick={() => link()}><Link /> Link to Ex-Bond</Button>
         </div>
-
-        {/* Toolbar */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '0 20px 12px' }}>
-          <div style={{ position: 'relative', flex: '1 1 320px', minWidth: '220px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} autoFocus
+      )}
+    >
+      <div className="tw:flex tw:min-h-0 tw:flex-1 tw:flex-col" onKeyDown={handleKeyDown}>
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:px-4 tw:py-2.5">
+          <div className="tw:relative tw:w-full tw:md:w-auto tw:md:min-w-[220px] tw:md:flex-[1_1_320px]">
+            <Input
+              leftIcon={Search}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              autoFocus
               placeholder="Search job no, WH BE no, warehouse code, importer, IEC, IGM / AWB, invoice..."
-              style={{ width: '100%', padding: '9px 30px 9px 32px', border: `1px solid ${C.line}`, borderRadius: '8px', fontSize: '12px', outline: 'none', boxSizing: 'border-box', background: C.soft, color: C.text }} />
-            {search && <button type="button" onClick={() => setSearch('')} title="Clear" style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}><X size={14} /></button>}
+              className="tw:h-8 tw:pr-7"
+            />
+            {search && (
+              <Button variant="ghost" size="icon-sm" title="Clear" aria-label="Clear" className="tw:absolute tw:top-1/2 tw:right-1 tw:-translate-y-1/2" onClick={() => setSearch('')}>
+                <X />
+              </Button>
+            )}
           </div>
           {mine.length > 0 && mine.length < jobs.length && (
             <>
@@ -147,133 +254,28 @@ export default function WhBeSelectorModal({ importerId, importerName, iecCode, c
               <Chip active={!useMine} onClick={() => setScope('all')}>All · {jobs.length}</Chip>
             </>
           )}
-          <Chip active={filedOnly} onClick={() => setFiledOnly(v => !v)} title="Only WH BEs that already have a BE No">Filed only</Chip>
-          <button type="button" onClick={fetchWhJobs} title="Reload" style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', color: C.muted, display: 'flex' }}><RefreshCw size={14} /></button>
+          <Chip active={filedOnly} onClick={() => setFiledOnly((only) => !only)} title="Only WH BEs that already have a BE No">Filed only</Chip>
+          <Button size="icon" title="Reload" aria-label="Reload" className="tw:size-7" onClick={loadWarehouseBes}><RefreshCw /></Button>
         </div>
         {jobs.length > 0 && mine.length === 0 && (importerName || iecCode) && (
-          <div style={{ margin: '0 20px 10px', fontSize: '11px', color: C.amber, background: C.amberSoft, padding: '6px 10px', borderRadius: '6px' }}>
+          <div className="tw:mx-4 tw:mb-2.5 tw:rounded-md tw:bg-warning/10 tw:px-2.5 tw:py-1.5 tw:text-[11px] tw:text-warning">
             No warehouse BE of this importer was found - showing every warehouse BE.
           </div>
         )}
-
-        {/* List */}
-        <div style={{ borderTop: `1px solid ${C.line}`, flex: 1, minHeight: '180px', overflow: 'auto' }} ref={listRef}>
-          <div style={{ minWidth: '860px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: COLS, position: 'sticky', top: 0, zIndex: 1, background: C.soft, borderBottom: `1px solid ${C.line}` }}>
-              <div />
-              <div style={th}>JOB</div><div style={th}>IMPORTER</div><div style={th}>WAREHOUSE</div>
-              <div style={th}>WH BE NO / DATE</div><div style={th}>IGM / AWB</div><div style={th}>STATUS</div>
-            </div>
-
-            {loading && [0, 1, 2].map(i => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: COLS, borderBottom: `1px solid ${C.line}` }}>
-                {Array.from({ length: 7 }).map((_, k) => <div key={k} style={{ padding: '14px 10px' }}>{k > 0 && <div style={{ height: '10px', borderRadius: '4px', background: '#eef2f7', width: `${50 + ((i + k) % 3) * 15}%` }} />}</div>)}
-              </div>
-            ))}
-
-            {!loading && error && (
-              <div style={{ margin: '20px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '12px 14px', fontSize: '12px', color: '#991b1b', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <AlertCircle size={16} /> {error}
-                <button type="button" onClick={fetchWhJobs} style={{ marginLeft: 'auto', background: 'none', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: '#991b1b', fontSize: '11px' }}>Retry</button>
-              </div>
-            )}
-
-            {!loading && !error && jobs.length === 0 && (
-              <div style={{ padding: '36px 20px', textAlign: 'center', color: C.muted }}>
-                <Inbox size={34} style={{ color: '#cbd5e1' }} />
-                <div style={{ fontWeight: 700, color: C.text, marginTop: '8px', fontSize: '13px' }}>No warehouse BE saved yet</div>
-                <div style={{ fontSize: '11px', marginTop: '4px' }}>Save the warehouse job first (BE Type = W), or enter the WH BE No / Date yourself if it was filed elsewhere.</div>
-              </div>
-            )}
-
-            {!loading && !error && jobs.length > 0 && filtered.length === 0 && (
-              <div style={{ padding: '30px 20px', textAlign: 'center', color: C.muted, fontSize: '12px' }}>
-                Nothing matches{search ? <> "<b>{search}</b>"</> : ''}{filedOnly ? ' among filed WH BEs' : ''}.{' '}
-                <button type="button" onClick={() => { setSearch(''); setFiledOnly(false); setScope('all'); }} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}>Show all</button>
-              </div>
-            )}
-
-            {!loading && filtered.map(job => {
-              const on = selected?.id === job.id;
-              return (
-                <div key={job.id} data-row={job.id} onClick={() => setSelected(job)} onDoubleClick={() => link(job)} title="Click to select, double-click to link"
-                  style={{ display: 'grid', gridTemplateColumns: COLS, cursor: 'pointer', borderBottom: `1px solid ${C.line}`, fontSize: '12px', color: C.text,
-                    background: on ? C.accentSoft : C.panel, boxShadow: on ? `inset 3px 0 0 ${C.accent}` : 'none' }}
-                  onMouseEnter={e => { if (!on) e.currentTarget.style.background = C.soft; }}
-                  onMouseLeave={e => { if (!on) e.currentTarget.style.background = C.panel; }}>
-                  <div style={{ ...cell, alignItems: 'center' }}>
-                    <span style={{ width: '14px', height: '14px', borderRadius: '50%', border: `2px solid ${on ? C.accent : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {on && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: C.accent }} />}
-                    </span>
-                  </div>
-                  <div style={cell}>
-                    <span style={{ ...one, fontWeight: 700, color: on ? C.accentDark : C.text }}>{job.jobNo}</span>
-                    <span style={sub}>{fmtDate(job.jobDate)}{job.invoiceNo ? ` · Inv ${job.invoiceNo}` : ''}</span>
-                  </div>
-                  <div style={cell} title={job.importerName}>
-                    <span style={one}>{job.importerName || '—'}</span>
-                    <span style={sub}>{job.iecCode ? `IEC ${job.iecCode}` : ''}{job.matchImporter ? ' · same importer' : ''}</span>
-                  </div>
-                  <div style={cell}>
-                    <span style={{ alignSelf: 'flex-start', background: C.accentSoft, color: C.accentDark, padding: '2px 8px', borderRadius: '5px', fontWeight: 700, fontFamily: 'monospace', fontSize: '11px', ...one, maxWidth: '100%' }}>{job.warehouseCode || '—'}</span>
-                    <span style={sub}>{job.customsPort || ''}{job.matchPort ? ' · same port' : ''}</span>
-                  </div>
-                  <div style={cell}>
-                    {job.beNo
-                      ? <><span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{job.beNo}</span><span style={sub}>{fmtDate(job.beDate)}</span></>
-                      : <span style={{ alignSelf: 'flex-start', background: C.amberSoft, color: C.amber, padding: '2px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700 }}>Not filed</span>}
-                  </div>
-                  <div style={cell}>
-                    <span style={{ ...one, fontFamily: 'monospace' }}>{job.igmNo || job.mawbNo || job.hawbNo || '—'}</span>
-                    <span style={sub}>{job.igmNo ? 'IGM' : job.mawbNo ? 'MAWB' : job.hawbNo ? 'HAWB' : ''}</span>
-                  </div>
-                  <div style={cell}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '10px', fontWeight: 700,
-                        background: job.beNo ? C.greenSoft : '#f1f5f9', color: job.beNo ? C.green : C.muted }}>{job.status || 'DRAFT'}</span>
-                      <span style={{ color: C.muted, display: 'flex' }} title={job.shipmentMode}><ModeIcon mode={job.shipmentMode} /></span>
-                    </span>
-                    {job.exBondCount > 0 && <span style={sub}>{job.exBondCount} ex-bond{job.exBondCount > 1 ? 's' : ''} so far</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: `1px solid ${C.line}`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', background: C.soft }}>
-          <div style={{ flex: '1 1 260px', minWidth: 0, fontSize: '11px', color: C.muted }}>
-            {selected ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: C.accentDark, fontWeight: 600, ...one }}>
-                  <CheckCircle size={13} /> {selected.jobNo} · {selected.beNo ? `WH BE ${selected.beNo}` : 'WH BE not filed'} · {selected.warehouseCode || 'no WH code'}
-                </div>
-                {!selected.beNo && <div style={{ color: C.amber, marginTop: '2px' }}>Not filed yet: enter the WH BE No / Date in the Job Header after linking.</div>}
-              </>
-            ) : (
-              <span>{loading ? 'Loading...' : `${filtered.length} of ${jobs.length} warehouse BE${jobs.length !== 1 ? 's' : ''}`} · ↑ ↓ to move, Enter to link</span>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {onManual && (
-              <button type="button" onClick={() => { onManual(); onClose(); }}
-                style={{ padding: '8px 14px', background: C.panel, border: `1px solid ${C.line}`, borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: C.text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <PenLine size={13} /> Enter WH BE manually
-              </button>
-            )}
-            <button type="button" onClick={onClose}
-              style={{ padding: '8px 16px', background: C.panel, border: `1px solid ${C.line}`, borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: C.muted }}>
-              Cancel
-            </button>
-            <button type="button" onClick={() => link()} disabled={!selected}
-              style={{ padding: '8px 18px', background: selected ? C.accent : '#e2e8f0', color: selected ? '#fff' : '#94a3b8', border: 'none', borderRadius: '8px',
-                cursor: selected ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Link size={13} /> Link to Ex-Bond
-            </button>
-          </div>
+        <div ref={listRef} className="tw:min-h-[180px] tw:flex-1 tw:overflow-auto tw:border-t tw:border-border">
+          {!loading && error && filtered.length > 0 && <LoadError error={error} onRetry={loadWarehouseBes} className="tw:m-4" />}
+          <DataTable
+            columns={columnsFor(selectedId)}
+            rows={loading ? [] : filtered}
+            selectedKey={selected?.id}
+            onRowClick={(job) => setSelectedId(job.id)}
+            onRowDoubleClick={(job) => link(job)}
+            rowTitle="Click to select, double-click to link"
+            className="tw:min-w-[860px] tw:text-entry"
+            emptyText={<EmptyList loading={loading} error={error} onRetry={loadWarehouseBes} hasJobs={jobs.length > 0} search={search} filedOnly={filedOnly} onShowAll={showAll} />}
+          />
         </div>
       </div>
-    </div>
-  , document.body);
+    </Modal>
+  );
 }

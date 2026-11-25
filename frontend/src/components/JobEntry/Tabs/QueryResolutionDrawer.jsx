@@ -1,32 +1,41 @@
-// Query Resolution drawer (Job Query / Export Query) - rebuilt 30-Oct-2026
-// Before this the drawer showed a FIXED made-up query ("Please provide the updated Country of Origin Certificate ...
-// Officer: ACC_MUM_001 | Time: 10 mins ago") for every job, a drop zone that uploaded nothing and a "Submit Reply to
-// ICEGATE" button with no handler. Nothing on it was real.
-// Now it shows what the job actually has: the ICEGATE status / unique id and the last acknowledgement (its message and
-// error lines), plus the job's own remarks. The reply is saved to the job timeline (a real record the team sees) and
-// can be copied for the ICEGATE portal - ICES has no API that accepts a query reply, so no button pretends to send one.
-import React, { useEffect, useState } from 'react';
-import { X, Save, Copy, Paperclip, AlertTriangle, RefreshCw } from 'lucide-react';
+// Query Resolution drawer (Job Query / Export Query): the ICEGATE status / unique id and the last acknowledgement (its
+// message and error lines), plus the job's own remarks. The reply is saved to the job timeline (a record the team
+// sees) and can be copied for the ICEGATE portal - ICES has no API that accepts a query reply, so nothing sends one.
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Copy, Paperclip, RefreshCw, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { cn } from '@/lib/utils';
+import { errorMessage } from '@/services/axiosInstance';
+import { Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Label, Textarea } from '@/components/ui';
+import { jobEntryApi } from '../jobEntryApi';
 
-const auth = () => { const t = localStorage.getItem('token'); return t ? { Authorization: 'Bearer ' + t } : {}; };
-const txt = (v) => (v === null || v === undefined ? '' : String(v));
+const asText = (value) => (value === null || value === undefined ? '' : String(value));
+const CARD = 'tw:rounded-lg tw:border tw:border-input tw:p-4 tw:text-entry';
+const SECTION_LABEL = 'tw:text-entry tw:font-semibold tw:text-foreground';
 
 // pulls the readable lines out of whatever the ICEGATE acknowledgement held
 function ackLines(ack) {
   if (!ack) return [];
-  const out = [];
-  const walk = (v, key) => {
-    if (v === null || v === undefined) return;
-    if (Array.isArray(v)) return v.forEach(x => walk(x, key));
-    if (typeof v === 'object') return Object.entries(v).forEach(([k, x]) => walk(x, k));
-    const s = txt(v).trim();
-    if (!s || s === 'null') return;
-    if (/message|error|status|remark|reason|description|desc/i.test(txt(key))) out.push((/error/i.test(txt(key)) ? '⚠ ' : '') + s);
+  const lines = [];
+  const walk = (value, key) => {
+    if (value === null || value === undefined) return;
+    if (Array.isArray(value)) { value.forEach((entry) => walk(entry, key)); return; }
+    if (typeof value === 'object') { Object.entries(value).forEach(([childKey, entry]) => walk(entry, childKey)); return; }
+    const text = asText(value).trim();
+    if (!text || text === 'null') return;
+    if (/message|error|status|remark|reason|description|desc/i.test(asText(key))) lines.push((/error/i.test(asText(key)) ? '⚠ ' : '') + text);
   };
   walk(ack.meta || ack, '');
-  return [...new Set(out)].slice(0, 30);
+  return [...new Set(lines)].slice(0, 30);
 }
+
+const answerOrNull = async (request) => {
+  try {
+    return await request;
+  } catch {
+    return null;
+  }
+};
 
 export default function QueryResolutionDrawer({ isOpen, onClose, job, module = 'IMPORT' }) {
   const [replyText, setReplyText] = useState('');
@@ -36,121 +45,129 @@ export default function QueryResolutionDrawer({ isOpen, onClose, job, module = '
   const [loading, setLoading] = useState(false);
   const jobId = job?.id;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!jobId) return;
     setLoading(true);
-    try {
-      const [a, t] = await Promise.all([
-        module === 'IMPORT' ? fetch('/api/icegate/be-ack/' + jobId, { headers: auth() }) : Promise.resolve(null),
-        fetch('/api/timeline/' + module + '/' + jobId, { headers: auth() }),
-      ]);
-      if (a && a.ok) { const d = await a.json(); if (d.success) setAck(d); }
-      if (t && t.ok) { const d = await t.json(); setRemarks(Array.isArray(d.data) ? d.data : []); }
-    } catch (e) { /* offline: the drawer still opens, it just shows nothing */ }
+    const [ackAnswer, timeline] = await Promise.all([
+      module === 'IMPORT' ? answerOrNull(jobEntryApi.icegateAck('BE', jobId)) : null,
+      answerOrNull(jobEntryApi.jobTimeline(module, jobId)),
+    ]);
+    if (ackAnswer?.success) setAck(ackAnswer);
+    if (timeline) setRemarks(Array.isArray(timeline.data) ? timeline.data : []);
     setLoading(false);
-  };
-  useEffect(() => { if (isOpen) { setReplyText(''); setAck(null); setRemarks([]); load(); } }, [isOpen, jobId]); // eslint-disable-line
+  }, [jobId, module]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setReplyText('');
+    setAck(null);
+    setRemarks([]);
+    load();
+  }, [isOpen, load]);
 
   if (!isOpen) return null;
 
-  const status = txt(ack?.icegateStatus || job?.icegateStatus);
+  const status = asText(ack?.icegateStatus || job?.icegateStatus);
   const lines = ackLines(ack?.ack);
-  const queryRemarks = remarks.filter(r => /QUERY|REMARK/i.test(txt(r.eventType)));
+  const queryRemarks = remarks.filter((remark) => /QUERY|REMARK/i.test(asText(remark.eventType)));
 
   const saveReply = async () => {
-    const msg = replyText.trim();
-    if (!msg) { toast.error('Type the reply first'); return; }
+    const message = replyText.trim();
+    if (!message) { toast.error('Type the reply first'); return; }
     if (!jobId) { toast.error('Open the job from the list first'); return; }
     setBusy(true);
     try {
-      const r = await fetch('/api/timeline', { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
-        body: JSON.stringify({ jobId: String(jobId), module, eventType: 'REMARK', message: 'Query reply: ' + msg }) });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.success === false) throw new Error(d.error || ('HTTP ' + r.status));
+      const answer = await jobEntryApi.addTimelineEntry({ jobId: String(jobId), module, eventType: 'REMARK', message: 'Query reply: ' + message });
+      if (answer?.success === false) throw new Error(answer.error || 'not saved');
       toast.success('Saved to the job timeline');
-      setReplyText(''); load();
-    } catch (e) { toast.error('Could not save: ' + e.message); }
+      setReplyText('');
+      load();
+    } catch (error) {
+      toast.error('Could not save: ' + errorMessage(error));
+    }
     setBusy(false);
   };
+
   const copyReply = async () => {
-    const msg = replyText.trim(); if (!msg) { toast.error('Type the reply first'); return; }
-    try { await navigator.clipboard.writeText(msg); toast.success('Reply copied - paste it in the ICEGATE query reply box'); }
-    catch (e) { toast.error('Could not copy - select the text and copy it'); }
+    const message = replyText.trim();
+    if (!message) { toast.error('Type the reply first'); return; }
+    try {
+      await navigator.clipboard.writeText(message);
+      toast.success('Reply copied - paste it in the ICEGATE query reply box');
+    } catch {
+      toast.error('Could not copy - select the text and copy it');
+    }
   };
 
-  const card = { borderRadius: '8px', padding: '1rem', fontSize: '12px' };
   return (
-    <>
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', zIndex: 40 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: 0, right: 0, width: '460px', height: '100vh', background: 'var(--bg-panel, #fff)', boxShadow: '-4px 0 15px rgba(0,0,0,0.1)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="tw:top-0 tw:right-0 tw:left-auto tw:h-screen tw:max-h-screen tw:w-[460px] tw:max-w-full tw:translate-x-0 tw:translate-y-0 tw:rounded-none tw:border-y-0 tw:border-r-0 tw:uppercase tw:sm:max-w-full"
+      >
+        <DialogHeader className="tw:flex-row tw:items-center tw:justify-between tw:bg-page tw:p-4 tw:pr-12">
+          <DialogTitle className="tw:flex tw:items-center tw:gap-2 tw:text-base tw:font-semibold">
+            <AlertTriangle className="tw:size-[18px] tw:text-destructive" /> Query Resolution
+          </DialogTitle>
+          <DialogDescription className="tw:sr-only">ICEGATE answer and remarks of the job</DialogDescription>
+          <Button variant="ghost" size="icon" title="Reload" aria-label="Reload" onClick={load}><RefreshCw /></Button>
+        </DialogHeader>
 
-        <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--primary-bg-light, #f8fafc)' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-main, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AlertTriangle size={18} color="#dc2626" /> Query Resolution
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <RefreshCw size={15} color="var(--text-muted, #64748b)" style={{ cursor: 'pointer' }} title="Reload" onClick={load} />
-            <X size={20} color="var(--text-muted, #64748b)" style={{ cursor: 'pointer' }} onClick={onClose} />
-          </div>
-        </div>
-
-        <div style={{ flex: 1, padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          <div style={{ ...card, background: 'var(--primary-bg-light, #f8fafc)', border: '1px solid var(--border-color, #cbd5e1)' }}>
-            <div style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)', marginBottom: '6px' }}>
-              Job {txt(job?.jobNo) || '-'}{job?.beNo ? ' | BE ' + job.beNo : ''}
-            </div>
-            <div style={{ color: 'var(--text-muted, #475569)' }}>
+        <DialogBody className="tw:gap-5 tw:p-5">
+          <div className={cn(CARD, 'tw:bg-page')}>
+            <div className="tw:mb-1.5 tw:font-semibold tw:text-foreground">Job {asText(job?.jobNo) || '-'}{job?.beNo ? ' | BE ' + job.beNo : ''}</div>
+            <div className="tw:text-muted-foreground">
               ICEGATE status: <strong>{status || 'not filed through the API'}</strong>
-              {ack?.uniqueId ? <> &nbsp;|&nbsp; Unique id: <strong>{ack.uniqueId}</strong></> : null}
-              {ack?.at ? <> &nbsp;|&nbsp; last answer {new Date(ack.at).toLocaleString('en-GB')}</> : null}
+              {ack?.uniqueId && <> &nbsp;|&nbsp; Unique id: <strong>{ack.uniqueId}</strong></>}
+              {ack?.at && <> &nbsp;|&nbsp; last answer {new Date(ack.at).toLocaleString('en-GB')}</>}
             </div>
           </div>
 
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Last ICEGATE answer</label>
-            <div style={{ ...card, marginTop: '0.5rem', background: lines.length ? '#fef2f2' : 'var(--bg-panel, #fff)', border: '1px solid ' + (lines.length ? '#fecaca' : 'var(--border-color, #cbd5e1)'), color: lines.length ? '#7f1d1d' : 'var(--text-muted, #64748b)' }}>
-              {loading ? 'Loading...' : lines.length ? <ul style={{ margin: 0, paddingLeft: '1.1rem', lineHeight: 1.5 }}>{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
-                : 'No acknowledgement stored for this job. An assessment query raised by the officer comes by e-mail / on the ICEGATE portal, not through the filing API - record it below so the team can see it.'}
+          <div className="tw:flex tw:flex-col tw:gap-2">
+            <span className={SECTION_LABEL}>Last ICEGATE answer</span>
+            <div className={cn(CARD, lines.length ? 'tw:border-destructive/30 tw:bg-destructive/5 tw:text-destructive' : 'tw:bg-background tw:text-muted-foreground')}>
+              {loading ? 'Loading...' : lines.length ? (
+                <ul className="tw:m-0 tw:pl-4 tw:leading-normal">{lines.map((line) => <li key={line}>{line}</li>)}</ul>
+              ) : 'No acknowledgement stored for this job. An assessment query raised by the officer comes by e-mail / on the ICEGATE portal, not through the filing API - record it below so the team can see it.'}
             </div>
           </div>
 
           {queryRemarks.length > 0 && (
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Job remarks</label>
-              <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {queryRemarks.slice(-8).map((r) => (
-                  <div key={r.id} style={{ ...card, padding: '8px 10px', background: 'var(--bg-panel, #fff)', border: '1px solid var(--border-color, #cbd5e1)' }}>
-                    <div style={{ color: 'var(--text-main, #0f172a)', whiteSpace: 'pre-wrap' }}>{txt(r.message)}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>{txt(r.author)} | {r.createdAt ? new Date(r.createdAt).toLocaleString('en-GB') : ''}</div>
+            <div className="tw:flex tw:flex-col tw:gap-2">
+              <span className={SECTION_LABEL}>Job remarks</span>
+              <div className="tw:flex tw:flex-col tw:gap-1.5">
+                {queryRemarks.slice(-8).map((remark) => (
+                  <div key={remark.id} className={cn(CARD, 'tw:bg-background tw:px-2.5 tw:py-2')}>
+                    <div className="tw:whitespace-pre-wrap tw:text-foreground">{asText(remark.message)}</div>
+                    <div className="tw:mt-1 tw:text-[10px] tw:text-muted-foreground">{asText(remark.author)} | {remark.createdAt ? new Date(remark.createdAt).toLocaleString('en-GB') : ''}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Your reply / note</label>
-            <textarea className="input-field" style={{ minHeight: '120px', resize: 'vertical', padding: '0.75rem' }}
+          <div className="tw:flex tw:flex-col tw:gap-2">
+            <Label htmlFor="query-reply" className={SECTION_LABEL}>Your reply / note</Label>
+            <Textarea
+              id="query-reply"
+              className="tw:min-h-[120px] tw:p-3"
               placeholder="What was asked and what is being answered - saved on the job and copied for the ICEGATE reply box"
-              value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+              value={replyText}
+              onChange={(event) => setReplyText(event.target.value)}
+            />
           </div>
 
-          <div style={{ ...card, background: 'var(--bg-panel, #fff)', border: '1px dashed var(--border-color, #cbd5e1)', color: 'var(--text-muted, #64748b)', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-            <Paperclip size={16} style={{ marginTop: '1px', flexShrink: 0 }} />
+          <div className={cn(CARD, 'tw:flex tw:items-start tw:gap-2 tw:border-dashed tw:bg-background tw:text-muted-foreground')}>
+            <Paperclip className="tw:mt-px tw:size-4 tw:shrink-0" />
             <span>Documents asked for in a query are uploaded as e-Sanchit documents (Job Entry &gt; e-Sanchit), so that their IRN goes with the BE. There is no separate upload here.</span>
           </div>
+        </DialogBody>
 
-        </div>
-
-        <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color, #cbd5e1)', background: 'var(--bg-panel, #fff)', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-          <button className="btn btn-secondary" onClick={onClose}>Close</button>
-          <button className="btn btn-secondary" onClick={copyReply} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Copy size={14} /> Copy reply</button>
-          <button className="btn btn-primary" onClick={saveReply} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#16a34a', borderColor: '#15803d', opacity: busy ? 0.6 : 1 }}>
-            <Save size={14} /> {busy ? 'Saving...' : 'Save to job'}
-          </button>
-        </div>
-      </div>
-    </>
+        <DialogFooter className="tw:flex-wrap tw:p-4">
+          <Button size="lg" onClick={onClose}>Close</Button>
+          <Button size="lg" onClick={copyReply}><Copy /> Copy reply</Button>
+          <Button size="lg" variant="success" onClick={saveReply} disabled={busy}><Save /> {busy ? 'Saving...' : 'Save to job'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

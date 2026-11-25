@@ -1,361 +1,330 @@
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Edit2, CheckCircle, Save, X, Server } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { CheckCircle, Edit2, Plus, Save, Server, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge, Button, Checkbox, Field, Input, Label, SelectBox, Textarea } from '@/components/ui';
+import { askConfirm } from '@/components/common/askConfirm';
+import { replyOf, settingsApi } from './settingsApi';
+import SettingsNotice from './SettingsNotice';
 
-const inp = {
-  width: "100%", padding: "8px 12px", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px",
-  fontSize: "13px", boxSizing: "border-box", outline: "none", marginTop: "4px"
+const NEW_PROFILE = {
+  profileName: '',
+  loginId: '',
+  password: '',
+  apiKey: '',
+  baseUrl: 'https://cisapi.icegate.gov.in',
+  linkedChaCode: '',
 };
-const lbl = { fontSize: "12px", fontWeight: 600, color: "var(--text-muted, var(--text-muted, #475569))", display: "block" };
+// the backend keeps the saved password when it gets this mask back
+const KEEP_SAVED_PASSWORD = '********';
+const NO_MESSAGE = { text: '', type: '' };
+const REQUIRED_FIELDS = [
+  { name: 'profileName', label: 'Profile Name' },
+  { name: 'loginId', label: 'ICEGATE Login ID' },
+  { name: 'password', label: 'ICEGATE Password', onlyNew: true },
+  { name: 'apiKey', label: 'ICEGATE API Key' },
+];
+
+const IMAP_LOGIN_FIELDS = [
+  { name: 'imapEmail', label: 'Registered Email ID', placeholder: 'e.g. docs@company.com' },
+  { name: 'imapAppPassword', label: 'Email App Password', placeholder: '16-digit App Password', type: 'password' },
+];
+
+const twoColumns = 'tw:grid tw:grid-cols-1 tw:gap-4 tw:md:grid-cols-2';
+
+// { text, type, time } for the result line next to a Test button
+async function timedTest(request, describe) {
+  const startedAt = Date.now();
+  const seconds = () => ((Date.now() - startedAt) / 1000).toFixed(1);
+  try {
+    const { body } = await replyOf(request());
+    return { ...describe(body), time: seconds() };
+  } catch (error) {
+    return { text: `❌ Error: ${error.message}`, type: 'error', time: seconds() };
+  }
+}
+
+function TestRow({ label, busy, onTest, result }) {
+  return (
+    <div className="tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-center">
+      <Button variant="secondary" size="lg" className="tw:min-w-40 tw:self-start tw:md:self-auto" disabled={busy} onClick={onTest}>
+        {busy ? 'Testing... ⏳' : label}
+      </Button>
+      {result && <SettingsNotice tone={result.type} seconds={result.time} className="tw:px-3 tw:py-1.5 tw:text-[12.5px]">{result.text}</SettingsNotice>}
+    </div>
+  );
+}
+
+function ProfileCard({ profile, testing, onTest, onEdit, onDelete }) {
+  return (
+    <div className={cn(
+      'tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:bg-card tw:p-4 tw:shadow-sm tw:md:flex-row tw:md:items-center tw:md:justify-between',
+      profile.isDefault ? 'tw:border-2 tw:border-indigo-300' : 'tw:border tw:border-border'
+    )}>
+      <div className="tw:min-w-0">
+        <div className="tw:mb-1.5 tw:flex tw:items-center tw:gap-2">
+          <h4 className="tw:m-0 tw:text-sm tw:text-foreground">{profile.profileName}</h4>
+          {profile.isDefault && <Badge variant="info">DEFAULT</Badge>}
+        </div>
+        <div className="tw:flex tw:flex-wrap tw:gap-x-4 tw:gap-y-1 tw:text-xs tw:text-muted-foreground">
+          <span><strong>ID:</strong> {profile.loginId}</span>
+          {profile.linkedChaCode && (
+            <span><strong>CHA:</strong> <span className="tw:rounded tw:bg-muted tw:px-1 tw:py-0.5 tw:font-mono">{profile.linkedChaCode}</span></span>
+          )}
+        </div>
+      </div>
+      <div className="tw:flex tw:gap-2">
+        <Button variant="success" disabled={testing} onClick={onTest}>{testing ? 'Testing...' : 'Test Connection'}</Button>
+        <Button size="icon" title="Edit" onClick={onEdit}><Edit2 /></Button>
+        <Button variant="destructive" size="icon" title="Delete" onClick={onDelete}><Trash2 /></Button>
+      </div>
+    </div>
+  );
+}
 
 export default function IcegateProfileSettings() {
   const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [chaList, setChaList] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(null);
-  const [msg, setMsg] = useState({ text: "", type: "" });
+  const [message, setMessage] = useState(NO_MESSAGE);
   const [testingAuth, setTestingAuth] = useState(false);
-  const [icegateMsg, setIcegateMsg] = useState(null);
+  const [icegateResult, setIcegateResult] = useState(null);
+  const [testingImap, setTestingImap] = useState(false);
+  const [imapResult, setImapResult] = useState(null);
 
-  async function handleTestAuth() {
+  const isNew = editingId === 'new';
+  const setField = (name, value) => setForm((current) => ({ ...current, [name]: value }));
+
+  const loadProfiles = async () => {
+    try {
+      const { body } = await replyOf(settingsApi.icegateProfiles());
+      if (body.success) setProfiles(body.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const loadChaList = async () => {
+    try {
+      const { body } = await replyOf(settingsApi.chaMaster());
+      if (body.success) setChaList(body.data || []);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    loadProfiles();
+    loadChaList();
+  }, []);
+
+  const handleAddNew = () => {
+    setEditingId('new');
+    setForm({ ...NEW_PROFILE, isDefault: profiles.length === 0 });
+    setMessage(NO_MESSAGE);
+  };
+
+  const handleEdit = (profile) => {
+    setEditingId(profile.id);
+    setForm({ ...profile, password: '' });
+    setMessage(NO_MESSAGE);
+  };
+
+  const handleTestAuth = async () => {
     if (!form.loginId || !form.apiKey) {
-      setIcegateMsg({ text: "Please enter ICEGATE Login ID and API Key to test.", type: 'error' });
+      setIcegateResult({ text: 'Please enter ICEGATE Login ID and API Key to test.', type: 'error' });
       return;
     }
     setTestingAuth(true);
-    setIcegateMsg(null);
-    const startTime = Date.now();
-    try {
-      const payload = { ...form, profileId: editingId };
-      const res = await fetch('/api/icegate/test-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-      
-      if (data.success) {
-        setIcegateMsg({ text: `✅ ICEGATE API Connected! Status: ${data.status}`, type: 'success', time: timeTaken });
-      } else {
-        setIcegateMsg({ text: `❌ ICEGATE API Failed: ${data.error || data.message}`, type: 'error', time: timeTaken });
-      }
-    } catch (e) {
-      const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-      setIcegateMsg({ text: `❌ Error: ${e.message}`, type: 'error', time: timeTaken });
-    } finally {
-      setTestingAuth(false);
-    }
-  }
-  const [testingImap, setTestingImap] = useState(false);
-  const [imapMsg, setImapMsg] = useState(null);
-  const [chaList, setChaList] = useState([]);
+    setIcegateResult(null);
+    setIcegateResult(await timedTest(
+      () => settingsApi.testIcegateAuth({ ...form, profileId: editingId }),
+      (reply) => (reply.success
+        ? { text: `✅ ICEGATE API Connected! Status: ${reply.status}`, type: 'success' }
+        : { text: `❌ ICEGATE API Failed: ${reply.error || reply.message}`, type: 'error' }),
+    ));
+    setTestingAuth(false);
+  };
 
-  useEffect(() => {
-    fetchProfiles();
-    fetchChaList();
-  }, []);
-
-  async function fetchChaList() {
-    try {
-      const res = await fetch("/api/masters/cha-master");
-      const json = await res.json();
-      if (json.success) setChaList(json.data || []);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function fetchProfiles() {
-    try {
-      const res = await fetch("/api/icegate-profiles");
-      const json = await res.json();
-      if (json.success) setProfiles(json.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleAddNew() {
-    setEditingId("new");
-    setForm({
-      profileName: "",
-      loginId: "",
-      password: "",
-      apiKey: "",
-      baseUrl: "https://cisapi.icegate.gov.in",
-      linkedChaCode: "",
-      isDefault: profiles.length === 0
-    });
-    setMsg({ text: "", type: "" });
-  }
-
-  function handleEdit(p) {
-    setEditingId(p.id);
-    setForm({ ...p, password: "" }); // Clear password so they don't overwrite with ********
-    setMsg({ text: "", type: "" });
-  }
-
-  
-  async function handleTestImap() {
+  const handleTestImap = async () => {
     if (!form.imapEmail || !form.imapAppPassword) {
-      setImapMsg({ text: "Please enter Email ID and App Password to test.", type: 'error' });
+      setImapResult({ text: 'Please enter Email ID and App Password to test.', type: 'error' });
       return;
     }
     setTestingImap(true);
-    setImapMsg(null);
-    const startTime = Date.now();
-    try {
-      const res = await fetch('/api/icegate/test-imap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-      
-      if (data.success) {
-        setImapMsg({ text: '✅ Connection Successful! System can read the emails.', type: 'success', time: timeTaken });
-      } else {
-        setImapMsg({ text: `❌ Connection Failed: ${data.message}`, type: 'error', time: timeTaken });
-      }
-    } catch (e) {
-      const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
-      setImapMsg({ text: `❌ Error: ${e.message}`, type: 'error', time: timeTaken });
-    } finally {
-      setTestingImap(false);
+    setImapResult(null);
+    setImapResult(await timedTest(
+      () => settingsApi.testIcegateImap(form),
+      (reply) => (reply.success
+        ? { text: '✅ Connection Successful! System can read the emails.', type: 'success' }
+        : { text: `❌ Connection Failed: ${reply.message}`, type: 'error' }),
+    ));
+    setTestingImap(false);
+  };
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    const missing = REQUIRED_FIELDS.find((field) => (field.onlyNew ? isNew : true) && !form[field.name]);
+    if (missing) {
+      setMessage({ text: `Please fill in ${missing.label}.`, type: 'error' });
+      return;
     }
-  }
-
-  async function handleSave(e) {
-    e.preventDefault();
-    setMsg({ text: "", type: "" });
+    setMessage(NO_MESSAGE);
+    const profile = { ...form };
+    if (!profile.password && !isNew) profile.password = KEEP_SAVED_PASSWORD;
     try {
-      const url = editingId === "new" ? "/api/icegate-profiles" : `/api/icegate-profiles/${editingId}`;
-      const method = editingId === "new" ? "POST" : "PUT";
-      
-      const payload = { ...form };
-      if (!payload.password && editingId !== "new") {
-        payload.password = "********"; // Tell backend not to update it
-      }
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const json = await res.json();
-      
-      if (json.success) {
-        setMsg({ text: "Profile saved successfully!", type: "success" });
+      const { body } = await replyOf(isNew ? settingsApi.createIcegateProfile(profile) : settingsApi.updateIcegateProfile(editingId, profile));
+      if (body.success) {
+        setMessage({ text: 'Profile saved successfully!', type: 'success' });
         setEditingId(null);
-        fetchProfiles();
+        loadProfiles();
       } else {
-        setMsg({ text: json.error || "Failed to save", type: "error" });
+        setMessage({ text: body.error || 'Failed to save', type: 'error' });
       }
-    } catch (err) {
-      setMsg({ text: "Network error", type: "error" });
+    } catch {
+      setMessage({ text: 'Network error', type: 'error' });
     }
-  }
+  };
 
-  async function handleDelete(id) {
-    if (!window.confirm("Are you sure you want to delete this profile?")) return;
+  const handleDelete = async (id) => {
+    const confirmed = await askConfirm({ title: 'Delete profile', message: 'Are you sure you want to delete this profile?', okLabel: 'Delete', tone: 'danger' });
+    if (!confirmed) return;
     try {
-      await fetch(`/api/icegate-profiles/${id}`, { method: "DELETE" });
-      fetchProfiles();
-    } catch (e) {}
-  }
+      await replyOf(settingsApi.deleteIcegateProfile(id));
+      loadProfiles();
+    } catch {
+      // the list stays as it is
+    }
+  };
 
-  async function handleTest(profileId) {
+  const handleTestProfile = async (profileId) => {
     setTestingAuth(profileId);
-    setMsg({ text: "", type: "" });
+    setMessage(NO_MESSAGE);
     try {
-      const res = await fetch("/api/icegate/test-auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMsg({ text: `Test connection successful for Profile!`, type: "success" });
-      } else {
-        setMsg({ text: data.error || "Connection failed", type: "error" });
-      }
-    } catch (err) {
-      setMsg({ text: "Network error", type: "error" });
+      const { body } = await replyOf(settingsApi.testIcegateAuth({ profileId }));
+      setMessage(body.success
+        ? { text: 'Test connection successful for Profile!', type: 'success' }
+        : { text: body.error || 'Connection failed', type: 'error' });
+    } catch {
+      setMessage({ text: 'Network error', type: 'error' });
     } finally {
       setTestingAuth(null);
     }
-  }
+  };
 
-  // if (loading) return <div>Loading...</div>;
+  const chaOptions = chaList.map((cha) => ({ value: cha.chaCode, label: `${cha.chaCode} - ${cha.chaName}` }));
+  const savedKeyShown = form?.apiKeyHint && String(form.apiKey || '').startsWith('****');
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <div className="tw:mb-5 tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-center tw:md:justify-between">
         <div>
-          <h2 style={{ fontSize: "16px", color: "var(--text-main, var(--text-main, #0f172a))", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-            <Server size={18} color="#6366f1" /> ICEGATE Profiles
+          <h2 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-base tw:text-foreground">
+            <Server className="tw:size-[18px] tw:text-indigo-500" /> ICEGATE Profiles
           </h2>
-          <p style={{ fontSize: "12px", color: "var(--text-muted, var(--text-muted, #64748b))", margin: "4px 0 0 0" }}>
+          <p className="tw:mt-1 tw:mb-0 tw:text-xs tw:text-muted-foreground">
             Manage multiple ICEGATE login credentials. You can link them to specific CHA codes.
           </p>
         </div>
         {!editingId && (
-          <button onClick={handleAddNew} style={{ background: "#6366f1", color: "#fff", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
-            <Plus size={14} /> Add New Profile
-          </button>
+          <Button variant="default" size="lg" className="tw:self-start tw:md:self-auto" onClick={handleAddNew}>
+            <Plus /> Add New Profile
+          </Button>
         )}
       </div>
 
-      {msg.text && (
-        <div style={{ padding: "12px 16px", background: msg.type === "error" ? "#fef2f2" : "#f0fdf4", color: msg.type === "error" ? "#991b1b" : "#166534", border: `1px solid ${msg.type === "error" ? "#fecaca" : "#22c55e"}`, borderRadius: "6px", fontSize: "13px", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
-          {msg.type === "success" && <CheckCircle size={16} />}
-          {msg.text}
-        </div>
+      {message.text && (
+        <SettingsNotice tone={message.type} icon={message.type === 'success' ? CheckCircle : undefined} className="tw:mb-5">
+          {message.text}
+        </SettingsNotice>
       )}
 
       {editingId ? (
-        <div style={{ background: "var(--bg-app, var(--bg-app, #f8fafc))", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", padding: "20px" }}>
-          <h3 style={{ margin: "0 0 16px 0", fontSize: "14px", color: "var(--text-main, var(--text-main, #1e293b))" }}>
-            {editingId === "new" ? "Create New Profile" : "Edit Profile"}
-          </h3>
-          <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <div>
-                <label style={lbl}>Profile Name *</label>
-                <input style={inp} required value={form.profileName} onChange={e => setForm({...form, profileName: e.target.value})} placeholder="e.g. Delhi Branch CHA" />
-              </div>
-              <div>
-                <label style={lbl}>Linked CHA Code (Optional)</label>
-                <select style={inp} value={form.linkedChaCode} onChange={e => setForm({...form, linkedChaCode: e.target.value})}>
-                  <option value="">-- Select CHA --</option>
-                  {chaList.map(c => (
-                    <option key={c.id} value={c.chaCode}>
-                      {c.chaCode} - {c.chaName}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>Auto-selects this profile for this CHA</div>
-              </div>
+        <div className="tw:rounded-lg tw:border tw:border-border tw:bg-(--bg-app) tw:p-4 tw:md:p-5">
+          <h3 className="tw:mt-0 tw:mb-4 tw:text-sm tw:text-foreground">{isNew ? 'Create New Profile' : 'Edit Profile'}</h3>
+          <form onSubmit={handleSave} className="tw:flex tw:flex-col tw:gap-4">
+            <div className={twoColumns}>
+              <Field label="Profile Name *" layout="col">
+                <Input required data-allow-text="" value={form.profileName} placeholder="e.g. Delhi Branch CHA" onChange={(event) => setField('profileName', event.target.value)} />
+              </Field>
+              <Field label="Linked CHA Code (Optional)" layout="col" note="Auto-selects this profile for this CHA">
+                <SelectBox className="tw:w-full" options={chaOptions} value={form.linkedChaCode} clearable clearLabel="-- Select CHA --"
+                  placeholder="-- Select CHA --" onValueChange={(code) => setField('linkedChaCode', code)} />
+              </Field>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <div>
-                <label style={lbl}>ICEGATE Login ID *</label>
-                <input style={inp} required value={form.loginId} onChange={e => setForm({...form, loginId: e.target.value})} placeholder="e.g. CCCPL1998" />
-              </div>
-              <div>
-                <label style={lbl}>ICEGATE Password *</label>
-                <input style={inp} type="password" required={editingId === "new"} value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder={editingId !== "new" ? "Leave blank to keep unchanged" : "Password"} />
-              </div>
+            <div className={twoColumns}>
+              <Field label="ICEGATE Login ID *" layout="col">
+                <Input required data-allow-text="" value={form.loginId} placeholder="e.g. CCCPL1998" onChange={(event) => setField('loginId', event.target.value)} />
+              </Field>
+              <Field label="ICEGATE Password *" layout="col">
+                <Input type="password" required={isNew} value={form.password} placeholder={isNew ? 'Password' : 'Leave blank to keep unchanged'}
+                  onChange={(event) => setField('password', event.target.value)} />
+              </Field>
             </div>
 
-            <div>
-              <label style={lbl}>ICEGATE API Key *{form.apiKeyHint && String(form.apiKey || '').startsWith('****') ? ` (saved key ${form.apiKeyHint} - paste a new key to change it)` : ''}</label>
-              <textarea style={{...inp, height: "80px", fontFamily: "monospace"}} required value={form.apiKey} onChange={e => setForm({...form, apiKey: e.target.value})} placeholder="Paste your API key here..." />
+            <Field
+              label={`ICEGATE API Key *${savedKeyShown ? ` (saved key ${form.apiKeyHint} - paste a new key to change it)` : ''}`}
+              layout="col"
+              labelClassName="tw:whitespace-normal"
+            >
+              <Textarea required className="tw:h-20 tw:font-mono" value={form.apiKey} placeholder="Paste your API key here..." onChange={(event) => setField('apiKey', event.target.value)} />
+            </Field>
+
+            <div className="tw:flex tw:items-center tw:gap-2">
+              <Checkbox id="icegate-profile-default" checked={Boolean(form.isDefault)} onCheckedChange={(checked) => setField('isDefault', checked === true)} />
+              <Label htmlFor="icegate-profile-default" className="tw:cursor-pointer tw:text-[13px] tw:text-muted-foreground">Set as Default Profile</Label>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <input type="checkbox" id="isDef" checked={form.isDefault} onChange={e => setForm({...form, isDefault: e.target.checked})} />
-              <label htmlFor="isDef" style={{ fontSize: "13px", color: "var(--text-muted, var(--text-muted, #475569))", cursor: "pointer" }}>Set as Default Profile</label>
-            </div>
+            <TestRow label="Test ICEGATE API" busy={testingAuth} onTest={handleTestAuth} result={icegateResult} />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px', marginBottom: '8px' }}>
-              <button type="button" onClick={handleTestAuth} disabled={testingAuth} style={{ padding: '6px 14px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '4px', fontSize: '12px', fontWeight: 600, cursor: testingAuth ? 'wait' : 'pointer', minWidth: '160px' }}>
-                {testingAuth ? 'Testing... ⏳' : 'Test ICEGATE API'}
-              </button>
-              {icegateMsg && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', fontWeight: 500, padding: '6px 12px', borderRadius: '4px', background: icegateMsg.type === 'success' ? '#dcfce7' : '#fee2e2', color: icegateMsg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${icegateMsg.type === 'success' ? '#bbf7d0' : '#fecaca'}` }}>
-                  <span>{icegateMsg.text}</span>
-                  {icegateMsg.time && <span style={{ background: icegateMsg.type === 'success' ? '#bbf7d0' : '#fecaca', padding: '2px 6px', borderRadius: '12px', fontSize: '10px', fontWeight: 700, opacity: 0.9 }}>⏱ {icegateMsg.time}s</span>}
-                </div>
-              )}
+            <h4 className="tw:mt-4 tw:mb-0 tw:border-b tw:border-slate-700 tw:pb-2 tw:text-slate-200">Automatic Document Fetch (Email/IMAP)</h4>
+            <div className={twoColumns}>
+              {IMAP_LOGIN_FIELDS.map((field) => (
+                <Field key={field.name} label={field.label} layout="col">
+                  <Input type={field.type} data-allow-text="" value={form[field.name] ?? ''} placeholder={field.placeholder} onChange={(event) => setField(field.name, event.target.value)} />
+                </Field>
+              ))}
             </div>
+            <div className="tw:grid tw:grid-cols-1 tw:gap-4 tw:md:grid-cols-3">
+              <Field label="IMAP Server" layout="col">
+                <Input data-allow-text="" value={form.imapHost ?? ''} placeholder="e.g. imap.gmail.com" onChange={(event) => setField('imapHost', event.target.value)} />
+              </Field>
+              <Field label="IMAP Port" layout="col">
+                <Input type="number" value={form.imapPort ?? ''} onChange={(event) => setField('imapPort', parseInt(event.target.value) || 993)} />
+              </Field>
+              <Field
+                label="Scan Folder/Label"
+                layout="col"
+                note={<>Tip: Type <b>ALL</b> to scan every label, or use commas for multiple (e.g. <b>INBOX, Customs</b>).</>}
+              >
+                <Input data-allow-text="" value={form.imapFolder ?? ''} placeholder="e.g. INBOX or ICEGATE_DOCS" onChange={(event) => setField('imapFolder', event.target.value)} />
+              </Field>
+            </div>
+            <TestRow label="Test IMAP Connection" busy={testingImap} onTest={handleTestImap} result={imapResult} />
 
-                        <h4 style={{ margin: "16px 0 8px 0", color: "#e2e8f0", borderBottom: "1px solid #334155", paddingBottom: "8px" }}>Automatic Document Fetch (Email/IMAP)</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-              <div>
-                <label style={lbl}>Registered Email ID</label>
-                <input style={inp} value={form.imapEmail} onChange={e => setForm({...form, imapEmail: e.target.value})} placeholder="e.g. docs@company.com" />
-              </div>
-              <div>
-                <label style={lbl}>Email App Password</label>
-                <input style={inp} type="password" value={form.imapAppPassword} onChange={e => setForm({...form, imapAppPassword: e.target.value})} placeholder="16-digit App Password" />
-              </div>
+            <div className="tw:mt-2.5 tw:flex tw:flex-wrap tw:gap-3">
+              <Button size="lg" onClick={() => setEditingId(null)}>Cancel</Button>
+              <Button type="submit" variant="default" size="lg" className="tw:px-6"><Save /> Save Profile</Button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
-              <div>
-                <label style={lbl}>IMAP Server</label>
-                <input style={inp} value={form.imapHost} onChange={e => setForm({...form, imapHost: e.target.value})} placeholder="e.g. imap.gmail.com" />
-              </div>
-              <div>
-                <label style={lbl}>IMAP Port</label>
-                <input style={inp} type="number" value={form.imapPort} onChange={e => setForm({...form, imapPort: parseInt(e.target.value) || 993})} />
-              </div>
-              <div>
-                <label style={lbl}>Scan Folder/Label</label>
-                <input style={inp} value={form.imapFolder} onChange={e => setForm({...form, imapFolder: e.target.value})} placeholder="e.g. INBOX or ICEGATE_DOCS" />
-                <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "4px", lineHeight: "1.4" }}>
-                  Tip: Type <b>ALL</b> to scan every label, or use commas for multiple (e.g. <b>INBOX, Customs</b>).
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-              <button type="button" onClick={handleTestImap} disabled={testingImap} style={{ padding: '6px 14px', background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '4px', fontSize: '12px', fontWeight: 600, cursor: testingImap ? 'wait' : 'pointer', minWidth: '160px' }}>
-                {testingImap ? 'Testing... ⏳' : 'Test IMAP Connection'}
-              </button>
-              {imapMsg && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', fontWeight: 500, padding: '6px 12px', borderRadius: '4px', background: imapMsg.type === 'success' ? '#dcfce7' : '#fee2e2', color: imapMsg.type === 'success' ? '#166534' : '#991b1b', border: `1px solid ${imapMsg.type === 'success' ? '#bbf7d0' : '#fecaca'}` }}>
-                  <span>{imapMsg.text}</span>
-                  {imapMsg.time && <span style={{ background: imapMsg.type === 'success' ? '#bbf7d0' : '#fecaca', padding: '2px 6px', borderRadius: '12px', fontSize: '10px', fontWeight: 700, opacity: 0.9 }}>⏱ {imapMsg.time}s</span>}
-                </div>
-              )}
-            </div>
-
-            <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
-              <button type="button" onClick={() => setEditingId(null)} style={{ padding: "8px 16px", background: "#fff", border: "1px solid var(--border-color, #cbd5e1)", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "var(--text-muted, var(--text-muted, #475569))" }}>
-                Cancel
-              </button>
-              <button type="submit" style={{ padding: "8px 24px", background: "#6366f1", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}>
-                <Save size={14} /> Save Profile
-              </button>
-            </div>
-          
           </form>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div className="tw:flex tw:flex-col tw:gap-3">
           {profiles.length === 0 ? (
-            <div style={{ padding: "40px", textAlign: "center", background: "var(--bg-app, var(--bg-app, #f8fafc))", borderRadius: "8px", border: "1px dashed var(--border-color, #cbd5e1)", color: "var(--text-muted, var(--text-muted, #64748b))", fontSize: "13px" }}>
+            <div className="tw:rounded-lg tw:border tw:border-dashed tw:border-border tw:bg-(--bg-app) tw:p-10 tw:text-center tw:text-[13px] tw:text-muted-foreground">
               No ICEGATE profiles configured yet. Add one to start filing!
             </div>
           ) : (
-            profiles.map(p => (
-              <div key={p.id} style={{ background: "#fff", border: p.isDefault ? "2px solid #a5b4fc" : "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", padding: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                    <h4 style={{ margin: 0, fontSize: "14px", color: "var(--text-main, var(--text-main, #0f172a))" }}>{p.profileName}</h4>
-                    {p.isDefault && <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: "10px", padding: "2px 6px", borderRadius: "10px", fontWeight: 600 }}>DEFAULT</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--text-muted, var(--text-muted, #64748b))" }}>
-                    <span><strong>ID:</strong> {p.loginId}</span>
-                    {p.linkedChaCode && <span><strong>CHA:</strong> <span style={{ fontFamily: "monospace", background: "var(--bg-input, var(--bg-input, #f1f5f9))", padding: "2px 4px", borderRadius: "4px" }}>{p.linkedChaCode}</span></span>}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button onClick={() => handleTest(p.id)} disabled={testingAuth === p.id} style={{ padding: "6px 12px", background: "#f0fdf4", border: '1px solid #000000', color: "#166534", borderRadius: "6px", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
-                    {testingAuth === p.id ? "Testing..." : "Test Connection"}
-                  </button>
-                  <button onClick={() => handleEdit(p)} style={{ padding: "6px", background: "var(--bg-input, var(--bg-input, #f1f5f9))", border: "1px solid var(--border-color, #cbd5e1)", color: "var(--text-muted, var(--text-muted, #475569))", borderRadius: "6px", cursor: "pointer" }}>
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => handleDelete(p.id)} style={{ padding: "6px", background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", borderRadius: "6px", cursor: "pointer" }}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
+            profiles.map((profile) => (
+              <ProfileCard
+                key={profile.id}
+                profile={profile}
+                testing={testingAuth === profile.id}
+                onTest={() => handleTestProfile(profile.id)}
+                onEdit={() => handleEdit(profile)}
+                onDelete={() => handleDelete(profile.id)}
+              />
             ))
           )}
         </div>

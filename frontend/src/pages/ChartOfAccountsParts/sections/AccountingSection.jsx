@@ -1,42 +1,39 @@
-// Screen section: Accounting
-// Split out of ChartOfAccounts.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import { Coins, FileText, Folder, Layers, Receipt, Shield, Tags, Target } from 'lucide-react';
-import React from 'react';
+// Side list of the masters (Account Groups, Ledgers, Voucher Types ...); a row of tabs on a phone
+import { Layers } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui';
+import { CHART_TABS } from '../chartTabs';
 
-export default function AccountingSection({ ctx }) {
-  const { activeTab, setActiveTab, setSearchQuery, setShowForm } = ctx;
+export default function AccountingSection({ chart }) {
+  const { activeTab, changeTab } = chart;
   return (
-    <>
-    <div style={{ width: '260px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', boxShadow: '2px 0 8px rgba(0,0,0,0.02)', zIndex: 10 }}>
-                    <div style={{ padding: '24px 20px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ background: '#eff6ff', padding: '8px', borderRadius: '8px' }}><Layers size={20} color="#3b82f6" /></div>
-                        <div>
-                            <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#0f172a' }}>Accounting</div>
-                            <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>Core Masters</div>
-                        </div>
-                    </div>
-                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {[
-                            { id: 'groups', label: 'Account Groups', icon: Folder },
-                            { id: 'ledgers', label: 'Ledgers', icon: FileText },
-                            { id: 'vouchers', label: 'Voucher Types', icon: Receipt },
-                            { id: 'categories', label: 'Cost Categories', icon: Tags },
-                            { id: 'centres', label: 'Cost Centres', icon: Target },
-                            { id: 'currencies', label: 'Currencies', icon: Coins },
-                            { id: 'tds', label: 'TDS Natures', icon: Shield },
-                        ].map(tab => (
-                            <div 
-                                key={tab.id}
-                                onClick={() => { setActiveTab(tab.id); setShowForm(false); setSearchQuery(''); }}
-                                style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: activeTab === tab.id ? '#eff6ff' : 'transparent', borderRadius: '8px', color: activeTab === tab.id ? '#1d4ed8' : '#475569', fontWeight: activeTab === tab.id ? '600' : '500', transition: 'all 0.2s ease' }}
-                                onMouseOver={e => { if(activeTab !== tab.id) e.currentTarget.style.background = '#f1f5f9'; }}
-                                onMouseOut={e => { if(activeTab !== tab.id) e.currentTarget.style.background = 'transparent'; }}
-                            >
-                                <tab.icon size={18} color={activeTab === tab.id ? '#3b82f6' : '#64748b'} /> {tab.label}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-    </>
+    <div className="tw:z-10 tw:flex tw:flex-col tw:border-b tw:border-border tw:bg-card tw:shadow-xs tw:lg:w-[260px] tw:lg:shrink-0 tw:lg:border-r tw:lg:border-b-0">
+      <div className="tw:flex tw:items-center tw:gap-2.5 tw:px-5 tw:pt-4 tw:pb-3 tw:lg:pt-6 tw:lg:pb-4">
+        <div className="tw:rounded-lg tw:bg-primary/10 tw:p-2"><Layers className="tw:size-5 tw:text-primary" /></div>
+        <div>
+          <div className="tw:text-[15px] tw:font-bold tw:text-foreground">Accounting</div>
+          <div className="tw:mt-0.5 tw:text-[11px] tw:tracking-wider tw:text-muted-foreground tw:uppercase">Core Masters</div>
+        </div>
+      </div>
+      <div className="tw:flex tw:gap-1 tw:overflow-x-auto tw:px-3 tw:pb-2 tw:lg:flex-col tw:lg:overflow-visible tw:lg:py-2">
+        {CHART_TABS.map((tab) => {
+          const selected = activeTab === tab.id;
+          return (
+            <Button
+              key={tab.id}
+              variant="ghost"
+              size="block"
+              onClick={() => changeTab(tab.id)}
+              className={cn(
+                'tw:w-auto tw:shrink-0 tw:gap-3 tw:rounded-lg tw:px-4 tw:py-3 tw:text-[13px] tw:lg:w-full',
+                selected ? 'tw:bg-primary/10 tw:font-semibold tw:text-head' : 'tw:font-medium tw:text-foreground/75 tw:hover:bg-muted'
+              )}
+            >
+              <tab.icon className={cn('tw:size-4.5', selected ? 'tw:text-primary' : 'tw:text-muted-foreground')} /> {tab.label}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

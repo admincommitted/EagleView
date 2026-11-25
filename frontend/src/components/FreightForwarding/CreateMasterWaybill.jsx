@@ -1,9 +1,6 @@
-import React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import useMasterWaybill1 from './awb/master/useMasterWaybill1';
-import useMasterWaybill2 from './awb/master/useMasterWaybill2';
-import useMasterWaybill3 from './awb/master/useMasterWaybill3';
-import useMasterWaybill4 from './awb/master/useMasterWaybill4';
+import useMasterWaybill from './awb/master/hooks/useMasterWaybill';
 import PageTopSection from './awb/master/sections/PageTopSection';
 import HeaderSection from './awb/master/sections/HeaderSection';
 import PartiesSection from './awb/master/sections/PartiesSection';
@@ -14,63 +11,51 @@ import ChargesSection from './awb/master/sections/ChargesSection';
 import ActionBarSection from './awb/master/sections/ActionBarSection';
 import DialogsSection from './awb/master/sections/DialogsSection';
 
-// CreateMasterWaybill: the form logic lives in ./awb/master/use*.jsx and the screen sections in ./awb/master/sections/.
 function CreateMasterWaybillScreen({ freshScreen }) {
-  const ctx = { ...useMasterWaybill1(), freshScreen };
-  Object.assign(ctx, useMasterWaybill2(ctx));
-  Object.assign(ctx, useMasterWaybill3(ctx));
-  Object.assign(ctx, useMasterWaybill4(ctx));
-  
-  return <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'transparent', position: 'relative', zIndex: 1 }}>
+  const ctx = useMasterWaybill(freshScreen);
+
+  return (
+    <div className="tw:relative tw:z-[1] tw:flex tw:flex-col tw:bg-transparent">
       <PageTopSection ctx={ctx} />
-
-      
-
-      <div style={{ padding: '4px 0px', paddingBottom: '40px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-
-      <HeaderSection ctx={ctx} />
-
-      <div style={{ backgroundColor: '#ffffff', border: '1px solid #94a3b8', borderRadius: '4px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
-
-          
-
+      <div className="tw:flex tw:flex-1 tw:flex-col tw:gap-4 tw:pt-1 tw:pb-10">
+        <HeaderSection ctx={ctx} />
+        <div className="tw:flex tw:flex-col tw:overflow-hidden tw:rounded tw:border tw:border-slate-400 tw:bg-card tw:shadow-md">
           <PartiesSection ctx={ctx} />
-
           <RoutingSection ctx={ctx} />
-
-        <HandlingOciSection ctx={ctx} />
-            
-            <RateLinesSection ctx={ctx} />
-        <ChargesSection ctx={ctx} />
-
-                <ActionBarSection ctx={ctx} />
+          <HandlingOciSection ctx={ctx} />
+          <RateLinesSection ctx={ctx} />
+          <ChargesSection ctx={ctx} />
+          <ActionBarSection ctx={ctx} />
         </div>
       </div>
-
-          <DialogsSection ctx={ctx} />
-    
-      
-    
-      
-
-</div>;
+      <DialogsSection ctx={ctx} />
+    </div>
+  );
 }
 
-// CLEAR (11-Nov-2026): the screen is mounted again, so every box - weight charge, totals, other-charge rows, agent,
-// executed date - comes back exactly as on a fresh page. Before, CLEAR reset a hand-kept list of fields and missed
-// the weight charge / valuation / tax / totals and the default rows. The loaded-AWB route state is dropped first
-// (and the new screen mounted only after the router has applied that), otherwise it would load the same AWB again.
+// CLEAR mounts a new screen so every box comes back as on a fresh page. A loaded AWB in the route state is dropped
+// first, and the new screen mounted only once the router has applied that (else it would load the same AWB again).
 export default function CreateMasterWaybill() {
-  const [screenKey, setScreenKey] = React.useState(0);
+  const [screenKey, setScreenKey] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
-  const waitingRef = React.useRef(false);
-  const freshScreen = React.useCallback(() => {
-    if (location.state) { waitingRef.current = true; navigate(location.pathname, { replace: true, state: null }); } // the router applies this a moment later
-    else setScreenKey(k => k + 1);
+  const waitingForRoute = useRef(false);
+
+  const freshScreen = useCallback(() => {
+    if (location.state) {
+      waitingForRoute.current = true;
+      navigate(location.pathname, { replace: true, state: null });
+    } else {
+      setScreenKey((key) => key + 1);
+    }
   }, [location.pathname, location.state, navigate]);
-  React.useEffect(() => { // mount the new screen only once the old AWB is gone from the route state
-    if (waitingRef.current && !location.state) { waitingRef.current = false; setScreenKey(k => k + 1); }
+
+  useEffect(() => {
+    if (waitingForRoute.current && !location.state) {
+      waitingForRoute.current = false;
+      setScreenKey((key) => key + 1);
+    }
   }, [location]);
+
   return <CreateMasterWaybillScreen key={screenKey} freshScreen={freshScreen} />;
 }

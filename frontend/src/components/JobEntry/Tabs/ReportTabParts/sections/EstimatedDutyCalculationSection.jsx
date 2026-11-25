@@ -1,110 +1,144 @@
-// Screen section: Estimated Duty Calculation
-// Split out of ReportTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import React from 'react';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui';
+import { jobEntryApi } from '../../../jobEntryApi';
+import { ReportBody, ReportCell, ReportRow, ReportTable } from '../reportTable';
 
-export default function EstimatedDutyCalculationSection({ ctx }) {
-  const { allItems, esanchitDocs, fmt, grandTotal, jobData, reportView, totalAdlCVD, totalAssessableValue, totalBCD, totalCVD, totalHealthCess, totalIGST, totalSAPTA, totalSWS } = ctx;
+const LINE_CELL = 'tw:border-0 tw:border-b tw:px-[8px] tw:py-[12px]';
+const TOTAL_CELL = 'tw:border-0 tw:px-[8px] tw:py-[12px] tw:text-[14px] tw:font-bold tw:text-[#065f46]';
+
+function DutyLine({ label, amount, amountClassName }) {
   return (
-    <>
-    {reportView === 'duty' && (
-            <div style={{ background: '#fff', padding: '2rem', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', maxWidth: '600px', margin: '0 auto', color: '#000' }}>
-              <h2 style={{ textAlign: 'center', margin: '0 0 1.5rem 0' }}>Estimated Duty Calculation</h2>
-              
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>Total Assessable Value (INR)</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalAssessableValue)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>Basic Customs Duty (BCD)</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalBCD)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>Social Welfare Surcharge (SWS)</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalSWS)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>IGST</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600, color: '#047857' }}>{fmt(totalIGST)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>CVD</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalCVD)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>Adl CVD</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalAdlCVD)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>Health Cess</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalHealthCess)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', color: '#475569' }}>SAPTA</td>
-                    <td style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt(totalSAPTA)}</td>
-                  </tr>
-                  <tr style={{ background: '#f0fdf4' }}>
-                    <td style={{ padding: '12px 8px', fontWeight: 700, fontSize: '14px', color: '#065f46' }}>Total Estimated Duty Payable</td>
-                    <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 700, fontSize: '14px', color: '#065f46' }}>{fmt(grandTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div style={{ marginTop: '1rem', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-                *Note: This is an estimated duty. Final duty will be determined by ICEGATE system.
-              </div>
-            </div>
-          )}
-
-          {reportView === 'json' && <CachiPreview jobData={jobData} items={allItems} esanchitDocs={esanchitDocs} />}
-    </>
+    <ReportRow>
+      <ReportCell look="ruled"className={`${LINE_CELL} tw:text-[#475569]`}>{label}</ReportCell>
+      <ReportCell look="ruled"className={`${LINE_CELL} tw:text-right tw:font-semibold ${amountClassName || ''}`}>{amount}</ReportCell>
+    </ReportRow>
   );
 }
 
-// Reports > CACHI01 Preview (22-Nov-2026). Before, this view printed the raw screen data (job + invoices + items, the
-// items up to three times) and built that text again on every redraw - 3.5 MB on a 207-item job, and the page froze.
-// Now it shows the real CACHI01 file, asked from the server once when the view opens (nothing is sent to ICEGATE).
-const SHOW_MAX = 200000;
-function CachiPreview({ jobData, items, esanchitDocs }) {
-  const [st, setSt] = React.useState({ loading: true });
-  const [all, setAll] = React.useState(false);
-  const load = React.useCallback(async () => {
-    setSt({ loading: true }); setAll(false);
-    try {
-      const res = await fetch('/api/icegate/preview-be', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobData: { ...(jobData || {}), esanchitDocs: esanchitDocs || [] }, items: items || [], invoices: (jobData && jobData.invoices) || [],
-          beType: (jobData && jobData.autoField_51) || 'H', transportMode: (jobData && jobData.autoField_52) || 'S', forFiling: true }) });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || !d.success) { setSt({ error: d.error || ('The file could not be built (HTTP ' + res.status + ')') }); return; }
-      const m = (d.cachi01 && d.cachi01.master) || {};
-      setSt({ text: JSON.stringify(d.cachi01, null, 2), errors: (d.validation && d.validation.errors) || [], warnings: (d.validation && d.validation.warnings) || [],
-        counts: Object.entries(m).filter(([, v]) => Array.isArray(v) && v.length).map(([k, v]) => k.replace(/Model$/, '') + ' ' + v.length).join(' \u00b7 ') });
-    } catch (e) { setSt({ error: 'The file could not be built: ' + e.message }); }
-  }, [jobData, items, esanchitDocs]);
-  React.useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps - once when the view opens; "Build again" re-reads
-  const box = { background: '#1e293b', padding: '1rem', borderRadius: '4px', color: '#cbd5e1', fontFamily: 'monospace', fontSize: '12px', overflow: 'auto', maxHeight: '500px', textTransform: 'none' };
-  if (st.loading) return <div style={box}>Building the CACHI01 file...</div>;
-  if (st.error) return <div style={{ ...box, color: '#fecaca' }}>{st.error} <button type="button" className="btn btn-secondary" style={{ marginLeft: 10, fontSize: 11, padding: '2px 8px' }} onClick={load}>Try again</button></div>;
-  const long = st.text.length > SHOW_MAX;
+function EstimatedDuty({ ctx }) {
+  const { fmt } = ctx;
+  const lines = [
+    ['Total Assessable Value (INR)', ctx.totalAssessableValue],
+    ['Basic Customs Duty (BCD)', ctx.totalBCD],
+    ['Social Welfare Surcharge (SWS)', ctx.totalSWS],
+    ['IGST', ctx.totalIGST, 'tw:text-[#047857]'],
+    ['CVD', ctx.totalCVD],
+    ['Adl CVD', ctx.totalAdlCVD],
+    ['Health Cess', ctx.totalHealthCess],
+    ['SAPTA', ctx.totalSAPTA],
+  ];
   return (
-    <div>
-      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12px', marginBottom: '6px', textTransform: 'none' }}>
-        <b style={{ color: st.errors.length ? '#dc2626' : '#15803d' }}>{st.errors.length} error(s)</b>
-        <b style={{ color: st.warnings.length ? '#b45309' : '#15803d' }}>{st.warnings.length} warning(s)</b>
-        <span style={{ color: '#475569' }}>{st.counts}</span>
-        <span style={{ color: '#475569' }}>{Math.round(st.text.length / 1024).toLocaleString('en-IN')} KB</span>
-        <button type="button" className="btn btn-secondary" style={{ fontSize: 11, padding: '2px 8px' }} onClick={load} title="Build the file again from what is on the screen now">Build again</button>
-      </div>
-      {(st.errors.length > 0 || st.warnings.length > 0) && (
-        <div style={{ fontSize: '12px', marginBottom: '6px', textTransform: 'none', maxHeight: '110px', overflowY: 'auto', border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '4px', padding: '4px 8px' }}>
-          {st.errors.slice(0, 50).map((x, k) => <div key={'e' + k} style={{ color: '#b91c1c' }}>{x}</div>)}
-          {st.warnings.slice(0, 50).map((x, k) => <div key={'w' + k} style={{ color: '#92400e' }}>{x}</div>)}
-        </div>
-      )}
-      <div style={box}>
-        <pre style={{ margin: 0 }}>{long && !all ? st.text.slice(0, SHOW_MAX) : st.text}</pre>
-        {long && !all && <div style={{ marginTop: 8, color: '#fde68a', fontFamily: 'inherit' }}>First {Math.round(SHOW_MAX / 1024)} KB shown. <button type="button" className="btn btn-secondary" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setAll(true)}>Show the whole file</button> (Export JSON gives the file itself)</div>}
+    <div className="tw:mx-auto tw:max-w-[600px] tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-8 tw:text-black tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <h2 className="tw:m-0 tw:mb-6 tw:text-center">Estimated Duty Calculation</h2>
+      <ReportTable className="tw:text-[13px]">
+        <ReportBody>
+          {lines.map(([label, amount, amountClassName]) => <DutyLine key={label} label={label} amount={fmt(amount)} amountClassName={amountClassName} />)}
+          <ReportRow className="tw:bg-[#f0fdf4] tw:even:bg-[#f0fdf4] tw:hover:bg-[#f0fdf4]">
+            <ReportCell look="ruled"className={TOTAL_CELL}>Total Estimated Duty Payable</ReportCell>
+            <ReportCell look="ruled"className={`${TOTAL_CELL} tw:text-right`}>{fmt(ctx.grandTotal)}</ReportCell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      <div className="tw:mt-4 tw:text-center tw:text-[11px] tw:text-[#94a3b8]">
+        *Note: This is an estimated duty. Final duty will be determined by ICEGATE system.
       </div>
     </div>
+  );
+}
+
+const SHOW_MAX = 200000;
+const CODE_BOX = 'tw:max-h-[500px] tw:overflow-auto tw:rounded-[4px] tw:bg-[#1e293b] tw:p-4 tw:font-mono tw:text-[12px] tw:normal-case tw:text-[#cbd5e1]';
+
+const previewRequest = (jobData, items, esanchitDocs) => ({
+  jobData: { ...(jobData || {}), esanchitDocs: esanchitDocs || [] },
+  items: items || [],
+  invoices: jobData?.invoices || [],
+  beType: jobData?.autoField_51 || 'H',
+  transportMode: jobData?.autoField_52 || 'S',
+  forFiling: true,
+});
+
+const recordCounts = (master) => Object.entries(master)
+  .filter(([, records]) => Array.isArray(records) && records.length)
+  .map(([name, records]) => `${name.replace(/Model$/, '')} ${records.length}`)
+  .join(' · ');
+
+function buildError(error) {
+  if (!error.response) return `The file could not be built: ${error.message}`;
+  return error.response.data?.error || `The file could not be built (HTTP ${error.response.status})`;
+}
+
+// The real CACHI01 file (nothing is sent to ICEGATE), asked from the server once when the view opens.
+function CachiPreview({ jobData, items, esanchitDocs }) {
+  const [preview, setPreview] = useState({ loading: true });
+  const [showWhole, setShowWhole] = useState(false);
+
+  const load = async () => {
+    setPreview({ loading: true });
+    setShowWhole(false);
+    try {
+      const result = await jobEntryApi.previewBe(previewRequest(jobData, items, esanchitDocs));
+      if (!result.success) {
+        setPreview({ error: result.error || 'The file could not be built' });
+        return;
+      }
+      setPreview({
+        text: JSON.stringify(result.cachi01, null, 2),
+        errors: result.validation?.errors || [],
+        warnings: result.validation?.warnings || [],
+        counts: recordCounts(result.cachi01?.master || {}),
+      });
+    } catch (error) {
+      setPreview({ error: buildError(error) });
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- built once when the view opens; "Build again" re-reads
+  useEffect(() => { load(); }, []);
+
+  if (preview.loading) return <div className={CODE_BOX}>Building the CACHI01 file...</div>;
+  if (preview.error) {
+    return (
+      <div className={`${CODE_BOX} tw:text-[#fecaca]`}>
+        {preview.error} <Button size="sm" className="tw:ml-2.5" onClick={load}>Try again</Button>
+      </div>
+    );
+  }
+  const isLong = preview.text.length > SHOW_MAX;
+  const { errors, warnings } = preview;
+  return (
+    <div>
+      <div className="tw:mb-1.5 tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:text-entry tw:normal-case">
+        <b className={errors.length ? 'tw:text-destructive' : 'tw:text-success'}>{errors.length} error(s)</b>
+        <b className={warnings.length ? 'tw:text-warning' : 'tw:text-success'}>{warnings.length} warning(s)</b>
+        <span className="tw:text-muted-foreground">{preview.counts}</span>
+        <span className="tw:text-muted-foreground">{Math.round(preview.text.length / 1024).toLocaleString('en-IN')} KB</span>
+        <Button size="sm" onClick={load} title="Build the file again from what is on the screen now">Build again</Button>
+      </div>
+      {(errors.length > 0 || warnings.length > 0) && (
+        <div className="tw:mb-1.5 tw:max-h-[110px] tw:overflow-y-auto tw:rounded-[4px] tw:border tw:border-border tw:px-2 tw:py-1 tw:text-entry tw:normal-case">
+          {errors.slice(0, 50).map((message, index) => <div key={`error-${index}`} className="tw:text-destructive">{message}</div>)}
+          {warnings.slice(0, 50).map((message, index) => <div key={`warning-${index}`} className="tw:text-warning">{message}</div>)}
+        </div>
+      )}
+      <div className={CODE_BOX}>
+        <pre className="tw:m-0">{isLong && !showWhole ? preview.text.slice(0, SHOW_MAX) : preview.text}</pre>
+        {isLong && !showWhole && (
+          <div className="tw:mt-2 tw:text-[#fde68a]">
+            First {Math.round(SHOW_MAX / 1024)} KB shown. <Button size="sm" onClick={() => setShowWhole(true)}>Show the whole file</Button> (Export JSON gives the file itself)
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function EstimatedDutyCalculationSection({ ctx }) {
+  const { allItems, esanchitDocs, jobData, reportView } = ctx;
+  return (
+    <>
+      {reportView === 'duty' && <EstimatedDuty ctx={ctx} />}
+      {reportView === 'json' && <CachiPreview jobData={jobData} items={allItems} esanchitDocs={esanchitDocs} />}
+    </>
   );
 }

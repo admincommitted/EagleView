@@ -1,44 +1,47 @@
-// Handling (SPH) codes window. 29-Oct-2026: "Add" did nothing and the list was always empty; now the codes are the
-// AWB's SPH codes (saved with the AWB, max 9), picked from the SPH master.
-import React, { useState } from 'react';
-import ModalFrame, { sel, addBtn, th, td, delBtn } from './_ModalFrame';
+// Handling (SPH) codes of the AWB, picked from the SPH master. An AWB has at most 9 SPH codes.
+import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import { Button, DataTable, SelectBox } from '@/components/ui';
+import ModalFrame, { FormError, GRID_BOX } from './_ModalFrame';
+
+const MAX_CODES = 9;
 
 const HandlingCodeModal = ({ isOpen, onClose, codes = [], setCodes, masterSph = [] }) => {
   const [pick, setPick] = useState('');
-  const [err, setErr] = useState('');
+  const [error, setError] = useState('');
   if (!isOpen) return null;
+
   const list = (codes || []).filter(Boolean);
-  const descOf = (c) => (masterSph.find(m => m.code === c) || {}).description || '';
-  const write = (next) => { const nine = [...next.slice(0, 9)]; while (nine.length < 9) nine.push(''); setCodes && setCodes(nine); };
+  const descriptionOf = (code) => masterSph.find((sph) => sph.code === code)?.description || '';
+  const write = (next) => setCodes?.(Array.from({ length: MAX_CODES }, (_, index) => next[index] || ''));
   const add = () => {
-    setErr('');
-    if (!pick) return setErr('Choose a handling code');
-    if (list.includes(pick)) return setErr(`${pick} is already added`);
-    if (list.length >= 9) return setErr('An AWB can have at most 9 SPH codes');
-    write([...list, pick]); setPick('');
+    setError('');
+    if (!pick) return setError('Choose a handling code');
+    if (list.includes(pick)) return setError(`${pick} is already added`);
+    if (list.length >= MAX_CODES) return setError('An AWB can have at most 9 SPH codes');
+    write([...list, pick]);
+    setPick('');
   };
+  const columns = [
+    { key: 'code', header: 'Code', width: '60px', className: 'tw:font-bold', cell: (code) => code },
+    { key: 'description', header: 'Description', cell: (code) => descriptionOf(code) },
+    {
+      key: 'delete', header: 'Delete', width: '50px', align: 'center',
+      cell: (code) => <Button variant="ghost" size="icon-sm" className="tw:text-destructive" aria-label="Delete" onClick={() => write(list.filter((item) => item !== code))}><X /></Button>,
+    },
+  ];
+
   return (
     <ModalFrame title="Add Handling Code" width={520} onClose={onClose} footer={`${list.length} of 9 codes - saved with the AWB`}>
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-        <select value={pick} onChange={e => setPick(e.target.value)} style={{ ...sel, flex: 1 }}>
-          <option value="">Select</option>
-          {masterSph.map(m => <option key={m.code} value={m.code}>{m.code} - {m.description}</option>)}
-        </select>
-        <button onClick={add} style={addBtn}>+Add</button>
+      <div className="tw:flex tw:flex-col tw:gap-2 tw:sm:flex-row tw:sm:items-center">
+        <SelectBox className="tw:flex-1" placeholder="Select" value={pick} onValueChange={setPick}
+          options={masterSph.map((sph) => ({ value: sph.code, label: `${sph.code} - ${sph.description}` }))} />
+        <Button variant="default" onClick={add}><Plus /> Add</Button>
       </div>
-      {err && <div style={{ color: '#dc2626', fontSize: '11px', marginBottom: '6px' }}>{err}</div>}
-      <div style={{ border: '1px solid #000', backgroundColor: 'white', maxHeight: '220px', overflowY: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={{ ...th, width: '60px' }}>Code</th><th style={th}>Description</th><th style={{ ...th, width: '50px', textAlign: 'center' }}>Delete</th></tr></thead>
-          <tbody>
-            {list.map(c => <tr key={c}><td style={{ ...td, fontWeight: 700 }}>{c}</td><td style={td}>{descOf(c)}</td><td style={{ ...td, textAlign: 'center' }}><button style={delBtn} onClick={() => write(list.filter(x => x !== c))}>✕</button></td></tr>)}
-            {list.length === 0 && <tr><td colSpan={3} style={{ ...td, textAlign: 'center', color: '#64748b' }}>No handling codes</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <FormError>{error}</FormError>
+      <DataTable columns={columns} rows={list} rowKey={(code) => code} emptyText="No handling codes" containerClassName={GRID_BOX} />
     </ModalFrame>
   );
 };
 
 export default HandlingCodeModal;
-

@@ -1,158 +1,133 @@
-import React, { useState } from 'react';
-import { Search, Download, Mail, CheckCircle, FileJson } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle, Download, FileJson, Mail, Search } from 'lucide-react';
+import { Button, DataTable, Field, Input, SelectBox, Tabs, TabsList, TabsTrigger } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { exportEntryApi } from '@/components/ExportEntry/exportEntryApi';
+
+const ICEGATE_USERS = [{ value: 'user1', label: 'User 1' }, { value: 'user2', label: 'User 2' }];
+
+const FILE_ACTIONS = [
+  { label: 'Download Signed File', icon: Download, variant: 'default' },
+  { label: 'Download UnSigned File', icon: Download, variant: 'default' },
+  { label: 'File Mail to ICE Gate', icon: Mail, variant: 'success' },
+  { label: 'Validate Job', icon: CheckCircle, variant: 'success' },
+  { label: 'Download With Duplicate Job No.', icon: Download, variant: 'default' },
+];
+const GR_ACTIONS = [
+  { label: 'Download GR', icon: Download, variant: 'default' },
+  { label: 'Download GR UnSigned File', icon: Download, variant: 'default' },
+  { label: 'Mail GR File to ICE Gate', icon: Mail, variant: 'success' },
+];
+const JSON_ACTIONS = [
+  { label: '{Json} Submit eSign via API', variant: 'destructive' },
+  { label: '{Json} Download eSigned', variant: 'success' },
+  { label: '{Json} Download UnSigned', variant: 'default' },
+];
+
+const toTableRow = (job) => ({
+  id: job.jobNo || job.id,
+  iceName: job.shipperName || 'N/A',
+  consignee: job.consigneeName || 'N/A',
+  port: job.customsPort || 'N/A',
+  location: job.shipmentMode + ' EXPORT',
+  enteredBy: 'admin',
+  enteredAt: new Date(job.createdAt).toLocaleString(),
+});
+
+const jobColumns = (selectedId) => [
+  {
+    key: 'select',
+    header: 'Select',
+    width: '40px',
+    align: 'center',
+    cell: (row) => <span className={cn('tw:inline-block tw:size-3 tw:rounded-full tw:border tw:border-input', row.id === selectedId && 'tw:border-primary tw:bg-primary')} />,
+  },
+  { key: 'id', header: 'Job No', width: '60px' },
+  { key: 'iceName', header: 'ICE Name' },
+  { key: 'consignee', header: 'Consignee Name' },
+  { key: 'port', header: 'Discharge Port' },
+  { key: 'location', header: 'Location' },
+  { key: 'enteredBy', header: 'Entered By' },
+  { key: 'enteredAt', header: 'Entered Dt' },
+];
+
+function ActionRow({ actions, className }) {
+  return (
+    <div className={cn('tw:flex tw:flex-wrap tw:justify-center tw:gap-2', className)}>
+      {actions.map(({ label, icon: Icon, variant }) => (
+        <Button key={label} variant={variant}>{Icon && <Icon />} {label}</Button>
+      ))}
+    </div>
+  );
+}
 
 export default function SubmitSbJob() {
   const [submissionStatus, setSubmissionStatus] = useState('unsubmitted');
   const [jobNo, setJobNo] = useState('');
   const [icegateUserId, setIcegateUserId] = useState('');
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const [tableRows, setTableRows] = useState([]);
 
-  const [tableData, setTableData] = useState([]);
-
-  React.useEffect(() => {
-    fetch('/api/export-jobs')
-      .then(res => res.json())
-      .then(data => {
-        if(data.success) {
-          const mapped = data.data.map(job => ({
-            id: job.jobNo || job.id,
-            iceName: job.shipperName || 'N/A',
-            consignee: job.consigneeName || 'N/A',
-            port: job.customsPort || 'N/A',
-            loc: job.shipmentMode + ' EXPORT',
-            enteredBy: 'admin',
-            enteredDt: new Date(job.createdAt).toLocaleString()
-          }));
-          setTableData(mapped);
-        }
-      })
-      .catch(err => console.error(err));
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const answer = await exportEntryApi.queryJobs();
+        if (answer.success) setTableRows(answer.data.map(toTableRow));
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadJobs();
   }, []);
 
   return (
-    <div className="glass-panel" style={{ padding: '0', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
-      <div style={{ background: '#e0f2fe', padding: '0.5rem 1rem', borderBottom: '1px solid #bae6fd', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-        <h2 style={{ color: 'var(--primary-text, #0369a1)', margin: 0, fontSize: '14px', textTransform: 'none' }}>Submit SB Job</h2>
+    <div className="glass-panel tw:flex tw:h-full tw:flex-col tw:p-0 tw:normal-case">
+      <div className="tw:rounded-t-xl tw:border-b tw:border-primary/25 tw:bg-primary/10 tw:px-4 tw:py-2">
+        <h2 className="tw:m-0 tw:text-[14px] tw:text-head tw:normal-case">Submit SB Job</h2>
       </div>
 
-      {/* Filters Section */}
-      <div style={{ padding: '0.75rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center', background: 'var(--bg-app, var(--bg-app, #f8fafc))', borderBottom: '1px solid var(--border-color, #e2e8f0)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', margin: 0, textTransform: 'none', fontWeight: 500, color: 'var(--text-main, var(--text-main, #0f172a))' }}>
-            <input 
-              type="radio" 
-              name="status" 
-              value="unsubmitted" 
-              checked={submissionStatus === 'unsubmitted'}
-              onChange={(e) => setSubmissionStatus(e.target.value)}
-            />
-            UnSubmitted
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', margin: 0, textTransform: 'none', fontWeight: 500, color: 'var(--text-main, var(--text-main, #0f172a))' }}>
-            <input 
-              type="radio" 
-              name="status" 
-              value="submitted" 
-              checked={submissionStatus === 'submitted'}
-              onChange={(e) => setSubmissionStatus(e.target.value)}
-            />
-            Submitted
-          </label>
+      <div className="tw:flex tw:flex-col tw:gap-3 tw:border-b tw:border-border tw:bg-page tw:px-4 tw:py-3 tw:md:flex-row tw:md:flex-wrap tw:md:items-center tw:md:gap-6">
+        <Tabs value={submissionStatus} onValueChange={setSubmissionStatus}>
+          <TabsList variant="pill">
+            <TabsTrigger value="unsubmitted">UnSubmitted</TabsTrigger>
+            <TabsTrigger value="submitted">Submitted</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="tw:flex tw:items-center tw:gap-2">
+          <Field label="Job No">
+            <Input className="tw:w-full tw:md:w-[150px]" placeholder="JOB NO" value={jobNo} onChange={(event) => setJobNo(event.target.value)} />
+          </Field>
+          <Button variant="default"><Search /> Search</Button>
         </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <label style={{ margin: 0, textTransform: 'none', fontWeight: 500 }}>Job No</label>
-          <input 
-            type="text" 
-            placeholder="JOB NO" 
-            value={jobNo}
-            onChange={(e) => setJobNo(e.target.value)}
-            className="input-field"
-            style={{ width: '150px' }}
+        <Field label="Icegate UserId" className="tw:md:ml-auto">
+          <SelectBox className="tw:w-full tw:md:w-[200px]" placeholder="Select" clearable clearLabel="Select" value={icegateUserId} onValueChange={setIcegateUserId} options={ICEGATE_USERS} />
+        </Field>
+      </div>
+
+      <div className="tw:min-h-0 tw:flex-1 tw:overflow-auto tw:bg-page tw:p-2">
+        <div className="tw:overflow-hidden tw:rounded-sm tw:border tw:border-border tw:bg-background">
+          <DataTable
+            columns={jobColumns(selectedJobId)}
+            rows={tableRows}
+            className="tw:min-w-[900px]"
+            selectedKey={selectedJobId}
+            onRowClick={(row) => setSelectedJobId(row.id)}
+            emptyText="No export job"
           />
-          <button className="btn btn-info" style={{ padding: '0.3rem 0.75rem', background: 'var(--primary-color-end, #2563eb)', border: 'none' }}>
-            <Search size={14} /> Search
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-          <label style={{ margin: 0, textTransform: 'none', fontWeight: 500 }}>Icegate UserId</label>
-          <select 
-            value={icegateUserId} 
-            onChange={(e) => setIcegateUserId(e.target.value)}
-            className="input-field"
-            style={{ width: '200px' }}
-          >
-            <option value="">Select</option>
-            <option value="user1">User 1</option>
-            <option value="user2">User 2</option>
-          </select>
         </div>
       </div>
 
-      {/* Table Section */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0.5rem', background: 'var(--bg-app, var(--bg-app, #f8fafc))' }}>
-        <div style={{ border: '1px solid var(--border-color, #cbd5e1)', borderRadius: '4px', overflow: 'hidden', background: '#fff' }}>
-          <table style={{ width: '100%', minWidth: '900px' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-input, var(--bg-input, #f1f5f9))' }}>
-                <th style={{ width: '40px', textAlign: 'center', textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Select</th>
-                <th style={{ width: '60px', textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Job No</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>ICE Name</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Consignee Name</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Discharge Port</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Location</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Entered By</th>
-                <th style={{ textTransform: 'none', color: 'var(--text-muted, var(--text-muted, #475569))' }}>Entered Dt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableData.map((row) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid var(--border-color, #e2e8f0)', background: '#fff', textTransform: 'none', color: '#334155' }}>
-                  <td style={{ textAlign: 'center' }}>
-                    <input type="radio" name="jobSelect" />
-                  </td>
-                  <td>{row.jobNo || row.id}</td>
-                  <td>{row.iceName}</td>
-                  <td>{row.consignee}</td>
-                  <td>{row.port}</td>
-                  <td>{row.loc}</td>
-                  <td>{row.enteredBy}</td>
-                  <td>{row.enteredDt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="tw:flex tw:flex-col tw:gap-2 tw:border-t tw:border-primary/25 tw:bg-primary/10 tw:p-3">
+        <ActionRow actions={FILE_ACTIONS} />
+        <ActionRow actions={GR_ACTIONS} />
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ padding: '0.75rem', background: '#e0f2fe', borderTop: '1px solid #bae6fd', display: 'flex', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button className="btn" style={{ background: 'var(--primary-color-end, #2563eb)', color: 'white', padding: '0.4rem 1rem' }}><Download size={14} /> Download Signed File</button>
-        <button className="btn" style={{ background: 'var(--primary-color-end, #2563eb)', color: 'white', padding: '0.4rem 1rem' }}><Download size={14} /> Download UnSigned File</button>
-        <button className="btn btn-success" style={{ background: '#22c55e', color: 'white', padding: '0.4rem 1rem' }}><Mail size={14} /> File Mail to ICE Gate</button>
-        <button className="btn btn-success" style={{ background: '#22c55e', color: 'white', padding: '0.4rem 1rem' }}><CheckCircle size={14} /> Validate Job</button>
-        <button className="btn" style={{ background: 'var(--primary-color-end, #2563eb)', color: 'white', padding: '0.4rem 1rem' }}><Download size={14} /> Download With Duplicate Job No.</button>
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-t tw:border-destructive/25 tw:bg-destructive/10 tw:p-3">
+        <Button variant="secondary"><FileJson /> {'{Json}'}</Button>
+        <ActionRow actions={JSON_ACTIONS} />
       </div>
 
-      <div style={{ padding: '0.5rem 0.75rem 0.75rem', background: '#e0f2fe', display: 'flex', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button className="btn" style={{ background: 'var(--primary-color-end, #2563eb)', color: 'white', padding: '0.4rem 1rem' }}><Download size={14} /> Download GR</button>
-        <button className="btn" style={{ background: 'var(--primary-color-end, #2563eb)', color: 'white', padding: '0.4rem 1rem' }}><Download size={14} /> Download GR UnSigned File</button>
-        <button className="btn btn-success" style={{ background: '#22c55e', color: 'white', padding: '0.4rem 1rem' }}><Mail size={14} /> Mail GR File to ICE Gate</button>
-      </div>
-
-      {/* API Action Buttons */}
-      <div style={{ padding: '0.75rem', background: '#fee2e2', borderTop: '1px solid #fecaca', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button className="btn" style={{ background: 'var(--text-muted, var(--text-muted, #475569))', color: '#fff', padding: '0.4rem 0.75rem', border: 'none' }}><FileJson size={14} /> {'{Json}'}</button>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-danger" style={{ background: '#ef4444', color: 'white', padding: '0.4rem 1rem' }}>{'{Json}'} Submit eSign via API</button>
-          <button className="btn btn-success" style={{ background: '#22c55e', color: 'white', padding: '0.4rem 1rem' }}>{'{Json}'} Download eSigned</button>
-          <button className="btn btn-primary" style={{ background: '#3b82f6', color: 'white', padding: '0.4rem 1rem' }}>{'{Json}'} Download UnSigned</button>
-        </div>
-      </div>
-
-      {/* Footer Text */}
-      <div style={{ padding: '0.4rem 1rem', fontSize: '11px', color: 'var(--text-main, var(--text-main, #1e293b))', background: 'var(--bg-app, var(--bg-app, #f8fafc))', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', fontWeight: 500 }}>
+      <div className="tw:rounded-b-xl tw:bg-page tw:px-4 tw:py-1.5 tw:text-[11px] tw:font-medium tw:text-foreground">
         Use Internet Explorer For Submission
       </div>
     </div>

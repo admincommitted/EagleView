@@ -1,0 +1,73 @@
+import axiosInstance from '@/services/axiosInstance';
+
+const getData = async (url, config) => (await axiosInstance.get(url, config)).data;
+const postData = async (url, body, config) => (await axiosInstance.post(url, body, config)).data;
+const putData = async (url, body) => (await axiosInstance.put(url, body)).data;
+
+export const jobEntryApi = {
+  liveTracking: () => getData('/dashboard/live-tracking'),
+  sendWhatsappStatus: (message) => postData('/whatsapp/send-status', message),
+  currenciesInForce: (date) => getData('/masters/currencies/in-force', { params: { date } }),
+
+  listJobs: (filters) => getData('/import-jobs', { params: filters }),
+  job: (id) => getData(`/import-jobs/${id}`),
+  jobByNumber: (jobNo) => getData(`/import-jobs/by-jobno/${encodeURIComponent(jobNo)}`),
+  jobLogs: (id) => getData(`/import-jobs/${id}/logs`),
+  saveDsrField: (id, field, value) => putData(`/import-jobs/${id}/dsr`, { field, value }),
+  sampleFile: (kind) => getData(`/import-jobs/sample/${kind}`, { responseType: 'blob' }),
+
+  esanchitArchive: (jobNo) => getData('/icegate/esanchit-archive', { params: { jobNo } }),
+  bulkZip: (files, zipName) => postData('/bulk-zip', { files, zipName }, { responseType: 'blob' }),
+
+  bonds: () => getData('/masters/bonds'),
+  warehouses: () => getData('/masters/warehouses'),
+  chaMaster: () => getData('/masters/cha-master'),
+  shippingLines: () => getData('/masters/shippinglines'),
+  airports: () => getData('/locations/airports'),
+  pinSuggestions: (params) => getData('/import-jobs/pin-suggest', { params }),
+  seaIgm: (query) => postData('/icegate-enquiry/sea-igm', query),
+  airIgm: (query) => postData('/icegate-enquiry/air-igm', query),
+
+  saveJob: (job) => postData('/import-jobs', job),
+  saveChangedItems: (id, change) => postData(`/import-jobs/${id}/items-patch`, change),
+  deleteJob: async (id) => (await axiosInstance.delete(`/import-jobs/${id}`)).data,
+  warehouseBe: (warehouseJobId, excludeJobId) => getData(`/warehouse-be/by-id/${warehouseJobId}`, { params: { excludeJobId } }),
+  warehouseBalances: (warehouseJobId, excludeJobId) => getData(`/warehouse-be/balances/${warehouseJobId}`, { params: { excludeJobId } }),
+  previewBe: (beRequest) => postData('/icegate/preview-be', beRequest),
+  flatBeFile: (beRequest) => postData('/icegate/flat-be', beRequest),
+  signBeFile: (beRequest) => postData('/icegate/sign-be-file', beRequest),
+  submitBe: (beRequest) => postData('/icegate/submit-be', beRequest),
+  extractInvoicePdf: (formData) => postData('/ai-extractor/extract-invoice', formData),
+
+  esanchitMasters: () => getData('/masters/esanchits'),
+  signerStatus: () => getData('/icegate/signer-status'),
+  icegateProfiles: () => getData('/icegate-profiles'),
+  keepEsanchitPdf: (formData) => postData('/icegate/esanchit-archive', formData),
+  uploadEsanchitPdf: (formData) => postData('/icegate/upload-esanchit', formData),
+  warehouseBeList: (params) => getData('/warehouse-be/list', { params }),
+  icegateAck: (kind, jobId) => getData(`/icegate/${kind === 'SB' ? 'sb-ack' : 'be-ack'}/${jobId}`),
+  askIcegateAck: (kind, request) => postData(`/icegate/${kind === 'SB' ? 'sb-ack' : 'be-ack'}`, request),
+  jobTimeline: (module, jobId) => getData(`/timeline/${module}/${jobId}`),
+  addTimelineEntry: (entry) => postData('/timeline', entry),
+  ports: () => getData('/masters/ports'),
+  shipmentByJob: (jobNo) => getData('/shipments/by-job', { params: { jobNo } }),
+  appSettings: () => getData('/settings'),
+  tariffLine: (ritc) => getData(`/tariff/${ritc}`),
+  userPref: (key) => getData(`/user-prefs/${key}`),
+  saveUserPref: (key, value) => putData(`/user-prefs/${key}`, { value }),
+  sendEmail: (mail) => postData('/email/send', mail),
+  antiDumpingForCth: (cth, origin) => getData(`/tariff/add/${cth}`, { params: { origin } }),
+  tariffHeaders: (query) => getData('/masters/tariffheaders/all', { params: { q: query, limit: 80 } }),
+  tariffExemptions: (ritc, origin) => getData(`/tariff/exemptions/${ritc}`, { params: { origin } }),
+  tariffFtaRows: (ritc, origin) => getData(`/tariff/fta/${ritc}`, { params: { origin } }),
+  itemHistory: (params) => getData('/import-jobs/item-history', { params }),
+  itemTemplates: () => getData('/masters/itemtemplates'),
+  saveItemTemplate: (template) => postData('/masters/itemtemplates', template),
+  searchJobs: (query) => getData('/import-jobs/search', { params: { q: query } }),
+  extractPdfItems: (formData) => postData('/import-file/extract-pdf-items', formData),
+  statusMaster: () => getData('/status-master'),
+  exportJob: (id) => getData(`/export-jobs/${id}`),
+  deleteTimelineEntry: async (id) => (await axiosInstance.delete(`/timeline/${id}`)).data,
+  shipmentMeta: () => getData('/shipments/meta'),
+  docketFromJob: (request) => postData('/shipments/from-job', request),
+};

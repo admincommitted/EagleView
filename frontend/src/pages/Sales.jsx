@@ -1,10 +1,11 @@
-// Sales (logistics / freight forwarding): customers and prospects with KAM, contacts and lanes; the sales team; the pick
-// lists (11-Nov-2026). 14-Nov-2026: Enquiries and Quotations (Step 2 / 3) replace the old Sales CRM tab (its screen is
-// still at /sales-crm; it reads the same tables).
-import React from 'react';
+// Sales (logistics / freight forwarding): customers and prospects with KAM, contacts and lanes; enquiries and
+// quotations; the sales team; the pick lists. The older Sales CRM screen at /sales-crm reads the same tables.
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Building2, Users, ListChecks, FileText, LayoutDashboard, Inbox } from 'lucide-react';
-import { api, C, TONE } from './SalesParts/salesUi';
+import { Building2, FileText, Inbox, LayoutDashboard, ListChecks, Users } from 'lucide-react';
+import { Badge, Button, Tabs, TabsList, TabsTrigger } from '@/components/ui';
+import { salesHubApi } from './SalesParts/salesApi';
+import { Muted, Notice } from './SalesParts/salesWidgets';
 import CustomersTab from './SalesParts/CustomersTab';
 import PersonsTab from './SalesParts/PersonsTab';
 import ListsTab from './SalesParts/ListsTab';
@@ -12,58 +13,113 @@ import DashboardTab from './SalesParts/DashboardTab';
 import EnquiriesTab from './SalesParts/EnquiriesTab';
 import QuotesTab from './SalesParts/QuotesTab';
 
-const TABS = [['dashboard', 'Dashboard', LayoutDashboard], ['enquiries', 'Enquiries', Inbox], ['quotes', 'Quotations', FileText], ['customers', 'Customers & prospects', Building2], ['persons', 'Sales persons', Users], ['lists', 'Lists', ListChecks]];
+const TABS = [
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'enquiries', label: 'Enquiries', icon: Inbox },
+  { key: 'quotes', label: 'Quotations', icon: FileText },
+  { key: 'customers', label: 'Customers & prospects', icon: Building2 },
+  { key: 'persons', label: 'Sales persons', icon: Users, managersOnly: true },
+  { key: 'lists', label: 'Lists', icon: ListChecks, managersOnly: true },
+];
+const DEAL_TABS = ['enquiries', 'quotes'];
+const TAB_STORAGE_KEY = 'sales.tab';
+
+function savedTab() {
+  try {
+    const saved = localStorage.getItem(TAB_STORAGE_KEY);
+    return TABS.some((tab) => tab.key === saved) ? saved : 'dashboard';
+  } catch {
+    return 'dashboard';
+  }
+}
+
+function LoadFailure({ reason, onRetry }) {
+  return (
+    <Notice role="alert" tone="danger" className="tw:max-w-[720px] tw:bg-card tw:text-foreground">
+      <div className="tw:mb-1 tw:font-bold tw:text-destructive">This screen could not load.</div>
+      <div className="tw:mb-1.5">{reason}</div>
+      {/not found|restart the backend|failed to fetch|network/i.test(reason) && (
+        <Muted className="tw:mb-2 tw:text-entry">Restart the EDI backend (it loads the new Sales screens on start), then click Retry.</Muted>
+      )}
+      <Button onClick={onRetry}>Retry</Button>
+    </Notice>
+  );
+}
+
+function whoAmI(meta) {
+  if (meta.me) return `${meta.me.name} (${String(meta.me.role || '').toLowerCase()})`;
+  return meta.isAdmin ? 'Admin' : '';
+}
 
 export default function Sales() {
-  const [tab, setTab] = React.useState(() => { try { const t = localStorage.getItem('sales.tab'); return TABS.some(x => x[0] === t) ? t : 'dashboard'; } catch (e) { return 'dashboard'; } });
-  const [meta, setMeta] = React.useState(null);
-  const [deal, setDeal] = React.useState(null); // enquiry / quotation lists (statuses, charges, currencies, terms)
-  const [qStatus, setQStatus] = React.useState('');
-  const [err, setErr] = React.useState({ meta: '', deal: '' }); // a failed load shows its reason and Retry, not "Loading…" for ever
-  const reloadMeta = React.useCallback(async () => {
-    try { setMeta(await api('/meta')); setErr(o => ({ ...o, meta: '' })); } catch (e) { toast.error(e.message); setErr(o => ({ ...o, meta: e.message || 'Could not load' })); }
+  const [tab, setTab] = useState(savedTab);
+  const [meta, setMeta] = useState(null);
+  const [deal, setDeal] = useState(null);
+  const [quoteStatus, setQuoteStatus] = useState('');
+  const [loadError, setLoadError] = useState({ meta: '', deal: '' });
+
+  const reloadMeta = useCallback(async () => {
+    try {
+      setMeta(await salesHubApi.meta());
+      setLoadError((errors) => ({ ...errors, meta: '' }));
+    } catch (error) {
+      toast.error(error.message);
+      setLoadError((errors) => ({ ...errors, meta: error.message || 'Could not load' }));
+    }
   }, []);
-  const loadDeal = React.useCallback(async () => {
-    setErr(o => ({ ...o, deal: '' }));
-    try { setDeal(await api('/deal-meta')); } catch (e) { toast.error(e.message); setErr(o => ({ ...o, deal: e.message || 'Could not load' })); }
+
+  const loadDeal = useCallback(async () => {
+    setLoadError((errors) => ({ ...errors, deal: '' }));
+    try {
+      setDeal(await salesHubApi.dealMeta());
+    } catch (error) {
+      toast.error(error.message);
+      setLoadError((errors) => ({ ...errors, deal: error.message || 'Could not load' }));
+    }
   }, []);
-  React.useEffect(() => { reloadMeta(); loadDeal(); }, [reloadMeta, loadDeal]);
-  const failed = !meta ? err.meta : (['enquiries', 'quotes'].includes(tab) && !deal ? err.deal : '');
-  const retry = () => { if (!meta) { setErr(o => ({ ...o, meta: '' })); reloadMeta(); } if (!deal) loadDeal(); };
-  const go = (t, status) => { setTab(t); if (t === 'quotes') setQStatus(status || ''); try { localStorage.setItem('sales.tab', t); } catch (e) { /* ignore */ } };
+
+  useEffect(() => { reloadMeta(); loadDeal(); }, [reloadMeta, loadDeal]);
+
+  const needsDeal = DEAL_TABS.includes(tab);
+  const failure = !meta ? loadError.meta : (needsDeal && !deal ? loadError.deal : '');
+  const retry = () => {
+    if (!meta) { setLoadError((errors) => ({ ...errors, meta: '' })); reloadMeta(); }
+    if (!deal) loadDeal();
+  };
+  const goTab = (key, status) => {
+    setTab(key);
+    if (key === 'quotes') setQuoteStatus(status || '');
+    try { localStorage.setItem(TAB_STORAGE_KEY, key); } catch { /* private window: the tab is not remembered */ }
+  };
+  const shownTabs = TABS.filter((item) => !meta || meta.canManage || !item.managersOnly);
+
+  const renderTab = () => {
+    if (failure) return <LoadFailure reason={failure} onRetry={retry} />;
+    if (!meta || (needsDeal && !deal)) return <Muted className="tw:text-entry">Loading…</Muted>;
+    switch (tab) {
+      case 'dashboard': return <DashboardTab meta={meta} reloadMeta={reloadMeta} goTab={goTab} />;
+      case 'enquiries': return <EnquiriesTab meta={meta} deal={deal} goTab={goTab} />;
+      case 'quotes': return <QuotesTab meta={meta} deal={deal} initialStatus={quoteStatus} />;
+      case 'customers': return <CustomersTab meta={meta} reloadMeta={reloadMeta} />;
+      case 'persons': return <PersonsTab meta={meta} reloadMeta={reloadMeta} />;
+      default: return <ListsTab meta={meta} reloadMeta={reloadMeta} />;
+    }
+  };
+
   return (
-    <div style={{ padding: '12px 16px', background: C.soft, minHeight: 'calc(100vh - 60px)' }}>
-      <style>{'@media (max-width: 900px) { .sales-dash-row { grid-template-columns: 1fr !important; } }'
-        + '.sales-kpi-click { transition: transform .15s ease, box-shadow .15s ease; } .sales-kpi-click:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(15,23,42,.10), 0 4px 6px -4px rgba(15,23,42,.08) !important; }'
-        + '.sales-kpi-click:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; } @media (prefers-reduced-motion: reduce) { .sales-kpi-click { transition: none; } .sales-kpi-click:hover { transform: none; } }'}</style>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', marginBottom: '10px', flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: C.ink }}>Sales</h2>
-        {meta && <span style={{ fontSize: '11.5px', fontWeight: 700, color: TONE.blue[0], background: TONE.blue[1], borderRadius: '12px', padding: '2px 10px' }}>{meta.me ? `${meta.me.name} (${String(meta.me.role || '').toLowerCase()})` : meta.isAdmin ? 'Admin' : ''}</span>}
+    <div className="tw:min-h-[calc(100vh-60px)] tw:bg-page tw:px-2 tw:py-3 tw:sm:px-4">
+      <div className="tw:mb-2.5 tw:flex tw:flex-wrap tw:items-baseline tw:gap-3">
+        <h2 className="tw:m-0 tw:text-[22px] tw:font-extrabold tw:text-foreground">Sales</h2>
+        {meta && whoAmI(meta) && <Badge variant="info" className="tw:text-[11.5px]">{whoAmI(meta)}</Badge>}
       </div>
-      <div role="tablist" style={{ display: 'flex', gap: '2px', borderBottom: '1px solid ' + C.line, marginBottom: '12px', flexWrap: 'wrap' }}>
-        {TABS.filter(([k]) => !meta || meta.canManage || !['persons', 'lists'].includes(k)).map(([k, label, Icon]) => (
-          <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => go(k)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '12.5px', fontWeight: 700, border: 'none', cursor: 'pointer',
-              background: tab === k ? TONE.blue[1] : 'none', borderRadius: '8px 8px 0 0',
-              color: tab === k ? TONE.blue[0] : C.grey, borderBottom: '3px solid ' + (tab === k ? TONE.blue[0] : 'transparent'), marginBottom: '-1px' }}>
-            <Icon size={14} /> {label}
-          </button>
-        ))}
-      </div>
-      {failed ? (
-        <div role="alert" style={{ background: '#fff', border: '1px solid #fecaca', borderRadius: '6px', padding: '12px 14px', fontSize: '12.5px', color: C.ink, maxWidth: '720px' }}>
-          <div style={{ fontWeight: 700, color: C.red, marginBottom: '4px' }}>This screen could not load.</div>
-          <div style={{ marginBottom: '6px' }}>{failed}</div>
-          {/not found|restart the backend|failed to fetch|network/i.test(failed) && <div style={{ color: C.mute, marginBottom: '8px' }}>Restart the EDI backend (it loads the new Sales screens on start), then click Retry.</div>}
-          <button type="button" onClick={retry} style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, border: '1px solid ' + C.accent, color: C.accent, background: '#fff', borderRadius: '4px', cursor: 'pointer' }}>Retry</button>
-        </div>)
-        : !meta || (['enquiries', 'quotes'].includes(tab) && !deal) ? <div style={{ color: C.mute, fontSize: '12px' }}>Loading…</div>
-        : tab === 'dashboard' ? <DashboardTab meta={meta} reloadMeta={reloadMeta} goTab={go} />
-        : tab === 'enquiries' ? <EnquiriesTab meta={meta} deal={deal} goTab={go} />
-        : tab === 'quotes' ? <QuotesTab meta={meta} deal={deal} initialStatus={qStatus} />
-        : tab === 'customers' ? <CustomersTab meta={meta} reloadMeta={reloadMeta} />
-        : tab === 'persons' ? <PersonsTab meta={meta} reloadMeta={reloadMeta} />
-        : <ListsTab meta={meta} reloadMeta={reloadMeta} />}
+      <Tabs value={tab} onValueChange={goTab} className="tw:mb-3">
+        <TabsList variant="line" className="tw:w-full tw:flex-wrap tw:justify-start tw:border-b tw:border-border">
+          {shownTabs.map(({ key, label, icon: Icon }) => (
+            <TabsTrigger key={key} value={key} className="tw:font-bold"><Icon /> {label}</TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {renderTab()}
     </div>
   );
 }

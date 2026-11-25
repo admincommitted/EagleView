@@ -1,140 +1,139 @@
-// Vendor Master (suppliers for purchase orders).
-// 22-Nov-2026: Sr No, search, Edit and Delete added; the screen is in the plain look of the other screens
-// (small title, label at the left of its box, flat buttons, grid). A vendor used in a purchase order cannot be
-// deleted (the server refuses). API: /api/po/vendors (GET, POST), /api/po/vendors/:id (PUT, DELETE).
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import axios from 'axios';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Users, Save, Pencil, Trash2, RefreshCw, Search } from 'lucide-react';
+import { Pencil, RefreshCw, Save, Search, Trash2, Users } from 'lucide-react';
 import { askConfirm } from '../components/common/askConfirm';
+import { Button, DataTable, Input, Section } from '@/components/ui';
+import { purchaseApi } from './PurchaseParts/purchaseApi';
+import FormFields from './PurchaseParts/FormFields';
+import PageHeader from './PurchaseParts/PageHeader';
+import { BLANK_VENDOR, serverError, VENDOR_FIELDS, vendorForm } from './PurchaseParts/vendorFields';
 
-const BLANK = { vendorName: '', gstNumber: '', contactEmail: '', phone: '', address: '' };
-const errText = (err, fallback) => (err && err.response && err.response.data && err.response.data.error) || fallback;
+const SEARCHED_KEYS = ['vendorName', 'gstNumber', 'contactEmail', 'phone', 'address'];
+
+function vendorColumns({ onEdit, onDelete }) {
+  return [
+    { key: 'srNo', header: 'Sr No', align: 'right', width: 46, cell: (vendor, index) => index + 1 },
+    {
+      key: 'edit', header: 'Edit', align: 'center', width: 40,
+      cell: (vendor) => <Button variant="ghost" size="icon-sm" title={`Edit ${vendor.vendorName}`} onClick={() => onEdit(vendor)}><Pencil /></Button>,
+    },
+    {
+      key: 'delete', header: 'Delete', align: 'center', width: 50,
+      cell: (vendor) => <Button variant="ghost" size="icon-sm" className="tw:text-destructive" title={`Delete ${vendor.vendorName}`} onClick={() => onDelete(vendor)}><Trash2 /></Button>,
+    },
+    { key: 'vendorName', header: 'Vendor Name', cell: (vendor) => <b>{vendor.vendorName}</b> },
+    { key: 'gstNumber', header: 'GST', cell: (vendor) => vendor.gstNumber || '-' },
+    { key: 'contactEmail', header: 'Email', className: 'tw:normal-case', cell: (vendor) => (vendor.contactEmail ? String(vendor.contactEmail).toLowerCase() : '-') },
+    { key: 'phone', header: 'Phone', cell: (vendor) => vendor.phone || '-' },
+    { key: 'address', header: 'Address', className: 'tw:whitespace-normal', cell: (vendor) => vendor.address || '-' },
+  ];
+}
 
 export default function VendorMaster() {
   const [vendors, setVendors] = useState([]);
-  const [formData, setFormData] = useState(BLANK);
+  const [formData, setFormData] = useState(BLANK_VENDOR);
   const [editId, setEditId] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [find, setFind] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const nameBox = useRef(null);
 
-  const fetchVendors = async () => {
+  const loadVendors = async () => {
     try {
-      const res = await axios.get('/api/po/vendors');
-      setVendors(Array.isArray(res.data) ? res.data : []);
-    } catch (err) { toast.error(errText(err, 'The vendor list could not be read')); }
+      const list = await purchaseApi.vendors();
+      setVendors(Array.isArray(list) ? list : []);
+    } catch (error) {
+      toast.error(serverError(error, 'The vendor list could not be read'));
+    }
   };
-  useEffect(() => { fetchVendors(); }, []);
+  useEffect(() => { loadVendors(); }, []);
 
-  const set = (k) => (e) => setFormData({ ...formData, [k]: e.target.value });
-  const clear = () => { setFormData(BLANK); setEditId(null); if (nameBox.current) nameBox.current.focus(); };
+  const changeField = (name, value) => setFormData((current) => ({ ...current, [name]: value }));
+  const clearForm = () => { setFormData(BLANK_VENDOR); setEditId(null); nameBox.current?.focus(); };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const saveVendor = async (event) => {
+    event.preventDefault();
     if (!formData.vendorName.trim()) { toast.error('Vendor name is required'); return; }
-    setLoading(true);
+    setSaving(true);
     try {
-      if (editId) await axios.put('/api/po/vendors/' + editId, formData);
-      else await axios.post('/api/po/vendors', formData);
+      if (editId) await purchaseApi.updateVendor(editId, formData);
+      else await purchaseApi.addVendor(formData);
       toast.success(editId ? 'Vendor updated' : 'Vendor added');
-      clear();
-      fetchVendors();
-    } catch (err) { toast.error(errText(err, editId ? 'The vendor could not be updated' : 'The vendor could not be added')); }
-    setLoading(false);
+      clearForm();
+      loadVendors();
+    } catch (error) {
+      toast.error(serverError(error, editId ? 'The vendor could not be updated' : 'The vendor could not be added'));
+    }
+    setSaving(false);
   };
 
-  const startEdit = (v) => {
-    setEditId(v.id);
-    setFormData({ vendorName: v.vendorName || '', gstNumber: v.gstNumber || '', contactEmail: v.contactEmail || '', phone: v.phone || '', address: v.address || '' });
-    if (nameBox.current) nameBox.current.focus();
+  const startEdit = (vendor) => {
+    setEditId(vendor.id);
+    setFormData(vendorForm(vendor));
+    nameBox.current?.focus();
   };
 
-  const remove = async (v) => {
-    const go = await askConfirm({ title: 'Delete vendor', message: 'Delete ' + v.vendorName + ' from the vendor master?', note: 'This cannot be undone. A vendor used in a purchase order is not deleted.', okLabel: 'Delete', cancelLabel: 'Cancel', tone: 'danger' });
-    if (!go) return;
+  const deleteVendor = async (vendor) => {
+    const confirmed = await askConfirm({
+      title: 'Delete vendor',
+      message: `Delete ${vendor.vendorName} from the vendor master?`,
+      note: 'This cannot be undone. A vendor used in a purchase order is not deleted.',
+      okLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
-      await axios.delete('/api/po/vendors/' + v.id);
+      await purchaseApi.deleteVendor(vendor.id);
       toast.success('Vendor deleted');
-      if (editId === v.id) clear();
-      fetchVendors();
-    } catch (err) { toast.error(errText(err, 'The vendor could not be deleted'), { duration: 6000 }); }
+      if (editId === vendor.id) clearForm();
+      loadVendors();
+    } catch (error) {
+      toast.error(serverError(error, 'The vendor could not be deleted'), { duration: 6000 });
+    }
   };
 
-  const shown = useMemo(() => {
-    const q = find.trim().toUpperCase();
-    const list = [...vendors].sort((a, b) => String(a.vendorName || '').localeCompare(String(b.vendorName || '')));
-    if (!q) return list;
-    return list.filter(v => [v.vendorName, v.gstNumber, v.contactEmail, v.phone, v.address].some(x => String(x || '').toUpperCase().includes(q)));
-  }, [vendors, find]);
+  const shownVendors = useMemo(() => {
+    const query = searchText.trim().toUpperCase();
+    const sorted = [...vendors].sort((first, second) => String(first.vendorName || '').localeCompare(String(second.vendorName || '')));
+    if (!query) return sorted;
+    return sorted.filter((vendor) => SEARCHED_KEYS.some((key) => String(vendor[key] || '').toUpperCase().includes(query)));
+  }, [vendors, searchText]);
 
-  const row = { display: 'flex', alignItems: 'center', gap: 8 };
-  const lab = { flex: '0 0 96px', margin: 0, whiteSpace: 'nowrap' };
-  const head = { margin: '0 0 6px 0', paddingBottom: 2, fontSize: 13, fontWeight: 600, color: 'var(--lg-head, #0f4c6e)', borderBottom: '1px solid var(--lg-line, #bae6fd)', display: 'flex', alignItems: 'center', gap: 8 };
-  const iconBtn = { background: 'none', border: 'none', padding: 2, cursor: 'pointer', display: 'inline-flex' };
+  const countText = shownVendors.length !== vendors.length ? `${shownVendors.length} of ${vendors.length}` : shownVendors.length;
 
   return (
-    <div style={{ padding: '6px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Users size={15} /> Vendor Master</h2>
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #64748b)' }}>Suppliers and vendors for purchase orders</span>
-      </div>
+    <div className="tw:flex tw:flex-col tw:gap-3 tw:px-3 tw:py-1.5">
+      <PageHeader icon={Users} title="Vendor Master" subtitle="Suppliers and vendors for purchase orders" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 380px) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
-        <div>
-          <h3 style={head}>{editId ? 'Edit vendor' : 'Add new vendor'}</h3>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={row}><label style={lab}>Vendor Name <span style={{ color: '#dc2626' }}>*</span></label><input ref={nameBox} className="input-field" style={{ flex: 1, minWidth: 0 }} maxLength={120} value={formData.vendorName} onChange={set('vendorName')} /></div>
-            <div style={row}><label style={lab}>GST Number</label><input className="input-field" style={{ flex: 1, minWidth: 0 }} maxLength={15} placeholder="15 characters" value={formData.gstNumber} onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} /></div>
-            <div style={row}><label style={lab}>Email Address</label><input className="input-field" type="email" style={{ flex: 1, minWidth: 0 }} maxLength={120} value={formData.contactEmail} onChange={set('contactEmail')} /></div>
-            <div style={row}><label style={lab}>Phone Number</label><input className="input-field" style={{ flex: 1, minWidth: 0 }} maxLength={30} value={formData.phone} onChange={set('phone')} /></div>
-            <div style={{ ...row, alignItems: 'flex-start' }}><label style={{ ...lab, marginTop: 3 }}>Address</label><textarea className="input-field" style={{ flex: 1, minWidth: 0, height: 56, resize: 'vertical' }} maxLength={400} value={formData.address} onChange={set('address')} /></div>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 4 }}>
-              <button type="button" className="btn btn-secondary" onClick={clear}><RefreshCw size={12} /> {editId ? 'Cancel edit' : 'Clear'}</button>
-              <button type="submit" className="btn btn-primary" disabled={loading}><Save size={12} /> {loading ? 'Saving...' : editId ? 'Update vendor' : 'Save vendor'}</button>
+      <div className="tw:grid tw:grid-cols-1 tw:items-start tw:gap-4 tw:lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
+        <Section title={editId ? 'Edit vendor' : 'Add new vendor'}>
+          <form onSubmit={saveVendor} className="tw:flex tw:flex-col tw:gap-2">
+            <FormFields fields={VENDOR_FIELDS} values={formData} onChange={changeField} layout="row" labelWidth="96px"
+              inputRefs={{ vendorName: nameBox }} className="tw:gap-1" />
+            <div className="tw:flex tw:flex-wrap tw:justify-end tw:gap-1.5">
+              <Button onClick={clearForm}><RefreshCw /> {editId ? 'Cancel edit' : 'Clear'}</Button>
+              <Button type="submit" variant="default" disabled={saving}><Save /> {saving ? 'Saving...' : editId ? 'Update vendor' : 'Save vendor'}</Button>
             </div>
           </form>
-        </div>
+        </Section>
 
-        <div style={{ minWidth: 0 }}>
-          <h3 style={head}>
-            <span>Vendor directory ({shown.length}{shown.length !== vendors.length ? ' of ' + vendors.length : ''})</span>
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 400 }}>
-              <Search size={12} /><input className="input-field" style={{ width: 220 }} placeholder="Search name, GST, phone..." value={find} onChange={(e) => setFind(e.target.value)} />
-            </span>
-          </h3>
-          <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 230px)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: 46 }}>Sr No</th>
-                  <th style={{ width: 40 }}>Edit</th>
-                  <th style={{ width: 50 }}>Delete</th>
-                  <th>Vendor Name</th>
-                  <th>GST</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Address</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((v, i) => (
-                  <tr key={v.id} style={editId === v.id ? { backgroundColor: 'var(--lg-page, #e0f2fe)' } : undefined} onDoubleClick={() => startEdit(v)} title="Double-click to edit">
-                    <td style={{ textAlign: 'right' }}>{i + 1}</td>
-                    <td style={{ textAlign: 'center' }}><button type="button" style={iconBtn} title={'Edit ' + v.vendorName} onClick={() => startEdit(v)}><Pencil size={13} color="var(--theme-base, #0284c7)" /></button></td>
-                    <td style={{ textAlign: 'center' }}><button type="button" style={iconBtn} title={'Delete ' + v.vendorName} onClick={() => remove(v)}><Trash2 size={13} color="#dc2626" /></button></td>
-                    <td><strong>{v.vendorName}</strong></td>
-                    <td>{v.gstNumber || '-'}</td>
-                    <td style={{ textTransform: 'none' }}>{v.contactEmail ? String(v.contactEmail).toLowerCase() : '-'}</td>
-                    <td>{v.phone || '-'}</td>
-                    <td>{v.address || '-'}</td>
-                  </tr>
-                ))}
-                {shown.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: 14, color: 'var(--text-muted, #64748b)' }}>{vendors.length ? 'No vendor matches the search.' : 'No vendor yet - add one at the left.'}</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Section
+          title={`Vendor directory (${countText})`}
+          actions={(
+            <Input leftIcon={Search} className="tw:w-full tw:sm:w-[220px]" data-allow-text="" placeholder="Search name, GST, phone..."
+              value={searchText} onChange={(event) => setSearchText(event.target.value)} />
+          )}
+        >
+          <DataTable
+            columns={vendorColumns({ onEdit: startEdit, onDelete: deleteVendor })}
+            rows={shownVendors}
+            selectedKey={editId}
+            onRowDoubleClick={startEdit}
+            rowTitle="Double-click to edit"
+            emptyText={vendors.length ? 'No vendor matches the search.' : 'No vendor yet - add one at the left.'}
+            containerClassName="tw:max-h-[calc(100vh-230px)]"
+          />
+        </Section>
       </div>
     </div>
   );

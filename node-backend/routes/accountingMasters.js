@@ -246,14 +246,6 @@ router.delete("/tds-natures/:id", async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------------------------
-// GET /api/accounting-masters/cost-centre-report?from=&to=
-// The Cost Centres screen printed invented allocations (Mumbai 3,00,000 /
-// Delhi 2,00,000) from a hardcoded array. The real allocation is whatever the
-// voucher lines were tagged with, so it is read from VoucherDetail.costCentreId.
-// Centres with nothing booked show a dash rather than a number.
-// Added 30-Oct-2026.
-// ---------------------------------------------------------------------------
 router.get("/cost-centre-report", async (req, res) => {
   try {
     const { Op } = require("sequelize");

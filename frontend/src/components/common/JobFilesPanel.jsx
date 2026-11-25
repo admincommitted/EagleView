@@ -1,131 +1,224 @@
-// Files part of the job list's "Documents" window (Import and Export). 18-Nov-2026
-// - e-Sanchit PDFs: one line per document. The PDF as attached and its DSC-signed copy were two (or, for a PDF that was
-//   signed already, four) lines that looked like the same file; now the signed copy is the link and the other copy is a
-//   small link on the same line. A PDF that no document row uses (filed again by an Update, row removed) can be removed.
-// - Other documents: any shipment document uploaded by hand (PDF, picture, Excel, Word, mail ...), with a type and a
-//   remark; can be removed. Removed files are moved to a _removed folder on the server, not erased.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+// Files part of the job list's "Documents" window (Import and Export).
+// - Extra e-Sanchit PDFs: PDFs that no document row uses (filed again by an Update, row removed); they can be removed.
+// - Other documents: shipment documents uploaded by hand (PDF, picture, Excel, Word, mail ...) with a type and a remark.
+// Removed files are moved to a _removed folder on the server, not erased.
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Trash2, Upload, Paperclip } from 'lucide-react';
+import { Paperclip, Trash2, Upload } from 'lucide-react';
+import { errorMessage } from '@/services/axiosInstance';
+import { Button, FileButton, Input, SelectBox } from '@/components/ui';
+import { askConfirm } from './askConfirm';
+import { sharedWidgetsApi } from './sharedWidgetsApi';
 
-const kb = (n) => (n ? (n / 1024 < 1024 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB') : '');
-const when = (d) => { try { return d ? new Date(d).toLocaleString() : ''; } catch (e) { return ''; } };
-const head = { fontWeight: 700, color: 'var(--primary-text, #0369a1)', margin: '12px 0 6px', display: 'flex', alignItems: 'center', gap: '10px' };
-const row = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', padding: '5px 0', borderBottom: '1px solid var(--border-color, #f1f5f9)' };
-const muted = { color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap' };
-const link = { color: '#2563eb', wordBreak: 'break-all' };
-const btn = { display: 'inline-flex', alignItems: 'center', gap: '5px', height: '26px', padding: '0 10px', borderRadius: '5px', border: '1px solid var(--primary-color-start, #0ea5e9)', background: 'var(--primary-color-start, #0ea5e9)', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' };
-const ghost = { ...btn, background: '#fff', color: '#334155', border: '1px solid #cbd5e1' };
-const bin = { background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '2px', display: 'inline-flex' };
-const inp = { height: '26px', border: '1px solid #94a3b8', borderRadius: '4px', padding: '0 6px', fontSize: '11px', background: '#fff', color: '#0f172a' };
+const UPLOAD_TYPES = '.pdf,.jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff,.xls,.xlsx,.xlsm,.csv,.doc,.docx,.txt,.rtf,.odt,.ods,.zip,.rar,.7z,.eml,.msg';
+const NO_FILES = { esanchit: [], other: [], docTypes: [], canEdit: false };
+
+const fileSize = (bytes) => {
+  if (!bytes) return '';
+  return bytes / 1024 < 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1048576).toFixed(1)} MB`;
+};
+const savedTime = (when) => (when ? new Date(when).toLocaleString() : '');
+
+function Heading({ children }) {
+  return <div className="tw:mt-3 tw:mb-1.5 tw:flex tw:items-center tw:gap-2.5 tw:font-bold tw:text-head">{children}</div>;
+}
+
+function FileLink({ href, children }) {
+  return <a href={href} target="_blank" rel="noreferrer" className="tw:break-all tw:text-primary">{children}</a>;
+}
+
+function FileRow({ link, details, size, savedAt, canRemove, removeTitle, busy, onRemove }) {
+  return (
+    <div className="tw:flex tw:flex-col tw:gap-1 tw:border-b tw:border-border/50 tw:py-1.5 tw:sm:flex-row tw:sm:items-start tw:sm:justify-between tw:sm:gap-2.5">
+      <div className="tw:min-w-0">
+        {link}
+        {details && <div className="tw:mt-0.5 tw:flex tw:flex-wrap tw:gap-x-3 tw:gap-y-1 tw:text-[11px] tw:text-muted-foreground">{details}</div>}
+      </div>
+      <span className="tw:inline-flex tw:items-center tw:gap-2 tw:whitespace-nowrap tw:text-muted-foreground">
+        {fileSize(size)}{savedAt ? ` - ${savedTime(savedAt)}` : ''}
+        {canRemove && (
+          <Button variant="ghost" size="icon-sm" className="tw:text-destructive" disabled={busy} title={removeTitle} onClick={onRemove}>
+            <Trash2 />
+          </Button>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function UploadForm({ form, docTypes, uploading, onChange, onSend, onCancel }) {
+  return (
+    <div className="tw:mb-1.5 tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:rounded-md tw:border tw:border-input tw:bg-page tw:p-2">
+      <FileButton accept={UPLOAD_TYPES} onFiles={(files) => onChange({ file: files[0] || null })}>
+        <Paperclip /> Choose file
+      </FileButton>
+      <span className="tw:max-w-[260px] tw:truncate tw:text-[11px] tw:normal-case">{form.file ? form.file.name : 'No file chosen'}</span>
+      <SelectBox
+        options={docTypes.length ? docTypes : ['Other']}
+        value={form.docType}
+        onValueChange={(docType) => onChange({ docType })}
+        className="tw:w-full tw:sm:w-auto"
+      />
+      <Input
+        className="tw:flex-[1_1_160px] tw:normal-case"
+        maxLength={200}
+        placeholder="Remarks (optional)"
+        value={form.remarks}
+        onChange={(event) => onChange({ remarks: event.target.value })}
+        data-allow-text=""
+      />
+      <Button variant="default" disabled={uploading} onClick={onSend}><Paperclip /> {uploading ? 'Uploading...' : 'Upload'}</Button>
+      <Button disabled={uploading} onClick={onCancel}>Cancel</Button>
+      <span className="tw:w-full tw:text-[10.5px] tw:text-muted-foreground">
+        PDF, picture, Excel, Word, CSV, text, ZIP or mail (.eml / .msg), up to 25 MB. These are kept with the job only - they are not sent to ICEGATE.
+      </span>
+    </div>
+  );
+}
 
 export default function JobFilesPanel({ module, jobId, finals = [] }) {
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState('');
+  const [files, setFiles] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState('');
-  const [form, setForm] = useState(null);   // { file, docType, remarks } while the upload form is open
-  const fileRef = useRef(null);
-  const base = `/api/job-files/${module === 'Export' ? 'export' : 'import'}/${jobId}`;
+  const [form, setForm] = useState(null);
 
   const load = useCallback(async () => {
-    setErr('');
+    setLoadError('');
     try {
-      const j = await window.fetch(base).then(r => r.json());
-      if (!j || !j.success) throw new Error((j && j.error) || 'Could not read the files');
-      setData(j);
-    } catch (e) { setErr(e.message); setData({ esanchit: [], other: [], docTypes: [], canEdit: false }); }
-  }, [base]);
+      const answer = await sharedWidgetsApi.jobFiles(module, jobId);
+      if (!answer?.success) throw new Error(answer?.error || 'Could not read the files');
+      setFiles(answer);
+    } catch (error) {
+      setLoadError(errorMessage(error));
+      setFiles(NO_FILES);
+    }
+  }, [module, jobId]);
+
   useEffect(() => { if (jobId) load(); }, [jobId, load]);
 
-  const remove = async (kind, file, label) => {
-    if (!window.confirm(`Remove ${label} from this job?\n\nThe file is moved to the job's _removed folder on the server (it can be brought back by the admin).`)) return;
-    setBusy(kind + file);
+  const remove = async (kind, fileName, label) => {
+    const goAhead = await askConfirm({
+      title: 'Remove file',
+      message: `Remove ${label} from this job?`,
+      note: "The file is moved to the job's _removed folder on the server (it can be brought back by the admin).",
+      okLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!goAhead) return;
+    setBusy(kind + fileName);
     try {
-      const j = await window.fetch(`${base}?kind=${kind}&file=${encodeURIComponent(file)}`, { method: 'DELETE' }).then(r => r.json());
-      if (!j || !j.success) throw new Error((j && j.error) || 'Could not remove the file');
-      toast.success('Removed: ' + label);
+      const answer = await sharedWidgetsApi.removeJobFile(module, jobId, kind, fileName);
+      if (!answer?.success) throw new Error(answer?.error || 'Could not remove the file');
+      toast.success(`Removed: ${label}`);
       await load();
-    } catch (e) { toast.error(e.message); } finally { setBusy(''); }
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy('');
+    }
   };
+
   const send = async () => {
-    if (!form || !form.file) { toast.error('Choose a file'); return; }
+    if (!form?.file) { toast.error('Choose a file'); return; }
     setBusy('upload');
     try {
-      const fd = new FormData();
-      fd.append('docType', form.docType || 'Other'); fd.append('remarks', form.remarks || ''); fd.append('file', form.file);
-      const j = await window.fetch(base + '/other', { method: 'POST', body: fd }).then(r => r.json());
-      if (!j || !j.success) throw new Error((j && j.error) || 'Upload failed');
-      toast.success('Uploaded: ' + form.file.name);
-      setForm(null); if (fileRef.current) fileRef.current.value = '';
+      const formData = new FormData();
+      formData.append('docType', form.docType || 'Other');
+      formData.append('remarks', form.remarks || '');
+      formData.append('file', form.file);
+      const answer = await sharedWidgetsApi.uploadJobFile(module, jobId, formData);
+      if (!answer?.success) throw new Error(answer?.error || 'Upload failed');
+      toast.success(`Uploaded: ${form.file.name}`);
+      setForm(null);
       await load();
-    } catch (e) { toast.error(e.message); } finally { setBusy(''); }
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy('');
+    }
   };
 
-  if (!data) return <div style={{ ...muted, marginTop: '10px' }}>Loading the files...</div>;
-  const canEdit = !!data.canEdit;
-  // 18-Nov-2026: the PDFs of the documents are already in the e-Sanchit table above - here only the extra ones
-  const es = (data.esanchit || []).filter(g => !g.inUse);
-  const other = data.other || [];
+  if (!files) return <div className="tw:mt-2.5 tw:text-muted-foreground">Loading the files...</div>;
+  const canEdit = Boolean(files.canEdit);
+  const extraPdfs = (files.esanchit || []).filter((group) => !group.inUse);
+  const others = files.other || [];
+
   return (
     <div>
-      {err && <div style={{ color: '#b91c1c', margin: '8px 0' }}>{err}</div>}
+      {loadError && <div className="tw:my-2 tw:text-destructive">{loadError}</div>}
 
-      {es.length > 0 && <div style={head}>Extra e-Sanchit PDFs - not on any document ({es.length})</div>}
-      {es.map(g => (
-        <div key={g.key} style={row}>
-          <div style={{ minWidth: 0 }}>
-            <a href={g.main.fileUrl} target="_blank" rel="noreferrer" style={link}>{g.main.fileName}</a>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
-              {g.docCode && <span>Doc {g.docCode}</span>}
-              {g.main.signed ? <span style={{ color: '#15803d', fontWeight: 600 }}>Signed{g.main.signer ? ' - ' + g.main.signer : ''}</span> : <span>Not signed</span>}
-              {g.irn && <span style={{ color: '#15803d' }}>IRN {g.irn}</span>}
-              {g.sameAs && <span style={{ color: '#b45309', fontWeight: 600 }}>Same file as {g.sameAs}</span>}
+      {extraPdfs.length > 0 && <Heading>Extra e-Sanchit PDFs - not on any document ({extraPdfs.length})</Heading>}
+      {extraPdfs.map((group) => (
+        <FileRow
+          key={group.key}
+          link={<FileLink href={group.main.fileUrl}>{group.main.fileName}</FileLink>}
+          details={(
+            <>
+              {group.docCode && <span>Doc {group.docCode}</span>}
+              {group.main.signed
+                ? <span className="tw:font-semibold tw:text-success">Signed{group.main.signer ? ` - ${group.main.signer}` : ''}</span>
+                : <span>Not signed</span>}
+              {group.irn && <span className="tw:text-success">IRN {group.irn}</span>}
+              {group.sameAs && <span className="tw:font-semibold tw:text-warning">Same file as {group.sameAs}</span>}
+            </>
+          )}
+          size={group.main.size}
+          savedAt={group.main.savedAt}
+          canRemove={canEdit}
+          removeTitle="Remove this PDF (not used by any document)"
+          busy={Boolean(busy)}
+          onRemove={() => remove('esanchit', group.main.fileName, group.main.fileName)}
+        />
+      ))}
+
+      {finals.length > 0 && (
+        <>
+          <Heading>Final copies ({finals.length})</Heading>
+          {finals.map((finalCopy, index) => (
+            <div key={index} className="tw:flex tw:items-start tw:justify-between tw:gap-2.5 tw:border-b tw:border-border/50 tw:py-1.5">
+              <FileLink href={finalCopy.fileUrl}>{finalCopy.fileName}</FileLink>
+              <span className="tw:whitespace-nowrap tw:text-muted-foreground">final copy</span>
             </div>
-          </div>
-          <span style={{ ...muted, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            {kb(g.main.size)}{g.main.savedAt ? ' - ' + when(g.main.savedAt) : ''}
-            {canEdit && <button type="button" style={bin} disabled={!!busy} title="Remove this PDF (not used by any document)" onClick={() => remove('esanchit', g.main.fileName, g.main.fileName)}><Trash2 size={14} /></button>}
-          </span>
-        </div>))}
+          ))}
+        </>
+      )}
 
-      {finals.length > 0 && (<>
-        <div style={head}>Final copies ({finals.length})</div>
-        {finals.map((f, i) => (
-          <div key={i} style={row}><a href={f.fileUrl} target="_blank" rel="noreferrer" style={link}>{f.fileName}</a><span style={muted}>final copy</span></div>))}
-      </>)}
-
-      <div style={head}>
-        <span>Other documents ({other.length})</span>
-        {canEdit && !form && <button type="button" style={btn} onClick={() => setForm({ file: null, docType: 'Other', remarks: '' })}><Upload size={13} /> Upload document</button>}
-      </div>
+      <Heading>
+        <span>Other documents ({others.length})</span>
+        {canEdit && !form && (
+          <Button variant="default" size="sm" onClick={() => setForm({ file: null, docType: 'Other', remarks: '' })}><Upload /> Upload document</Button>
+        )}
+      </Heading>
       {form && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '8px', border: '1px solid #94a3b8', borderRadius: '6px', background: '#f8fafc', marginBottom: '6px' }}>
-          <input ref={fileRef} type="file" style={{ fontSize: '11px', maxWidth: '260px' }}
-            accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.tif,.tiff,.xls,.xlsx,.xlsm,.csv,.doc,.docx,.txt,.rtf,.odt,.ods,.zip,.rar,.7z,.eml,.msg"
-            onChange={e => setForm(f => ({ ...f, file: (e.target.files && e.target.files[0]) || null }))} />
-          <select style={inp} value={form.docType} onChange={e => setForm(f => ({ ...f, docType: e.target.value }))}>
-            {(data.docTypes || ['Other']).map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <input style={{ ...inp, flex: '1 1 160px', textTransform: 'none' }} maxLength={200} placeholder="Remarks (optional)" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
-          <button type="button" style={btn} disabled={busy === 'upload'} onClick={send}><Paperclip size={13} /> {busy === 'upload' ? 'Uploading...' : 'Upload'}</button>
-          <button type="button" style={ghost} disabled={busy === 'upload'} onClick={() => setForm(null)}>Cancel</button>
-          <span style={{ width: '100%', fontSize: '10.5px', color: '#64748b' }}>PDF, picture, Excel, Word, CSV, text, ZIP or mail (.eml / .msg), up to 25 MB. These are kept with the job only - they are not sent to ICEGATE.</span>
-        </div>)}
-      {other.length ? other.map(f => (
-        <div key={f.fileName} style={row}>
-          <div style={{ minWidth: 0 }}>
-            <a href={f.fileUrl} target="_blank" rel="noreferrer" style={link}>{f.name}</a>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
-              {f.docType && <span style={{ fontWeight: 600, color: '#334155' }}>{f.docType}</span>}
-              {f.remarks && <span>{f.remarks}</span>}
-              {f.by && <span>by {f.by}</span>}
-            </div>
-          </div>
-          <span style={{ ...muted, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-            {kb(f.size)}{f.savedAt ? ' - ' + when(f.savedAt) : ''}
-            {canEdit && <button type="button" style={bin} disabled={!!busy} title="Remove this document" onClick={() => remove('other', f.fileName, f.name)}><Trash2 size={14} /></button>}
-          </span>
-        </div>)) : !form && <div style={muted}>None yet.</div>}
+        <UploadForm
+          form={form}
+          docTypes={files.docTypes || []}
+          uploading={busy === 'upload'}
+          onChange={(change) => setForm((current) => ({ ...current, ...change }))}
+          onSend={send}
+          onCancel={() => setForm(null)}
+        />
+      )}
+      {others.map((otherFile) => (
+        <FileRow
+          key={otherFile.fileName}
+          link={<FileLink href={otherFile.fileUrl}>{otherFile.name}</FileLink>}
+          details={(
+            <>
+              {otherFile.docType && <span className="tw:font-semibold tw:text-foreground">{otherFile.docType}</span>}
+              {otherFile.remarks && <span>{otherFile.remarks}</span>}
+              {otherFile.by && <span>by {otherFile.by}</span>}
+            </>
+          )}
+          size={otherFile.size}
+          savedAt={otherFile.savedAt}
+          canRemove={canEdit}
+          removeTitle="Remove this document"
+          busy={Boolean(busy)}
+          onRemove={() => remove('other', otherFile.fileName, otherFile.name)}
+        />
+      ))}
+      {!others.length && !form && <div className="tw:text-muted-foreground">None yet.</div>}
     </div>
   );
 }

@@ -1,79 +1,96 @@
-// DOCUMENTS menu of the AWB / MAWB / HAWB screens - 11-Nov-2026.
-// One list for all three screens (before: the MAWB screen had none, the security declaration was in no menu). The
-// documents its special handling codes call for are marked "needed". Every window fills itself from the saved AWB.
-import React from 'react';
+// DOCUMENTS menu of the AWB / MAWB / HAWB screens. The documents its special handling codes call for are marked
+// "needed". Every window fills itself from the saved AWB.
+import { Fragment } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui';
 
-const ITEMS = [
-  ['Shipment', [
-    ['sli', "Shipper's Letter of Instruction (SLI)", 'setShowSli'],
-    ['booking', 'Booking confirmation', 'setShowBooking'],
-    ['label', 'Cargo labels (with barcode)', 'setShowLabel'],
-    ['manifest', 'Cargo manifest (consol)', 'setShowManifest'],
-  ]],
-  ['Declarations', [
-    ['csd', 'Consignment security declaration (CSD)', 'setShowCsd'],
-    ['ecsd', 'e-CSD (export)', null],
-    ['dgd', "Shipper's declaration - dangerous goods", 'setShowDgd'],
-    ['lithium', 'Lithium battery declaration', 'setShowLithium'],
-    ['avi', 'Live animals certification', 'setShowAvi'],
-    ['temp', 'Temperature control instructions', 'setShowTemp'],
-  ]],
-  ['Other', [
-    ['coo', 'Certificate of origin', 'setShowCoo'],
-    ['cca', 'Cargo charges correction advice (CCA)', 'setShowCca'],
-    ['do', 'Delivery order', 'setShowDo'],
-  ]],
+const DOCUMENT_GROUPS = [
+  { title: 'Shipment', documents: [
+    { key: 'sli', label: "Shipper's Letter of Instruction (SLI)", opener: 'setShowSli' },
+    { key: 'booking', label: 'Booking confirmation', opener: 'setShowBooking' },
+    { key: 'label', label: 'Cargo labels (with barcode)', opener: 'setShowLabel' },
+    { key: 'manifest', label: 'Cargo manifest (consol)', opener: 'setShowManifest' },
+  ] },
+  { title: 'Declarations', documents: [
+    { key: 'csd', label: 'Consignment security declaration (CSD)', opener: 'setShowCsd' },
+    { key: 'ecsd', label: 'e-CSD (export)', opener: null },
+    { key: 'dgd', label: "Shipper's declaration - dangerous goods", opener: 'setShowDgd' },
+    { key: 'lithium', label: 'Lithium battery declaration', opener: 'setShowLithium' },
+    { key: 'avi', label: 'Live animals certification', opener: 'setShowAvi' },
+    { key: 'temp', label: 'Temperature control instructions', opener: 'setShowTemp' },
+  ] },
+  { title: 'Other', documents: [
+    { key: 'coo', label: 'Certificate of origin', opener: 'setShowCoo' },
+    { key: 'cca', label: 'Cargo charges correction advice (CCA)', opener: 'setShowCca' },
+    { key: 'do', label: 'Delivery order', opener: 'setShowDo' },
+  ] },
 ];
+
 // which special handling codes call for which document
-const NEEDS = { dgd: ['DGR', 'RCL', 'RCM', 'RCX', 'RFL', 'RFS', 'RFW', 'RIS', 'RMD', 'RNG', 'ROP', 'ROX', 'RPB', 'RPG', 'RRW', 'RRY', 'RRE', 'RSB', 'RSC', 'RXB', 'RXC', 'RXD', 'RXE', 'RXG', 'RXS', 'CAO', 'ICE'],
-  lithium: ['ELI', 'ELM', 'RLI', 'RLM'], avi: ['AVI'], temp: ['COL', 'CRT', 'ERT', 'FRO', 'ICE', 'PIL', 'PER', 'ACT'] };
+const CODES_NEEDING = {
+  dgd: ['DGR', 'RCL', 'RCM', 'RCX', 'RFL', 'RFS', 'RFW', 'RIS', 'RMD', 'RNG', 'ROP', 'ROX', 'RPB', 'RPG', 'RRW', 'RRY', 'RRE', 'RSB', 'RSC', 'RXB', 'RXC', 'RXD', 'RXE', 'RXG', 'RXS', 'CAO', 'ICE'],
+  lithium: ['ELI', 'ELM', 'RLI', 'RLM'],
+  avi: ['AVI'],
+  temp: ['COL', 'CRT', 'ERT', 'FRO', 'ICE', 'PIL', 'PER', 'ACT'],
+};
+
+const handlingCodesOf = (sphCodes) => {
+  const codes = Array.isArray(sphCodes) ? sphCodes : String(sphCodes || '').split(/[\s,]+/);
+  return new Set(codes.map((code) => String(code || '').toUpperCase()).filter(Boolean));
+};
 
 export default function DocumentsMenu({ ctx, type }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-  const shc = new Set((Array.isArray(ctx.sphCodes) ? ctx.sphCodes : String(ctx.sphCodes || '').split(/[\s,]+/)).map(s => String(s || '').toUpperCase()).filter(Boolean));
-  const needed = (k) => (NEEDS[k] || []).some(c => shc.has(c));
-  const anyNeeded = Object.keys(NEEDS).some(needed);
-  const go = (k, setter) => {
-    setOpen(false);
-    if (k === 'ecsd') {
-      try { localStorage.setItem('ecsd_data', JSON.stringify({ awbPrefix: ctx.awbPrefix || '', awbSuffix: ctx.awbSuffix || '', dep: ctx.depAirport || '', dest: ctx.destAirport || '', nature: ctx.natureOfGoods || '' })); } catch (e) { /* ignore */ }
+  const handlingCodes = handlingCodesOf(ctx.sphCodes);
+  const isNeeded = (key) => (CODES_NEEDING[key] || []).some((code) => handlingCodes.has(code));
+  const anyNeeded = Object.keys(CODES_NEEDING).some(isNeeded);
+
+  const openDocument = ({ key, opener }) => {
+    if (key === 'ecsd') {
+      try {
+        localStorage.setItem('ecsd_data', JSON.stringify({ awbPrefix: ctx.awbPrefix || '', awbSuffix: ctx.awbSuffix || '', dep: ctx.depAirport || '', dest: ctx.destAirport || '', nature: ctx.natureOfGoods || '' }));
+      } catch {
+        // the e-CSD screen then starts empty
+      }
       if (ctx.navigate) ctx.navigate('/freight/ecsd');
       return;
     }
-    if (typeof ctx[setter] === 'function') ctx[setter](true);
+    if (typeof ctx[opener] === 'function') ctx[opener](true);
   };
+
+  const shownDocuments = (documents) => documents.filter(({ key }) => !(key === 'manifest' && type === 'AWB'));
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
-        title={anyNeeded ? 'The special handling codes of this AWB need a declaration - see the marked documents' : 'Documents of this AWB, filled from the saved AWB'}
-        style={{ backgroundColor: anyNeeded ? '#ea580c' : '#475569', color: 'white', border: 'none', padding: '6px 16px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>
-        DOCUMENTS ▾
-      </button>
-      {open && (
-        <div role="menu" style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '4px', backgroundColor: 'white', border: '1px solid #94a3b8', borderRadius: '6px', boxShadow: '0 8px 20px rgba(15,23,42,.18)', zIndex: 60, minWidth: '300px', padding: '4px 0' }}>
-          {!ctx.currentAwbId && <div style={{ padding: '6px 12px', fontSize: '11px', color: '#b45309' }}>Save the AWB first - the documents are filled from the saved AWB.</div>}
-          {ITEMS.map(([group, list]) => (
-            <div key={group}>
-              <div style={{ padding: '6px 12px 2px', fontSize: '10px', fontWeight: 800, color: '#64748b', letterSpacing: '0.04em' }}>{group}</div>
-              {list.filter(([k]) => !(k === 'manifest' && type === 'AWB')).map(([k, label, setter]) => (
-                <button key={k} type="button" role="menuitem" onClick={() => go(k, setter)}
-                  style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '8px', backgroundColor: 'transparent', color: '#0f172a', border: 'none', padding: '6px 12px', textAlign: 'left', fontSize: '12px', cursor: 'pointer' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-                  <span style={{ flex: 1 }}>{label}{k === 'manifest' && type === 'HAWB' ? ' - of its MAWB' : ''}</span>
-                  {needed(k) && <span style={{ fontSize: '10px', fontWeight: 800, color: '#ea580c', border: '1px solid #fdba74', borderRadius: '8px', padding: '0 6px' }}>needed</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="secondary"
+          size="lg"
+          title={anyNeeded ? 'The special handling codes of this AWB need a declaration - see the marked documents' : 'Documents of this AWB, filled from the saved AWB'}
+          className={cn('tw:font-bold', anyNeeded && 'tw:border-warning tw:bg-warning tw:text-white tw:hover:bg-warning/85')}
+        >
+          DOCUMENTS <ChevronDown />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="tw:w-[300px] tw:max-w-[calc(100vw-32px)] tw:normal-case">
+        {!ctx.currentAwbId && (
+          <DropdownMenuLabel className="tw:text-[11px] tw:font-normal tw:text-warning">Save the AWB first - the documents are filled from the saved AWB.</DropdownMenuLabel>
+        )}
+        {DOCUMENT_GROUPS.map((group, groupIndex) => (
+          <Fragment key={group.title}>
+            {groupIndex > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuLabel className="tw:pb-0.5 tw:text-[10px] tw:font-extrabold tw:tracking-wide tw:text-muted-foreground">{group.title}</DropdownMenuLabel>
+            {shownDocuments(group.documents).map((documentItem) => (
+              <DropdownMenuItem key={documentItem.key} onSelect={() => openDocument(documentItem)}>
+                <span className="tw:flex-1">{documentItem.label}{documentItem.key === 'manifest' && type === 'HAWB' ? ' - of its MAWB' : ''}</span>
+                {isNeeded(documentItem.key) && <Badge variant="warning">needed</Badge>}
+              </DropdownMenuItem>
+            ))}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

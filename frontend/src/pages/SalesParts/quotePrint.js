@@ -1,4 +1,4 @@
-// Sales quotation as a printable A4 page (Print, PDF and the mail attachment use the same HTML). 14-Nov-2026.
+// Sales quotation as a printable A4 page (Print, PDF and the mail attachment use the same HTML).
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = (n, d = 2) => (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
 const dmy = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || ''); };

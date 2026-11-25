@@ -1,34 +1,47 @@
-// Import BE checklist in the "E-Annex" layout used by the CHA (same blocks and order as the checklist PDFs
-// the user shared, 28-Oct-2026). Built from the CACHI01 JSON the job will send (POST /api/icegate/preview-be),
-// so the checklist shows exactly what goes to ICEGATE; duty figures are our estimate (computeItemDuty).
-import React from 'react';
-import axios from 'axios';
+// Import BE checklist in the "E-Annex" layout used by the CHA (same blocks and order as the checklist PDFs the user
+// shared). Built from the CACHI01 JSON the job will send (POST /icegate/preview-be), so the checklist shows exactly
+// what goes to ICEGATE; duty figures are our estimate (computeItemDuty).
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { computeItemDuty } from '../../ItemGridTabParts/helpers';
+import { jobEntryApi } from '@/components/JobEntry/jobEntryApi';
+import { errorMessage } from '@/services/axiosInstance';
+import { cn } from '@/lib/utils';
+import { cellSpecOf, parseJsonObject } from './reportFormat';
+import { ColumnWidths, ReportBody, ReportCell, ReportHeadCell, ReportNote, ReportPage, ReportRow, ReportTable, ReportTableHeader } from '../reportTable';
 
-const F = { fontFamily: 'Helvetica, Arial, sans-serif', fontSize: '8.5pt', color: '#000', lineHeight: 1.2 }; // 10-Nov-2026: 9.5pt -> 8.5pt (user: text a bit smaller)
-const B = { fontWeight: 700 };
-const n2 = (v, d = 2) => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return isNaN(x) ? (0).toFixed(d) : x.toFixed(d); };
-const dmy = (v) => { const t = String(v || '').trim(); let m; if ((m = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(t))) return `${m[3]}/${m[2]}/${m[1]}`; if ((m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(t))) return `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')}/${m[3]}`; return t; };
-const yn = (v) => (String(v || '').toUpperCase() === 'Y' ? 'Yes' : 'No');
-const list = (v) => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } } return Array.isArray(v) ? v : []; };
-const obj = (v) => { if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = {}; } } return v && typeof v === 'object' ? v : {}; };
+const fixed = (value, decimals = 2) => {
+  const number = parseFloat(String(value ?? '').replace(/,/g, ''));
+  return isNaN(number) ? (0).toFixed(decimals) : number.toFixed(decimals);
+};
+const toDmy = (value) => {
+  const text = String(value || '').trim();
+  let match = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(text);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  match = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/.exec(text);
+  if (match) return `${match[1].padStart(2, '0')}/${match[2].padStart(2, '0')}/${match[3]}`;
+  return text;
+};
+const yesNo = (value) => (String(value || '').toUpperCase() === 'Y' ? 'Yes' : 'No');
+const joinNotification = (number, serial) => [number, serial].filter(Boolean).join(' ');
+const textOf = (value) => value ?? '';
+
+const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+const twoDigitWords = (number) => (number < 20 ? ONES[number] : TENS[Math.floor(number / 10)] + (number % 10 ? ' ' + ONES[number % 10] : ''));
+const threeDigitWords = (number) => (number >= 100 ? ONES[Math.floor(number / 100)] + ' Hundred' + (number % 100 ? ' ' + twoDigitWords(number % 100) : '') : twoDigitWords(number));
 
 // rupees in words (Indian system)
-function inWords(num) {
-  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  const two = (x) => (x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : ''));
-  const three = (x) => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' + two(x % 100) : '') : two(x));
-  let x = Math.round(num || 0);
-  if (!x) return 'Zero';
+function inWords(amount) {
+  let rest = Math.round(amount || 0);
+  if (!rest) return 'Zero';
+  const crore = Math.floor(rest / 10000000); rest %= 10000000;
+  const lakh = Math.floor(rest / 100000); rest %= 100000;
+  const thousand = Math.floor(rest / 1000); rest %= 1000;
   const parts = [];
-  const crore = Math.floor(x / 10000000); x %= 10000000;
-  const lakh = Math.floor(x / 100000); x %= 100000;
-  const thou = Math.floor(x / 1000); x %= 1000;
   if (crore) parts.push(inWords(crore) + ' Crore');
-  if (lakh) parts.push(two(lakh) + ' Lakh');
-  if (thou) parts.push(two(thou) + ' Thousand');
-  if (x) parts.push(three(x));
+  if (lakh) parts.push(twoDigitWords(lakh) + ' Lakh');
+  if (thousand) parts.push(twoDigitWords(thousand) + ' Thousand');
+  if (rest) parts.push(threeDigitWords(rest));
   return parts.join(' ');
 }
 
@@ -39,480 +52,938 @@ const DOC_TYPE = { '101000': 'Registration Document', '703000': 'House waybill',
   '380000': 'Commercial Invoice', '271000': 'Packing list', '861000': 'Certificate of origin', '005000': 'Other Document' };
 const BE_TITLE = { H: 'Bill of Entry for Home Consumption', W: 'Bill of Entry for Warehousing', X: 'Bill of Entry for Ex-Bond Clearance' };
 const MODE = { A: 'Air', S: 'Sea', L: 'Land' };
+const PERMISSION = { S48: 'Section 48', FCK: 'First Check', PRV: 'Provisional Assessment' };
+const STATEMENT_TYPE = { DEC: ' - DECLARATION', UTG: ' - UNDERTAKING', REM: ' - REMARK' };
+
+// header grid: label | : | value | label | : | value || label | : | value
+const HEADER_GRID = [15.5, 1.5, 12, 13.5, 1.5, 11, 15.5, 1.5, 28];
+const DASHED_ROW = 'tw:border-b tw:border-dashed tw:border-black';
+const RULED_ROW = 'tw:border-y tw:border-solid tw:border-black';
+
+function Cell({ align, className, ...props }) {
+  return <ReportCell look="plain" align={align} className={cn(align === 'right' && 'tw:pr-[6px]', className)} {...props} />;
+}
+
+function HeadCell({ align, className, ...props }) {
+  return <ReportHeadCell look="plain" align={align} className={cn(align === 'right' && 'tw:pr-[6px]', className)} {...props} />;
+}
+
+const EmptyCell = (props) => <ReportCell look="bare" {...props} />;
+
+function SectionTitle({ children }) {
+  return <div className="sech tw:mt-[6px] tw:border-b tw:border-solid tw:border-black tw:text-[9.5pt] tw:font-bold tw:print:break-after-avoid">{children}</div>;
+}
+
+// label, colon and value cells; span = how many grid columns the value takes
+function FieldCells({ label, value, span = 1 }) {
+  return (
+    <>
+      <Cell className="tw:overflow-hidden tw:font-bold tw:whitespace-nowrap">{label}</Cell>
+      <Cell className="tw:px-0">:</Cell>
+      <Cell colSpan={span}>{value}</Cell>
+    </>
+  );
+}
+
+function TextLine({ label, text }) {
+  return <ReportRow><Cell className="tw:font-bold">{label}</Cell><Cell colSpan={6}>{text}</Cell></ReportRow>;
+}
+
+function DutyLine({ label, notification, rate, amount }) {
+  return (
+    <ReportRow>
+      <Cell className="tw:font-bold" colSpan={4}>{label}</Cell>
+      <Cell>{notification}</Cell>
+      <Cell align="right">{fixed(rate)} %</Cell>
+      <Cell align="right">{fixed(amount)}</Cell>
+    </ReportRow>
+  );
+}
+
+// a list block: a dashed heading row, then one row per record; cells are values or { value, className }
+function ChecklistList({ widths, columns, rightAligned = [], rows, headInThead = false, rowClassName }) {
+  const alignOf = (column) => (rightAligned.includes(column) ? 'right' : undefined);
+  const headRow = (
+    <ReportRow className={DASHED_ROW}>
+      {columns.map((column) => <HeadCell key={column} align={alignOf(column)}>{column}</HeadCell>)}
+    </ReportRow>
+  );
+  const bodyRows = rows.map((cells, rowIndex) => (
+    <ReportRow key={rowIndex} className={rowClassName}>
+      {cells.map((cell, cellIndex) => {
+        const spec = cellSpecOf(cell);
+        return <Cell key={cellIndex} align={alignOf(columns[cellIndex])} className={spec.className}>{spec.value}</Cell>;
+      })}
+    </ReportRow>
+  ));
+  return (
+    <ReportTable className="tw:table-fixed">
+      <ColumnWidths widths={widths} />
+      {headInThead
+        ? <><ReportTableHeader>{headRow}</ReportTableHeader><ReportBody>{bodyRows}</ReportBody></>
+        : <ReportBody>{headRow}{bodyRows}</ReportBody>}
+    </ReportTable>
+  );
+}
+
+function ListSection({ title, avoidBreak = true, children }) {
+  return <div className={cn(avoidBreak && 'tw:print:break-inside-avoid')}><SectionTitle>{title}</SectionTitle>{children}</div>;
+}
+
+const tokenUser = () => {
+  try {
+    const token = localStorage.getItem('token');
+    return token ? (JSON.parse(atob(token.split('.')[1])).username || '') : '';
+  } catch {
+    return '';
+  }
+};
+
+const printedAtText = () => {
+  const now = new Date();
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][now.getMonth()];
+  const hour12 = now.getHours() % 12 || 12;
+  const pad = (number) => String(number).padStart(2, '0');
+  return `${pad(now.getDate())}-${month}-${now.getFullYear()} ${pad(hour12)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${now.getHours() < 12 ? 'AM' : 'PM'}`;
+};
 
 export default function ImportChecklistEAnnex({ jobData, items, esanchitDocs, masters }) {
-  const [cj, setCj] = React.useState(null);
-  const [err, setErr] = React.useState('');
-  const [cha, setCha] = React.useState(null);
-  const [loading, setLoading] = React.useState(false);
-  const [softwareName, setSoftwareName] = React.useState('EagleView 360');
-  const [tariff, setTariff] = React.useState({});
-  // 18-Nov-2026: Docket No. under Job No / Date, as on iCAFFE's checklist - the job's own docket (loaded iCAFFE jobs)
+  const [checklistJson, setChecklistJson] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [cha, setCha] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [softwareName, setSoftwareName] = useState('EagleView 360');
+  const [tariff, setTariff] = useState({});
+  const [docNames, setDocNames] = useState({});
+  // Docket No. under Job No / Date, as on iCAFFE's checklist - the job's own docket (loaded iCAFFE jobs)
   // or the docket made with Register Shipment (Shipments.ediJobNo = job no)
-  const [shipDocket, setShipDocket] = React.useState('');
-  React.useEffect(() => {
-    const no = String(jobData?.jobNo || '').trim();
+  const [shipDocket, setShipDocket] = useState('');
+
+  useEffect(() => {
+    const jobNo = String(jobData?.jobNo || '').trim();
     setShipDocket('');
-    if (String(jobData?.docketNo || '').trim() || !no || /^draft$/i.test(no)) return undefined;
+    if (String(jobData?.docketNo || '').trim() || !jobNo || /^draft$/i.test(jobNo)) return undefined;
     let live = true;
-    fetch('/api/shipments/by-job?jobNo=' + encodeURIComponent(no)).then(r => (r.ok ? r.json() : null)).then(d => { if (live && d && d.docketNo) setShipDocket(d.docketNo); }).catch(() => {});
+    (async () => {
+      try {
+        const shipment = await jobEntryApi.shipmentByJob(jobNo);
+        if (live && shipment && shipment.docketNo) setShipDocket(shipment.docketNo);
+      } catch { /* no shipment registered for this job */ }
+    })();
     return () => { live = false; };
   }, [jobData?.jobNo, jobData?.docketNo]);
   const docketNo = String(jobData?.docketNo || '').trim() || shipDocket;
-  // 18-Nov-2026: e-Sanchit document type names from the e-Sanchit master (379 codes, loaded from iCAFFE) - the list
-  // below had only 9, so 315HS1 printed with no name (iCAFFE: "High Sea Sale Agreement"). Active codes first.
-  const [docNames, setDocNames] = React.useState({});
-  React.useEffect(() => {
+
+  // e-Sanchit document type names from the e-Sanchit master (the short DOC_TYPE list is the fallback);
+  // active codes are read last so their names win
+  useEffect(() => {
     let live = true;
-    fetch('/api/masters/esanchits').then(r => (r.ok ? r.json() : [])).then(j => {
-      const rows = Array.isArray(j) ? j : (j && Array.isArray(j.data) ? j.data : []);
-      const m = {};
-      [...rows.filter(x => x && x.isActive === false), ...rows.filter(x => x && x.isActive !== false)].forEach(x => { const c = String(x.documentCode || '').trim(); if (c && x.description) m[c] = String(x.description).trim(); });
-      if (live) setDocNames(m);
-    }).catch(() => {});
+    (async () => {
+      try {
+        const payload = await jobEntryApi.esanchitMasters();
+        const rows = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.data) ? payload.data : []);
+        const names = {};
+        [...rows.filter((row) => row && row.isActive === false), ...rows.filter((row) => row && row.isActive !== false)].forEach((row) => {
+          const code = String(row.documentCode || '').trim();
+          if (code && row.description) names[code] = String(row.description).trim();
+        });
+        if (live) setDocNames(names);
+      } catch { /* names stay from the short list */ }
+    })();
     return () => { live = false; };
   }, []);
-  const docTypeName = (c) => docNames[String(c || '').trim()] || DOC_TYPE[c] || '';
+  const docTypeName = (code) => docNames[String(code || '').trim()] || DOC_TYPE[code] || '';
 
   const beType = ({ WAREHOUSE: 'W', EX_BOND: 'X' })[String(jobData?.boeType || '').toUpperCase()] || String(jobData?.autoField_51 || 'H').charAt(0).toUpperCase() || 'H';
   const mode = ({ AIR: 'A', SEA: 'S', LAND: 'L' })[String(jobData?.shipmentMode || '').toUpperCase()] || String(jobData?.autoField_52 || 'A').charAt(0).toUpperCase();
 
-  const load = React.useCallback(async () => {
-    setLoading(true); setErr('');
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
     try {
-      const res = await fetch('/api/icegate/preview-be', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobData: { ...jobData, esanchitDocs: esanchitDocs || [] }, items, invoices: jobData?.invoices || [], beType, transportMode: mode }) });
-      const d = await res.json();
-      if (d && d.success) setCj(d.cachi01); else setErr((d && d.error) || 'Could not build the checklist');
-    } catch (e) { setErr(e.message); }
+      const result = await jobEntryApi.previewBe({
+        jobData: { ...jobData, esanchitDocs: esanchitDocs || [] }, items, invoices: jobData?.invoices || [], beType, transportMode: mode,
+      });
+      if (result && result.success) setChecklistJson(result.cachi01);
+      else setLoadError((result && result.error) || 'Could not build the checklist');
+    } catch (error) {
+      setLoadError(errorMessage(error));
+    }
     setLoading(false);
   }, [jobData, items, esanchitDocs, beType, mode]);
 
-  // 30-Oct-2026: this ran on every change of jobData / items, so typing in any box fired a /preview-be POST per
-  // keystroke - each one builds the whole BE and takes a sequence number. The checklist is now rebuilt a moment
-  // after typing stops (and at once when the job, its BE type or its mode changes), with a Refresh button below.
-  const loadRef = React.useRef(load);
-  loadRef.current = load;
-  React.useEffect(() => { const t = setTimeout(() => loadRef.current(), 600); return () => clearTimeout(t); }, [jobData, items, esanchitDocs, beType, mode]);
-  // title = our software name (Settings key "software_name", default EagleView 360) instead of "E-Annex". 28-Oct-2026
-  React.useEffect(() => { fetch('/api/settings').then(r => r.json()).then(s => { if (s && s.software_name) setSoftwareName(s.software_name); }).catch(() => {}); }, []);
+  // each preview builds the whole BE and takes a sequence number, so it runs a moment after typing stops
+  useEffect(() => {
+    const timer = setTimeout(load, 600);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const settings = await jobEntryApi.appSettings();
+        if (settings && settings.software_name) setSoftwareName(settings.software_name);
+      } catch { /* keep the default name */ }
+    })();
+  }, []);
+
   // items without a BCD / IGST rate (e.g. a BE read from a JSON file): take the rate from the Tariff master for the estimate
-  React.useEffect(() => {
-    const ritcs = [...new Set((cj?.master?.itemsModel || []).map(it => it.ritcCode).filter(Boolean))].filter(r => !(r in tariff));
+  useEffect(() => {
+    const ritcs = [...new Set((checklistJson?.master?.itemsModel || []).map((item) => item.ritcCode).filter(Boolean))].filter((ritc) => !(ritc in tariff));
     if (!ritcs.length) return;
-    Promise.all(ritcs.map(r => fetch('/api/tariff/' + r).then(x => x.json()).then(d => [r, d && d.success ? d.data : null]).catch(() => [r, null])))
-      .then(rows => setTariff(prev => ({ ...prev, ...Object.fromEntries(rows) })));
-  }, [cj]);
-  React.useEffect(() => {
-    axios.get('/api/masters/cha-master').then(r => {
-      const all = (r.data && r.data.data) || (Array.isArray(r.data) ? r.data : []);
-      // CHA picked in Job Header ("NAME - CODE" or just the code) -> CHA Master row; if the job has none, the
-      // default CHA of Settings > CHA Master. If the code is not in the master, the name typed in the header is used. 28-Oct-2026
-      const raw = String(jobData?.chaCode || jobData?.autoField_3 || '').trim();
-      const cut = raw.lastIndexOf(' - ');
-      const code = (cut >= 0 ? raw.slice(cut + 3) : raw).trim().toUpperCase();
-      const hit = code && all.find(c => String(c.chaCode || '').toUpperCase() === code || String(c.chaLicense || '').toUpperCase() === code);
-      if (hit) setCha(hit);
-      else if (code) setCha({ chaCode: code, chaName: cut >= 0 ? raw.slice(0, cut).trim() : '', chaAddress: '', chaCity: '', chaPin: '' });
-      else setCha(all.find(c => c.isDefault) || null);
-    }).catch(() => {});
+    (async () => {
+      const lines = await Promise.all(ritcs.map(async (ritc) => {
+        try {
+          const result = await jobEntryApi.tariffLine(ritc);
+          return [ritc, result && result.success ? result.data : null];
+        } catch {
+          return [ritc, null];
+        }
+      }));
+      setTariff((previous) => ({ ...previous, ...Object.fromEntries(lines) }));
+    })();
+  }, [checklistJson, tariff]);
+
+  // CHA picked in Job Header ("NAME - CODE" or just the code) -> CHA Master row; if the job has none, the default CHA
+  // of Settings > CHA Master. If the code is not in the master, the name typed in the header is used.
+  useEffect(() => {
+    (async () => {
+      try {
+        const payload = await jobEntryApi.chaMaster();
+        const all = (payload && payload.data) || (Array.isArray(payload) ? payload : []);
+        const raw = String(jobData?.chaCode || jobData?.autoField_3 || '').trim();
+        const cut = raw.lastIndexOf(' - ');
+        const code = (cut >= 0 ? raw.slice(cut + 3) : raw).trim().toUpperCase();
+        const match = code && all.find((row) => String(row.chaCode || '').toUpperCase() === code || String(row.chaLicense || '').toUpperCase() === code);
+        if (match) setCha(match);
+        else if (code) setCha({ chaCode: code, chaName: cut >= 0 ? raw.slice(0, cut).trim() : '', chaAddress: '', chaCity: '', chaPin: '' });
+        else setCha(all.find((row) => row.isDefault) || null);
+      } catch { /* CHA block stays empty */ }
+    })();
   }, [jobData?.chaCode, jobData?.autoField_3]);
 
-  if (err) return <div style={{ color: '#dc2626', padding: '1rem' }}>Checklist: {err}</div>;
-  if (!cj) return <div style={{ padding: '1rem', color: '#64748b' }}>{loading ? 'Preparing checklist...' : ''}</div>;
+  if (loadError) return <div className="tw:p-4 tw:text-[#dc2626]">Checklist: {loadError}</div>;
+  if (!checklistJson) return <div className="tw:p-4 tw:text-[#64748b]">{loading ? 'Preparing checklist...' : ''}</div>;
 
-  const m = cj.master || {};
-  const h = cj.headerField || {};
-  const be = (m.beModel || [])[0] || {};
-  const igm = (m.igmsModel || [])[0] || {};
-  const ctx = (m.ctxModel || [])[0] || {};
-  // a job without invoices gets one empty invoice row in the JSON (schema needs one) - not printed. 29-Oct-2026
-  const invs = (m.invoiceModel || []).filter(iv => iv.actualInvoiceNumber || parseFloat(iv.invoiceValue));
-  const its = m.itemsModel || [];
-  const duties = m.sbedutyModel || [];
-  const rates = m.exchangeModel || [];
-  const country = (c) => { const x = (masters?.countries || []).find(k => String(k.code).toUpperCase() === String(c || '').toUpperCase()); return x ? String(x.name).toUpperCase() : (c || ''); };
-  // 17-Nov-2026: a foreign port / airport is not in the (Indian) port master, so the code was printed (THBKK); now the
-  // name picked on the Job Header (Origin / Shipment Port) is used for that code - iCAFFE prints the name (BANGKOK)
+  const master = checklistJson.master || {};
+  const header = checklistJson.headerField || {};
+  const be = (master.beModel || [])[0] || {};
+  const igm = (master.igmsModel || [])[0] || {};
+  const taxDetails = (master.ctxModel || [])[0] || {};
+  // a job without invoices gets one empty invoice row in the JSON (schema needs one) - not printed
+  const invoices = (master.invoiceModel || []).filter((invoice) => invoice.actualInvoiceNumber || parseFloat(invoice.invoiceValue));
+  const jsonItems = master.itemsModel || [];
+  const dutyModelRows = master.sbedutyModel || [];
+  const exchangeRates = master.exchangeModel || [];
+  const screenInvoices = jobData?.invoices || [];
+
+  const country = (code) => {
+    const match = (masters?.countries || []).find((row) => String(row.code).toUpperCase() === String(code || '').toUpperCase());
+    return match ? String(match.name).toUpperCase() : (code || '');
+  };
+  // a foreign port / airport is not in the (Indian) port master: the name picked on the Job Header (Origin / Shipment
+  // Port) is used for that code, as iCAFFE prints the name (BANGKOK), not the code (THBKK)
   const portHint = {};
-  [[jobData?.portOfShipment, jobData?.portOfShipmentName], [jobData?.portOfOrigin || jobData?.autoField_22, jobData?.portOfOriginName]].forEach(([c, n]) => { if (c && n && String(n).trim()) portHint[String(c).toUpperCase()] = String(n).trim().toUpperCase(); });
-  const portName = (c) => { const x = (masters?.ports || []).find(k => String(k.portCode).toUpperCase() === String(c || '').toUpperCase()); return x ? String(x.portName).toUpperCase() : (portHint[String(c || '').toUpperCase()] || c || ''); };
-  const stateName = (code) => { const x = (masters?.states || []).find(s => String(s.taxCode) === String(code)); return x ? String(x.stateName).toUpperCase() : ''; };
-  // 29-Oct-2026: the Total Freight / Misc / Insurance box printed the header's cumulative boxes (0.00 on most jobs);
-  // now the invoices' freight / misc / insurance added up in rupees (amount x exchange rate, or % of the invoice value)
-  const exOf = (cur) => { const c = String(cur || '').toUpperCase(); if (!c || c === 'INR') return 1; const r = rates.find(x => x.currencyCode === c); return r ? (parseFloat(r.rate) || 0) / (parseFloat(r.unitInRs) || 1) : 0; };
-  const chargeInr = (iv, amt, cur, pct) => { const a = parseFloat(amt) || 0, p = parseFloat(pct) || 0; return a ? a * exOf(cur || iv.invoiceCurrency) : (p ? p / 100 * (parseFloat(iv.invoiceValue) || 0) * exOf(iv.invoiceCurrency) : 0); };
-  const totFrt = (m.invoiceModel || []).reduce((s, iv) => s + chargeInr(iv, iv.freightValue, iv.freightCurrency, iv.freightRate), 0);
-  const totIns = (m.invoiceModel || []).reduce((s, iv) => s + chargeInr(iv, iv.insuranceValue, iv.insuranceCurrency, iv.insuranceRate), 0);
-  const totMisc = (m.invoiceModel || []).reduce((s, iv) => s + chargeInr(iv, iv.miscCharges, iv.miscCurrency, iv.miscChargesRate), 0);
-  const rateLine = (cur) => { const r = rates.find(x => x.currencyCode === cur); return r ? `${n2(r.unitInRs)} ${cur} = ${n2(r.rate, 4)} INR` : (cur === 'INR' ? `1.00 INR = 1.0000 INR` : `${cur} rate missing`); };
-  const user = (() => { try { const t = localStorage.getItem('token'); return t ? (JSON.parse(atob(t.split('.')[1])).username || '') : ''; } catch (e) { return ''; } })();
-  const printedAt = (() => { const d = new Date(); const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-    const h12 = d.getHours() % 12 || 12, p = (x) => String(x).padStart(2, '0');
-    return `${p(d.getDate())}-${mon}-${d.getFullYear()} ${p(h12)}:${p(d.getMinutes())}:${p(d.getSeconds())} ${d.getHours() < 12 ? 'AM' : 'PM'}`; })();
+  [[jobData?.portOfShipment, jobData?.portOfShipmentName], [jobData?.portOfOrigin || jobData?.autoField_22, jobData?.portOfOriginName]].forEach(([code, name]) => {
+    if (code && name && String(name).trim()) portHint[String(code).toUpperCase()] = String(name).trim().toUpperCase();
+  });
+  const portName = (code) => {
+    const match = (masters?.ports || []).find((row) => String(row.portCode).toUpperCase() === String(code || '').toUpperCase());
+    return match ? String(match.portName).toUpperCase() : (portHint[String(code || '').toUpperCase()] || code || '');
+  };
+  const stateName = (code) => {
+    const match = (masters?.states || []).find((row) => String(row.taxCode) === String(code));
+    return match ? String(match.stateName).toUpperCase() : '';
+  };
+
+  // the invoices' freight / misc / insurance added up in rupees (amount x exchange rate, or % of the invoice value)
+  const exchangeOf = (currency) => {
+    const code = String(currency || '').toUpperCase();
+    if (!code || code === 'INR') return 1;
+    const rate = exchangeRates.find((row) => row.currencyCode === code);
+    return rate ? (parseFloat(rate.rate) || 0) / (parseFloat(rate.unitInRs) || 1) : 0;
+  };
+  const chargeInr = (invoice, amount, currency, percent) => {
+    const value = parseFloat(amount) || 0;
+    const rate = parseFloat(percent) || 0;
+    if (value) return value * exchangeOf(currency || invoice.invoiceCurrency);
+    return rate ? rate / 100 * (parseFloat(invoice.invoiceValue) || 0) * exchangeOf(invoice.invoiceCurrency) : 0;
+  };
+  const sumCharges = (pick) => (master.invoiceModel || []).reduce((sum, invoice) => sum + pick(invoice), 0);
+  const totalFreight = sumCharges((invoice) => chargeInr(invoice, invoice.freightValue, invoice.freightCurrency, invoice.freightRate));
+  const totalInsurance = sumCharges((invoice) => chargeInr(invoice, invoice.insuranceValue, invoice.insuranceCurrency, invoice.insuranceRate));
+  const totalMisc = sumCharges((invoice) => chargeInr(invoice, invoice.miscCharges, invoice.miscCurrency, invoice.miscChargesRate));
+  const rateLine = (currency) => {
+    const rate = exchangeRates.find((row) => row.currencyCode === currency);
+    if (rate) return `${fixed(rate.unitInRs)} ${currency} = ${fixed(rate.rate, 4)} INR`;
+    return currency === 'INR' ? '1.00 INR = 1.0000 INR' : `${currency} rate missing`;
+  };
+  const user = tokenUser();
+  const printedAt = printedAtText();
 
   // screen item for each JSON item (duty rates live on the screen item)
   const rateNotes = [];
-  const screenItem = (it) => {
-    const s = (items || []).find(x => String(x.invSrNo || x.invoiceSrNo || 1) === String(it.invoiceSerialNumber) && String(x.itemSrNo || x.itemNo) === String(it.itemSerialNumber)) || {};
-    const t = tariff[it.ritcCode];
-    const has = (v) => v !== undefined && v !== null && String(v).trim() !== '';
-    const ig = obj(s.igstData);
-    const out = { ...s };
-    const tag = `Item ${it.invoiceSerialNumber}/${it.itemSerialNumber} (${it.ritcCode})`;
-    // 30-Oct-2026: a nearest-heading line of the master (exact:false) is never used as the item's rate
-    const tExact = t && t.exact !== false ? t : null;
-    const near = t && t.exact === false ? ` (master has only the nearest line ${t.matchedCode || t.ritc} - not used)` : '';
-    if (!has(s.bcdRate)) {
-      if (it.bcdNotification) rateNotes.push(`${tag}: BCD rate not entered (notification ${it.bcdNotification} ${it.bcdNotificationSrNo || ''}) - BCD taken as 0`);
-      else if (tExact && tExact.bcdRate != null) { out.bcdRate = String(tExact.bcdRate); rateNotes.push(`${tag}: BCD ${tExact.bcdRate}% from Tariff master`); }
-      else rateNotes.push(`${tag}: BCD rate missing${near}`);
+  const itemTag = (item) => `Item ${item.invoiceSerialNumber}/${item.itemSerialNumber} (${item.ritcCode})`;
+  const screenItem = (item) => {
+    const screen = (items || []).find((row) => String(row.invSrNo || row.invoiceSrNo || 1) === String(item.invoiceSerialNumber) && String(row.itemSrNo || row.itemNo) === String(item.itemSerialNumber)) || {};
+    const tariffLine = tariff[item.ritcCode];
+    const has = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+    const igst = parseJsonObject(screen.igstData);
+    const out = { ...screen };
+    const tag = itemTag(item);
+    // a nearest-heading line of the master (exact:false) is never used as the item's rate
+    const exactLine = tariffLine && tariffLine.exact !== false ? tariffLine : null;
+    const nearNote = tariffLine && tariffLine.exact === false ? ` (master has only the nearest line ${tariffLine.matchedCode || tariffLine.ritc} - not used)` : '';
+    if (!has(screen.bcdRate)) {
+      if (item.bcdNotification) rateNotes.push(`${tag}: BCD rate not entered (notification ${item.bcdNotification} ${item.bcdNotificationSrNo || ''}) - BCD taken as 0`);
+      else if (exactLine && exactLine.bcdRate != null) {
+        out.bcdRate = String(exactLine.bcdRate);
+        rateNotes.push(`${tag}: BCD ${exactLine.bcdRate}% from Tariff master`);
+      } else rateNotes.push(`${tag}: BCD rate missing${nearNote}`);
     }
-    if (!has(ig.rate)) {
-      if (tExact && tExact.igstRate != null) { out.igstData = { ...ig, rate: String(tExact.igstRate) }; rateNotes.push(`${tag}: IGST ${tExact.igstRate}% from Tariff master`); }
-      else rateNotes.push(`${tag}: IGST rate missing${near}`);
+    if (!has(igst.rate)) {
+      if (exactLine && exactLine.igstRate != null) {
+        out.igstData = { ...igst, rate: String(exactLine.igstRate) };
+        rateNotes.push(`${tag}: IGST ${exactLine.igstRate}% from Tariff master`);
+      } else rateNotes.push(`${tag}: IGST rate missing${nearNote}`);
     }
-    // 30-Oct-2026: a specific (per-unit) tariff rate was ignored here as well, so the checklist showed only the
-    // percentage of lines that read "x% or Rs y per kg, whichever is higher" - and the client was quoted too little.
-    if (!has(s.bcdSpecAmount) && tExact && tExact.bcd && parseFloat(tExact.bcd.amount) > 0) { // 09-Nov-2026: a master line with Rs 0 is no specific rate (it put "BCD also Rs 0 per" on every item)
-      out.bcdSpecAmount = String(tExact.bcd.amount);
-      if (!has(s.bcdUnit) && tExact.bcd.uqc) out.bcdUnit = String(tExact.bcd.uqc).toUpperCase();
-      if (!has(s.bcdRateBasis) && tExact.bcd.basis) out.bcdRateBasis = String(tExact.bcd.basis);
-      rateNotes.push(`${tag}: BCD also Rs ${tExact.bcd.amount} per ${String(tExact.bcd.uqc || '').toUpperCase()} from Tariff master`);
+    // a specific (per-unit) rate of the master ("x% or Rs y per kg, whichever is higher"); a master line with Rs 0 is no specific rate
+    if (!has(screen.bcdSpecAmount) && exactLine && exactLine.bcd && parseFloat(exactLine.bcd.amount) > 0) {
+      out.bcdSpecAmount = String(exactLine.bcd.amount);
+      if (!has(screen.bcdUnit) && exactLine.bcd.uqc) out.bcdUnit = String(exactLine.bcd.uqc).toUpperCase();
+      if (!has(screen.bcdRateBasis) && exactLine.bcd.basis) out.bcdRateBasis = String(exactLine.bcd.basis);
+      rateNotes.push(`${tag}: BCD also Rs ${exactLine.bcd.amount} per ${String(exactLine.bcd.uqc || '').toUpperCase()} from Tariff master`);
     }
     return out;
   };
-  const dutyOf = (it) => { const r = dutyRows.find(x => x.it === it); return r ? r.d : computeItemDuty(screenItem(it), jobData?.invoices || [], jobData || {}); };
-  const rowsOf = (it, type, flag) => duties.filter(d => d.invoiceSerialNumber === it.invoiceSerialNumber && d.itemSerialNumber === it.itemSerialNumber && d.dutyType === type && d.addlDutyFlag === flag);
-  const dutyRows = its.map(it => { const s = screenItem(it); return { it, s, d: computeItemDuty(s, jobData?.invoices || [], jobData || {}) }; });
+  const dutyRows = jsonItems.map((item) => {
+    const screen = screenItem(item);
+    return { item, screen, duty: computeItemDuty(screen, screenInvoices, jobData || {}) };
+  });
+  const dutyOf = (item) => {
+    const row = dutyRows.find((dutyRow) => dutyRow.item === item);
+    return row ? row.duty : computeItemDuty(screenItem(item), screenInvoices, jobData || {});
+  };
+  const dutyModelRowsOf = (item, type, flag) => dutyModelRows.filter((row) => row.invoiceSerialNumber === item.invoiceSerialNumber && row.itemSerialNumber === item.itemSerialNumber && row.dutyType === type && row.addlDutyFlag === flag);
   // which side of a two-rate BCD line the estimate used, and when the specific side could not be worked out
-  dutyRows.forEach(({ it, d }) => {
-    const b = d.bcdBasis; if (!b) return;
-    const tag = `Item ${it.invoiceSerialNumber}/${it.itemSerialNumber} (${it.ritcCode})`;
-    if (b.needQty) rateNotes.push(`${tag}: BCD has a rate per ${b.uqc} but the item quantity is in another unit - only the % is applied, enter "Qty in duty unit"`);
-    else if (b.adv !== null && b.spec !== null) rateNotes.push(`${tag}: BCD ${b.applied === 'S' ? 'Rs ' + b.spec.toFixed(2) + ' at the specific rate' : 'Rs ' + b.adv.toFixed(2) + ' by rate'} applied (the other side came to Rs ${(b.applied === 'S' ? b.adv : b.spec).toFixed(2)})`);
-    else if (b.spec !== null) rateNotes.push(`${tag}: BCD is a specific rate - Rs ${b.spec.toFixed(2)} on ${b.units} ${b.uqc}`);
+  dutyRows.forEach(({ item, duty }) => {
+    const basis = duty.bcdBasis;
+    if (!basis) return;
+    const tag = itemTag(item);
+    if (basis.needQty) rateNotes.push(`${tag}: BCD has a rate per ${basis.uqc} but the item quantity is in another unit - only the % is applied, enter "Qty in duty unit"`);
+    else if (basis.adv !== null && basis.spec !== null) rateNotes.push(`${tag}: BCD ${basis.applied === 'S' ? 'Rs ' + basis.spec.toFixed(2) + ' at the specific rate' : 'Rs ' + basis.adv.toFixed(2) + ' by rate'} applied (the other side came to Rs ${(basis.applied === 'S' ? basis.adv : basis.spec).toFixed(2)})`);
+    else if (basis.spec !== null) rateNotes.push(`${tag}: BCD is a specific rate - Rs ${basis.spec.toFixed(2)} on ${basis.units} ${basis.uqc}`);
   });
   const notes = [...new Set(rateNotes)];
-  const sum = (f) => dutyRows.reduce((s, r) => s + (r.d[f] || 0), 0);
+  const sum = (field) => dutyRows.reduce((total, row) => total + (row.duty[field] || 0), 0);
   const totAv = sum('av'), totBcd = sum('bcd'), totSws = sum('sws'), totIgst = sum('igst'), totHealth = sum('health'), totAdd = sum('add'), totOther = sum('other');
   const totCvd = sum('cvd') + sum('adlCvd') + sum('sapta'), totCess = sum('compCess');
-  // 30-Oct-2026: every duty line of the estimate (CVD / addl CVD / SAPTA, comp. cess included); the BE total is rounded to the rupee like ICES
-  // 17-Nov-2026: the gross total is printed to the paisa (iCAFFE: 28856.10); only the duty payable is rounded to the rupee
+  // every duty line of the estimate; the gross total is printed to the paisa (as iCAFFE), only the duty payable is
+  // rounded to the rupee like ICES
   const totGross = Math.round((totBcd + totSws + totIgst + totHealth + totAdd + totOther + totCvd + totCess) * 100) / 100;
-  // 12-Nov-2026: duty foregone (licence / scrip debit, EOU) is in the gross total but not payable - as iCAFFE's checklist
+  // duty foregone (licence / scrip debit, EOU) is in the gross total but not payable - as iCAFFE's checklist
   const totForegone = sum('foregone');
   const totDuty = Math.round(totGross - totForegone);
-  const notionalNote = dutyRows.some(r => r.d.notional && (r.d.notional.insurance || r.d.notional.freight || r.d.notional.freightCapped))
-    ? 'Estimate uses ICES notional charges: ' + [...new Set(dutyRows.flatMap(r => [r.d.notional?.insurance && 'insurance 1.125 % of FOB (none given)', r.d.notional?.freight && 'freight 20 % of FOB (none given)', r.d.notional?.freightCapped && 'air freight capped at 20 % of FOB'].filter(Boolean)))].join('; ') : '';
+  const notionalNote = dutyRows.some((row) => row.duty.notional && (row.duty.notional.insurance || row.duty.notional.freight || row.duty.notional.freightCapped))
+    ? 'Estimate uses ICES notional charges: ' + [...new Set(dutyRows.flatMap((row) => [
+      row.duty.notional?.insurance && 'insurance 1.125 % of FOB (none given)',
+      row.duty.notional?.freight && 'freight 20 % of FOB (none given)',
+      row.duty.notional?.freightCapped && 'air freight capped at 20 % of FOB',
+    ].filter(Boolean)))].join('; ')
+    : '';
   if (notionalNote) notes.push(notionalNote);
   // our Job No (Query / header). Not the ICEGATE "jobNumber", which is only a running number (a time-based one for an unsaved job)
   const jobNoText = jobData?.jobNo && jobData.jobNo !== 'DRAFT' ? jobData.jobNo : 'DRAFT';
-  const pan = String(ctx.commercialTaxRegistrationNo || '').length === 15 ? String(ctx.commercialTaxRegistrationNo).slice(2, 12) : '';
-  // 29-Oct-2026: sections that were not on the checklist (misc charge rows, conditions of sale, SVB, anti-dumping, re-import, RSP, DEPB ...)
-  const miscRows = (iv) => (m.misc_chModel || []).filter(r => String(r.invoiceSerialNumber) === String(iv.invoiceSerialNumber));
-  const cond = (iv) => [1, 2, 3, 4, 5].map(i => iv['conditionsAttachedWithSale' + i]).filter(Boolean).join('; ');
-  const svbText = (x) => [x.svbReferenceNumber ? `Ref ${x.svbReferenceNumber}` : '', x.svbReferenceDate ? `Dt. ${dmy(x.svbReferenceDate)}` : '', x.customHouseCodeWhichHasImposedLoad ? `CH ${x.customHouseCodeWhichHasImposedLoad}` : '',
-    x.svbLoadAssessableValue ? `Load on AV ${n2(x.svbLoadAssessableValue)} % (${x.whetherloadProvisionalOnAssValue || x.whetherLoadProvisionalOnAssessableValue || ''})` : '', x.svbLoadOnDuty ? `Load on duty ${n2(x.svbLoadOnDuty)} % (${x.whetherProvisionalOnDuty || x.whetherLoadProvisionalOnDuty || ''})` : '', x.svbFlag ? `Flag ${x.svbFlag}` : ''].filter(Boolean).join(', ');
-  const forItem = (list) => (it) => (list || []).filter(r => String(r.invoiceSerialNumber) === String(it.invoiceSerialNumber) && String(r.itemSerialNumberInvoice || r.itemSerialNumber) === String(it.itemSerialNumber));
-  const reimpOf = forItem(m.reimportModel), rspOf = forItem(m.rspModel), depbOf = forItem(m.depbModel), licOf = forItem(m.licenseModel);
-  const notn = (a, b) => [a, b].filter(Boolean).join(' ');
-  const line = (label, text) => <tr><td style={{ ...td, ...B }}>{label}</td><td style={td} colSpan="6">{text}</td></tr>;
-
-  const th = { ...B, textAlign: 'left', padding: '1px 3px', verticalAlign: 'top' };
-  const td = { padding: '1px 3px', verticalAlign: 'top' };
-  const tdr = { ...td, textAlign: 'right', paddingRight: '6px' };
-  const sec = (t) => <div className="sech" style={{ ...B, fontSize: '9.5pt', marginTop: '6px', borderBottom: '1px solid #000' }}>{t}</div>;
-  const dash = { borderBottom: '1px dashed #000' };
-  const thr = { ...th, textAlign: 'right', paddingRight: '6px' };
-  // fixed-width columns (percent) so text lines up the same way on every page
-  const cols = (w) => <colgroup>{w.map((x, i) => <col key={i} style={{ width: x + '%' }} />)}</colgroup>;
-  // header grid: label | : | value | label | : | value || label | : | value
-  const grid9 = cols([15.5, 1.5, 12, 13.5, 1.5, 11, 15.5, 1.5, 28]);
-  // label, colon and value cells; span = how many grid columns the value takes
-  const K = (k, v, span = 1) => (<><td style={{ ...td, ...B, whiteSpace: 'nowrap', overflow: 'hidden' }}>{k}</td><td style={{ ...td, padding: '1px 0' }}>:</td><td style={td} colSpan={span}>{v}</td></>);
+  const pan = String(taxDetails.commercialTaxRegistrationNo || '').length === 15 ? String(taxDetails.commercialTaxRegistrationNo).slice(2, 12) : '';
+  const miscRows = (invoice) => (master.misc_chModel || []).filter((row) => String(row.invoiceSerialNumber) === String(invoice.invoiceSerialNumber));
+  const conditionsOf = (invoice) => [1, 2, 3, 4, 5].map((index) => invoice['conditionsAttachedWithSale' + index]).filter(Boolean).join('; ');
+  const svbText = (row) => [
+    row.svbReferenceNumber ? `Ref ${row.svbReferenceNumber}` : '',
+    row.svbReferenceDate ? `Dt. ${toDmy(row.svbReferenceDate)}` : '',
+    row.customHouseCodeWhichHasImposedLoad ? `CH ${row.customHouseCodeWhichHasImposedLoad}` : '',
+    row.svbLoadAssessableValue ? `Load on AV ${fixed(row.svbLoadAssessableValue)} % (${row.whetherloadProvisionalOnAssValue || row.whetherLoadProvisionalOnAssessableValue || ''})` : '',
+    row.svbLoadOnDuty ? `Load on duty ${fixed(row.svbLoadOnDuty)} % (${row.whetherProvisionalOnDuty || row.whetherLoadProvisionalOnDuty || ''})` : '',
+    row.svbFlag ? `Flag ${row.svbFlag}` : '',
+  ].filter(Boolean).join(', ');
+  const rowsForItem = (list) => (item) => (list || []).filter((row) => String(row.invoiceSerialNumber) === String(item.invoiceSerialNumber) && String(row.itemSerialNumberInvoice || row.itemSerialNumber) === String(item.itemSerialNumber));
+  const reimportOf = rowsForItem(master.reimportModel), rspOf = rowsForItem(master.rspModel), depbOf = rowsForItem(master.depbModel);
+  const invItem = (row) => `${textOf(row.invoiceSerialNumber)} / ${textOf(row.itemSerialNumber)}`;
+  const isAir = MODE[be.modeOfTransport] === 'Air';
+  const reportingPort = () => {
+    if (!igm.gatewayPortCode) return '';
+    const name = portName(igm.gatewayPortCode);
+    return name && name !== igm.gatewayPortCode ? name + ' (' + igm.gatewayPortCode + ')' : igm.gatewayPortCode;
+  };
+  const countryText = (name) => (String(name || '').length <= 3 ? country(name) : name);
+  const currencyTotals = Object.entries(invoices.reduce((totals, invoice) => {
+    totals[invoice.invoiceCurrency] = (totals[invoice.invoiceCurrency] || 0) + (parseFloat(invoice.invoiceValue) || 0);
+    return totals;
+  }, {}));
+  const totalLines = [
+    ['BCD', totBcd, 'SWS Duty', totSws], ['Safeguard Duty', 0, 'CESS', 0], ['Antidumping Duty', totAdd, 'Customs Educational Cess', 0],
+    ['NCD Customs', 0, 'Secondary Custom Edu. Cess', 0], ['CVD', 0, 'Additional Duty(Imports)', totOther], ['AIDC Duty', 0, 'Custom Health Cess', totHealth],
+    ['IGST', totIgst, 'IGST Cess', 0], ...(totForegone > 0 ? [['Duty Foregone', totForegone, '', null]] : []),
+  ];
 
   return (
-    <div className="eannex" style={F}>
+    <ReportPage className="eannex tw:text-[8.5pt] tw:leading-[1.2]">
       <style>{`
         @media print {
           @page { size: 210mm 305mm; margin: 12mm 10mm 14mm 10mm;
             @bottom-left { content: "${printedAt}"; font: 8pt Helvetica, Arial, sans-serif; }
             @bottom-center { content: "Prepared By : ${String(user).replace(/"/g, '')}"; font: 8pt Helvetica, Arial, sans-serif; }
             @bottom-right { content: "Page " counter(page) " Of " counter(pages); font: 8pt Helvetica, Arial, sans-serif; } }
-          .eannex .avoid { break-inside: avoid; }
-          .eannex .sech { break-after: avoid; page-break-after: avoid; }
-          .eannex .sech + table tr:nth-child(-n+2) { break-before: avoid; }
+          .eannex .sech + [data-slot="table-container"] tr:nth-child(-n+2) { break-before: avoid; }
         }
-        .eannex table { border-collapse: collapse; width: 100%; }
       `}</style>
 
       {notes.length > 0 && (
-        <div className="no-print" style={{ border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', padding: '6px 10px', borderRadius: '4px', marginBottom: '8px', fontSize: '8.5pt' }}>
+        <ReportNote className="tw:mb-[8px] tw:rounded-[4px] tw:px-[10px] tw:py-[6px] tw:text-[8.5pt]">
           <b>Duty rates - please check (not printed):</b>
-          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>{notes.slice(0, 12).map((x, i) => <li key={i}>{x}</li>)}{notes.length > 12 && <li>...and {notes.length - 12} more</li>}</ul>
-          Enter the rates in 4. Items (IGST popup / BCD rate) or use "Fetch Item".
-        </div>
+          <ul className="tw:mt-[4px] tw:mr-0 tw:mb-0 tw:ml-[16px] tw:p-0">
+            {notes.slice(0, 12).map((note, index) => <li key={index}>{note}</li>)}
+            {notes.length > 12 && <li>...and {notes.length - 12} more</li>}
+          </ul>
+          Enter the rates in 4. Items (IGST popup / BCD rate) or use &quot;Fetch Item&quot;.
+        </ReportNote>
       )}
-      {/* ---- title ---- */}
-      <div style={{ textAlign: 'center', ...B, fontSize: '10pt' }}>
+
+      <div className="tw:text-center tw:text-[10pt] tw:font-bold">
         <div>{softwareName}</div>
         <div>{cha ? String(cha.chaName).toUpperCase() : ''}</div>
         <div>CHA : {(cha && cha.chaCode) || be.chaCode}</div>
         <div>{BE_TITLE[be.beType] || BE_TITLE.H}</div>
       </div>
 
-      {/* ---- job / importer + IGM: one fixed 9-column grid so every label, colon and value lines up (31-Oct fix) ---- */}
-      <table style={{ marginTop: '10px', tableLayout: 'fixed' }}>{grid9}<tbody>
-        <tr>{K('Location', `${portName(h.receiverID)} [ ${h.receiverID} ] [ ${MODE[be.modeOfTransport] || ''} ]`, 4)}{K('Job No / Date', <>{jobNoText} &nbsp;Dt. {dmy(jobData?.jobDate || h.jobDate)}</>)}</tr>
-        <tr><td colSpan={6} style={td} />{K('Docket No.', docketNo)}</tr>
-        <tr>{K('B/E No. / Date', jobData?.beNo ? <>{jobData.beNo} &nbsp;Dt. {dmy(jobData.beDate)}</> : '', 4)}{K('User Job No', jobData?.userJobNo || '')}</tr>
-        <tr>{K('CHA Details', <>{(cha && cha.chaCode) || be.chaCode}{cha && <><br />{String(cha.chaName || '').toUpperCase()}<br />{String(cha.chaAddress || '').toUpperCase()} {String(cha.chaCity || '').toUpperCase()}{cha.chaPin ? ' - ' + cha.chaPin : ''}</>}</>, 4)}
-          {K('Importer Detail', <>{be.iecCode} &nbsp;&nbsp;<span style={B}>Branch Code :</span> {be.branchSrNo}<br />
-            {be.nameOfImporter}<br />{[be.address1, be.address2].filter(Boolean).join(' ')} {be.city} {be.state}{be.pin ? ' - ' + be.pin : ''}
-            {pan && <><br /><span style={B}>PAN No. :</span> {pan}</>}
-            {ctx.commercialTaxRegistrationNo && <><br /><span style={B}>GSTIN No. :</span> {ctx.commercialTaxRegistrationNo}</>}</>)}</tr>
-        <tr>{K('Kaccha BE', yn(be.kachchaBE))}{K('Green Channel', yn(be.greenChannelRequested))}{K('Importer Type', <>{IMPORTER_TYPE[be.importerType] || be.importerType} &nbsp;&nbsp;<span style={B}>AD Code :</span> {be.authorizedEconomicDealerCode}</>)}</tr>
-        <tr>{K('Section 48', yn(be.section48Requested))}{K('First Check', yn(be.firstCheckRequested))}{K('Pay Mode', be.paymentMethodCode === 'T' ? 'TRANSACTION' : be.paymentMethodCode)}</tr>
-        <tr>{K('WH B/E No.', be.warehouseBENo)}{K('WH B/E Dt.', dmy(be.warehouseBEDate))}{K('Prior BE', yn(be.whetherPriorBE))}</tr>
-        <tr>{K('WH Job No.', jobData?.whJobNo || '')}{K('WH Job Dt.', '')}<td colSpan="3" /></tr>
-        {/* 29-Oct-2026: high-sea sale, UCR, warehouse code / site and the packages released on a W / X BE were not printed */}
-        {(be.highSeaSaleFlag === 'Y' || be.uniqueConsignmentReferenceNo || be.warehouseCode || be.warehouseCustomSiteId) && (
-          <tr>{K('High Sea Sale', yn(be.highSeaSaleFlag))}{K('UCR No.', [be.uniqueConsignmentReferenceNo, be.ucrType ? `(${be.ucrType})` : ''].filter(Boolean).join(' '))}{K('WH Code / Site', [be.warehouseCode, be.warehouseCustomSiteId].filter(Boolean).join(' / '))}</tr>)}
-        {(be.noOfPackagesReleased || be.grossWeight) && (
-          <tr>{K('Pkgs Released', `${be.noOfPackagesReleased || ''} ${be.packageCode || ''}`)}{K('Gross Wt.', `${be.grossWeight ? n2(be.grossWeight, 3) : ''} ${be.unitOfMeasurement || ''}`)}{K('BE Class', be.beClass)}</tr>)}
-      </tbody></table>
-      {(m.permissionModel || []).length > 0 && (<div className="avoid">{sec('Permission Requested')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([12, 28, 60])}<tbody><tr style={dash}><th style={th}>Code</th><th style={th}>Permission</th><th style={th}>Reason</th></tr>
-          {(m.permissionModel || []).map((r, i) => <tr key={i}><td style={td}>{r.permissionCode}</td><td style={td}>{({ S48: 'Section 48', FCK: 'First Check', PRV: 'Provisional Assessment' })[r.permissionCode] || ''}</td><td style={td}>{r.reasonsForRequest}</td></tr>)}</tbody></table></div>)}
-      {(m.hssModel || []).length > 0 && (<div className="avoid">{sec('High Sea Sale Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([30, 14, 8, 30, 10, 8])}<tbody><tr style={dash}><th style={th}>Seller Name</th><th style={th}>IEC</th><th style={th}>Br.</th><th style={th}>Address</th><th style={th}>Pin</th><th style={th}>Level</th></tr>
-          {(m.hssModel || []).map((r, i) => <tr key={i}><td style={td}>{r.importerName}</td><td style={td}>{r.iec}</td><td style={td}>{r.branchSrNo}</td><td style={td}>{[r.importerAddress1, r.importerAddress2, r.importerCity].filter(Boolean).join(' ')}</td><td style={td}>{r.importerPin}</td><td style={td}>{r.precedingLevel}</td></tr>)}</tbody></table></div>)}
+      {/* job / importer: one fixed 9-column grid so every label, colon and value lines up */}
+      <ReportTable className="tw:mt-[10px] tw:table-fixed">
+        <ColumnWidths widths={HEADER_GRID} />
+        <ReportBody>
+          <ReportRow>
+            <FieldCells label="Location" span={4} value={`${portName(header.receiverID)} [ ${header.receiverID} ] [ ${MODE[be.modeOfTransport] || ''} ]`} />
+            <FieldCells label="Job No / Date" value={<>{jobNoText} &nbsp;Dt. {toDmy(jobData?.jobDate || header.jobDate)}</>} />
+          </ReportRow>
+          <ReportRow><Cell colSpan={6} /><FieldCells label="Docket No." value={docketNo} /></ReportRow>
+          <ReportRow>
+            <FieldCells label="B/E No. / Date" span={4} value={jobData?.beNo ? <>{jobData.beNo} &nbsp;Dt. {toDmy(jobData.beDate)}</> : ''} />
+            <FieldCells label="User Job No" value={jobData?.userJobNo || ''} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="CHA Details" span={4} value={(
+              <>
+                {(cha && cha.chaCode) || be.chaCode}
+                {cha && <><br />{String(cha.chaName || '').toUpperCase()}<br />{String(cha.chaAddress || '').toUpperCase()} {String(cha.chaCity || '').toUpperCase()}{cha.chaPin ? ' - ' + cha.chaPin : ''}</>}
+              </>
+            )} />
+            <FieldCells label="Importer Detail" value={(
+              <>
+                {be.iecCode} &nbsp;&nbsp;<b>Branch Code :</b> {be.branchSrNo}<br />
+                {be.nameOfImporter}<br />{[be.address1, be.address2].filter(Boolean).join(' ')} {be.city} {be.state}{be.pin ? ' - ' + be.pin : ''}
+                {pan && <><br /><b>PAN No. :</b> {pan}</>}
+                {taxDetails.commercialTaxRegistrationNo && <><br /><b>GSTIN No. :</b> {taxDetails.commercialTaxRegistrationNo}</>}
+              </>
+            )} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="Kaccha BE" value={yesNo(be.kachchaBE)} />
+            <FieldCells label="Green Channel" value={yesNo(be.greenChannelRequested)} />
+            <FieldCells label="Importer Type" value={<>{IMPORTER_TYPE[be.importerType] || be.importerType} &nbsp;&nbsp;<b>AD Code :</b> {be.authorizedEconomicDealerCode}</>} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="Section 48" value={yesNo(be.section48Requested)} />
+            <FieldCells label="First Check" value={yesNo(be.firstCheckRequested)} />
+            <FieldCells label="Pay Mode" value={be.paymentMethodCode === 'T' ? 'TRANSACTION' : be.paymentMethodCode} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="WH B/E No." value={be.warehouseBENo} />
+            <FieldCells label="WH B/E Dt." value={toDmy(be.warehouseBEDate)} />
+            <FieldCells label="Prior BE" value={yesNo(be.whetherPriorBE)} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="WH Job No." value={jobData?.whJobNo || ''} />
+            <FieldCells label="WH Job Dt." value="" />
+            <EmptyCell colSpan={3} />
+          </ReportRow>
+          {(be.highSeaSaleFlag === 'Y' || be.uniqueConsignmentReferenceNo || be.warehouseCode || be.warehouseCustomSiteId) && (
+            <ReportRow>
+              <FieldCells label="High Sea Sale" value={yesNo(be.highSeaSaleFlag)} />
+              <FieldCells label="UCR No." value={[be.uniqueConsignmentReferenceNo, be.ucrType ? `(${be.ucrType})` : ''].filter(Boolean).join(' ')} />
+              <FieldCells label="WH Code / Site" value={[be.warehouseCode, be.warehouseCustomSiteId].filter(Boolean).join(' / ')} />
+            </ReportRow>
+          )}
+          {(be.noOfPackagesReleased || be.grossWeight) && (
+            <ReportRow>
+              <FieldCells label="Pkgs Released" value={`${be.noOfPackagesReleased || ''} ${be.packageCode || ''}`} />
+              <FieldCells label="Gross Wt." value={`${be.grossWeight ? fixed(be.grossWeight, 3) : ''} ${be.unitOfMeasurement || ''}`} />
+              <FieldCells label="BE Class" value={be.beClass} />
+            </ReportRow>
+          )}
+        </ReportBody>
+      </ReportTable>
+      {(master.permissionModel || []).length > 0 && (
+        <ListSection title="Permission Requested">
+          <ChecklistList widths={[12, 28, 60]} columns={['Code', 'Permission', 'Reason']}
+            rows={master.permissionModel.map((row) => [row.permissionCode, PERMISSION[row.permissionCode] || '', row.reasonsForRequest])} />
+        </ListSection>
+      )}
+      {(master.hssModel || []).length > 0 && (
+        <ListSection title="High Sea Sale Details">
+          <ChecklistList widths={[30, 14, 8, 30, 10, 8]} columns={['Seller Name', 'IEC', 'Br.', 'Address', 'Pin', 'Level']}
+            rows={master.hssModel.map((row) => [row.importerName, row.iec, row.branchSrNo, [row.importerAddress1, row.importerAddress2, row.importerCity].filter(Boolean).join(' '), row.importerPin, row.precedingLevel])} />
+        </ListSection>
+      )}
 
-      {/* ---- IGM (same grid) ---- */}
-      {sec('IGM Details')}
-      <table style={{ tableLayout: 'fixed' }}>{grid9}<tbody>
-        <tr>{K('IGM No.', igm.igmNumber || '0')}{K('Dt.', dmy(igm.igmDate))}{K('Port Of Loading', portName(be.portOfShipment))}</tr>
-        <tr>{K('IGM Inward Date', dmy(igm.inwardDate), 4)}{K('Reporting Port', igm.gatewayPortCode ? (portName(igm.gatewayPortCode) && portName(igm.gatewayPortCode) !== igm.gatewayPortCode ? portName(igm.gatewayPortCode) + ' (' + igm.gatewayPortCode + ')' : igm.gatewayPortCode) : '')}</tr>
-        {igm.gatewayIgmNo && <tr>{K('Gateway IGM No.', igm.gatewayIgmNo)}{K('Dt.', dmy(igm.gatewayIgmDate))}{K('Port of Origin', portName(be.portOfOrigin))}</tr>}
-        <tr>{K('Country/Origin', country(be.countryOfOrigin), 4)}{K('Country/Consig.', country(be.countryOfConsignment))}</tr>
-        {/* 20-Nov-2026: B/L labels for everything but air - an ICD BE goes as Land (L) and carries the B/L */}
-        <tr>{K(MODE[be.modeOfTransport] !== 'Air' ? 'MBL No.' : 'MAWB No.', igm.mawbNo)}{K('Dt.', dmy(igm.mawbDate))}
-          {K(MODE[be.modeOfTransport] !== 'Air' ? 'HBL No.' : 'HAWB No.', <>{igm.hawbNo}{igm.hawbDate ? <> &nbsp;&nbsp;<span style={B}>Dt. :</span> {dmy(igm.hawbDate)}</> : null}</>)}</tr>
-        <tr>{K('No. Of Packages', `${igm.totalNoOfPackages || ''} ${igm.packageCode || ''}`, 4)}{K('Gross Weight', `${n2(igm.grossWeight, 3)} ${igm.unitQuantityCode || ''}`)}</tr>
-        <tr>{K('Marks & No.', [igm.marksAndNumbers1, igm.marksAndNumbers2, igm.marksAndNumbers3].filter(Boolean).join(' '), 7)}</tr>
-      </tbody></table>
-      {(m.containerModel || []).length > 0 && (<>
-        {sec('Container Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([25, 25, 15, 35])}<tbody><tr style={dash}><th style={th}>Container No.</th><th style={th}>Seal No.</th><th style={th}>FCL/LCL</th><th style={th}>Truck No.</th></tr>
-          {(m.containerModel || []).map((c, i) => <tr key={i}><td style={td}>{c.contNumber}</td><td style={td}>{c.sealNumber}</td><td style={td}>{c.lclfcl === 'F' ? 'FCL' : c.lclfcl === 'L' ? 'LCL' : c.lclfcl}</td><td style={td}>{c.truckNumber}</td></tr>)}
-        </tbody></table></>)}
+      <SectionTitle>IGM Details</SectionTitle>
+      <ReportTable className="tw:table-fixed">
+        <ColumnWidths widths={HEADER_GRID} />
+        <ReportBody>
+          <ReportRow>
+            <FieldCells label="IGM No." value={igm.igmNumber || '0'} />
+            <FieldCells label="Dt." value={toDmy(igm.igmDate)} />
+            <FieldCells label="Port Of Loading" value={portName(be.portOfShipment)} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="IGM Inward Date" span={4} value={toDmy(igm.inwardDate)} />
+            <FieldCells label="Reporting Port" value={reportingPort()} />
+          </ReportRow>
+          {igm.gatewayIgmNo && (
+            <ReportRow>
+              <FieldCells label="Gateway IGM No." value={igm.gatewayIgmNo} />
+              <FieldCells label="Dt." value={toDmy(igm.gatewayIgmDate)} />
+              <FieldCells label="Port of Origin" value={portName(be.portOfOrigin)} />
+            </ReportRow>
+          )}
+          <ReportRow>
+            <FieldCells label="Country/Origin" span={4} value={country(be.countryOfOrigin)} />
+            <FieldCells label="Country/Consig." value={country(be.countryOfConsignment)} />
+          </ReportRow>
+          {/* B/L labels for everything but air - an ICD BE goes as Land (L) and carries the B/L */}
+          <ReportRow>
+            <FieldCells label={isAir ? 'MAWB No.' : 'MBL No.'} value={igm.mawbNo} />
+            <FieldCells label="Dt." value={toDmy(igm.mawbDate)} />
+            <FieldCells label={isAir ? 'HAWB No.' : 'HBL No.'} value={<>{igm.hawbNo}{igm.hawbDate ? <> &nbsp;&nbsp;<b>Dt. :</b> {toDmy(igm.hawbDate)}</> : null}</>} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="No. Of Packages" span={4} value={`${igm.totalNoOfPackages || ''} ${igm.packageCode || ''}`} />
+            <FieldCells label="Gross Weight" value={`${fixed(igm.grossWeight, 3)} ${igm.unitQuantityCode || ''}`} />
+          </ReportRow>
+          <ReportRow>
+            <FieldCells label="Marks & No." span={7} value={[igm.marksAndNumbers1, igm.marksAndNumbers2, igm.marksAndNumbers3].filter(Boolean).join(' ')} />
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
+      {(master.containerModel || []).length > 0 && (
+        <>
+          <SectionTitle>Container Details</SectionTitle>
+          <ChecklistList widths={[25, 25, 15, 35]} columns={['Container No.', 'Seal No.', 'FCL/LCL', 'Truck No.']}
+            rows={master.containerModel.map((row) => [row.contNumber, row.sealNumber, row.lclfcl === 'F' ? 'FCL' : row.lclfcl === 'L' ? 'LCL' : row.lclfcl, row.truckNumber])} />
+        </>
+      )}
 
-      {/* ---- invoices: left and right halves each use a label / colon / value grid ---- */}
-      {sec('Invoice Details')}
-      {invs.map((iv, k) => {
-        // 17-Nov-2026: a charge given as a % printed only "1.13 %"; now as iCAFFE: the amount in the invoice currency and the
-        // rate to 4 places ("10.87 USD | 1.1250 %")
-        const amt = (v, cur, rate) => (String(v || '').trim() && parseFloat(v) ? `${n2(v)} ${cur || ''}`
-          : (String(rate || '').trim() && parseFloat(rate) ? `${n2(parseFloat(rate) / 100 * (parseFloat(iv.invoiceValue) || 0))} ${iv.invoiceCurrency || ''} | ${n2(rate, 4)} %` : '0.00'));
-        const half = (rows) => (<table style={{ tableLayout: 'fixed' }}>{cols([36, 4, 60])}<tbody>{rows.map(([kk, vv], i) => <tr key={i}>{K(kk, vv)}</tr>)}</tbody></table>);
-        const fx = (cur) => rateLine(cur).replace(/^([\d.]+) (\w+)/, '$1 ( $2 )');
-        return (
-          <table key={k} className="avoid" style={{ marginBottom: '4px', tableLayout: 'fixed', borderBottom: k < invs.length - 1 ? '1px dashed #000' : undefined }}>{cols([50, 50])}<tbody><tr>
-            <td style={{ verticalAlign: 'top', paddingRight: '8px' }}>{half([
-              ['Inv No.', <>{iv.actualInvoiceNumber} &nbsp;Dt. {dmy(iv.invoiceDate)}</>],
-              ['Inv Value', <>{n2(iv.invoiceValue)} {iv.invoiceCurrency} &nbsp;&nbsp;&nbsp;<span style={B}>TOI :</span> {iv.termsOfInvoice}</>],
-              ['Freight', amt(iv.freightValue, iv.freightCurrency, iv.freightRate)],
-              ['Insurance', amt(iv.insuranceValue, iv.insuranceCurrency, iv.insuranceRate)],
-              ['Agency Comm.', amt(iv.agencyCommission, iv.agencyCommissionCurrency, iv.agencyCommissionRate)],
-              ['Loading Charges', amt(iv.loadingCharges, iv.loadingCurrency, iv.loadRate)],
-              ['M Chrgs in Inv', amt(iv.miscCharges, iv.miscCurrency, iv.miscChargesRate)],
-              ['High Sea Sale', amt(iv.hssLoadAmount, '', iv.hssLoadRate)],
-              ['Discount', amt(iv.discountAmount, '', iv.discountRate)],
-              ['Nature of Trans.', NATURE[iv.natureOfTransaction] || iv.natureOfTransaction],
-              ['Terms of Payment', PAY_TERMS[iv.paymentTerms] || iv.paymentTerms],
-              ['Valuation Method', String(iv.valuationMethodApplicable || '').toUpperCase()],
-              // 29-Oct-2026: PO / contract / terms place / discount nature / conditions / other info were not printed
-              ...(iv.purchaseOrderNumber ? [['PO No / Dt', [iv.purchaseOrderNumber, dmy(iv.purchaseOrderDate)].filter(Boolean).join(' Dt. ')]] : []),
-              ...(iv.contractNumber ? [['Contract No / Dt', [iv.contractNumber, dmy(iv.contractDate)].filter(Boolean).join(' Dt. ')]] : []),
-              ...(iv.termsPlace ? [['Terms Place', iv.termsPlace]] : []),
-              ...(iv.natureOfDiscount ? [['Nature of Disc.', iv.natureOfDiscount]] : []),
-              ...(miscRows(iv).length ? [['Misc Chrg Rows', miscRows(iv).map(r => `${r.miscChargesCode || ''} ${r.miscChargesDscrptn || ''} ${parseFloat(r.miscCharges) ? n2(r.miscCharges) : (parseFloat(r.miscRate) ? n2(r.miscRate) + ' %' : '')}`.trim()).join('; ')]] : []),
-              ...(cond(iv) ? [['Conditions', cond(iv)]] : []),
-              ...(iv.otherRelevantInform ? [['Other Info', iv.otherRelevantInform]] : []),
-            ])}</td>
-            <td style={{ verticalAlign: 'top' }}>{half([
-              ['Supplier Detail', <>{iv.supplierName}<br />{[iv.supplierAddress1, iv.supplierAddress2, iv.supplierAddress3].filter(x => x && x !== ',').join(' ')}<br />{String(iv.supplierCountryName || '').length <= 3 ? country(iv.supplierCountryName) : iv.supplierCountryName}</>],
-              ['B/S Related', yn(iv.whetherBuyerAndSellerAreRelated) === 'Yes' ? 'YES' : 'NO'],
-              ['Exchange Rate', <>{rateLine(iv.invoiceCurrency)}
-                {iv.freightCurrency && <><br />FRT :- {fx(iv.freightCurrency)}</>}
-                {iv.insuranceCurrency && <><br />INS :- {fx(iv.insuranceCurrency)}</>}
-                {iv.miscCurrency && <><br />MISC :- {fx(iv.miscCurrency)}</>}</>],
-              ['LOC No-Date', [iv.lcNumber, dmy(iv.lcDate)].filter(Boolean).join(' - ')],
-              // 29-Oct-2026: seller / broker / third party / AEO / invoice SVB were not printed
-              ...(iv.sellerName ? [['Seller Detail', <>{iv.sellerName}<br />{[iv.sellerAddress1, iv.sellerAddress2, iv.sellerAddress3].filter(Boolean).join(' ')} {String(iv.sellerCountryName || '').length <= 3 ? country(iv.sellerCountryName) : iv.sellerCountryName}</>]] : []),
-              ...(iv.brokerName ? [['Broker Detail', <>{iv.brokerName}<br />{[iv.brokerAddress1, iv.brokerAddress2, iv.brokerAddress3].filter(Boolean).join(' ')} {country(iv.brokerCountry)}</>]] : []),
-              ...(iv.thirdPartyName ? [['Third Party', <>{iv.thirdPartyName}<br />{[iv.thirdPartyAddress1, iv.thirdPartyAddress2, iv.thirdPartyCity, iv.thirdPartyCntrySubDvsn].filter(Boolean).join(' ')} {country(iv.thirdPartyCountryCode)}{iv.thirdPartyPin ? ' - ' + iv.thirdPartyPin : ''}</>]] : []),
-              ...(iv.authorizedEconomicOperatorCode ? [['AEO', [iv.authorizedEconomicOperatorCode, iv.authorizedEconomicOperatorCountry, iv.authorizedEconomicOperatorRole].filter(Boolean).join(' / ')]] : []),
-              ...((iv.svbReferenceNumber || iv.svbLoadAssessableValue || iv.svbLoadOnDuty) ? [['SVB (Invoice)', svbText(iv)]] : []),
-            ])}</td>
-          </tr></tbody></table>
-        );
-      })}
+      {/* invoices: left and right halves each use a label / colon / value grid */}
+      <SectionTitle>Invoice Details</SectionTitle>
+      {invoices.map((invoice, invoiceIndex) => (
+        <InvoiceBlock key={invoiceIndex} invoice={invoice} last={invoiceIndex === invoices.length - 1}
+          miscRows={miscRows(invoice)} conditions={conditionsOf(invoice)} rateLine={rateLine} country={country} countryText={countryText} svbText={svbText} />
+      ))}
 
-      {/* ---- items: fixed 7 columns; numbers right-aligned under right-aligned headings ---- */}
-      <div style={{ ...dash, marginTop: '4px' }} />
-      {sec('Item Details')}
-      <table style={{ tableLayout: 'fixed' }}>{cols([16, 15, 12, 9, 16, 14, 18])}<tbody>
-        <tr><th style={th}>Sr. No.</th><th style={th}>RITC</th><th style={th} colSpan="4">Description (Generic Description - Model)</th><th style={thr}>SVB Loading(A/D)</th></tr>
-        <tr style={{ borderBottom: '1px solid #000' }}><th style={th}>Qty<br />Unit</th><th style={thr}>Unit Price<br />Ass Val (Rs.)</th><th style={{ ...th, paddingLeft: '8px' }}>CTH<br />CETH</th><th style={th}>Std/Pref</th>
-          <th style={th}>Cus Notn.<br />Exc Notn.</th><th style={thr}>Cus Dty Rate<br />Exc Dty Rate</th><th style={thr}>BCD Amt (Rs.)<br />CVD Amt (Rs.)</th></tr>
-      </tbody>
-      {invs.map((iv, k) => {
-        const rows = dutyRows.filter(r => r.it.invoiceSerialNumber === iv.invoiceSerialNumber);
-        const ivAv = rows.reduce((s, r) => s + r.d.av, 0), ivDuty = rows.reduce((s, r) => s + r.d.total, 0);
-        const duty = (label, notn, rate, amount) => <tr><td style={{ ...td, ...B }} colSpan="4">{label}</td><td style={td}>{notn}</td><td style={tdr}>{n2(rate)} %</td><td style={tdr}>{n2(amount)}</td></tr>;
-        return (
-          <React.Fragment key={k}>
-          <tbody>
-            <tr><td style={{ ...td, paddingTop: '4px' }} colSpan="7"><span style={B}>Inv Sr. No. :</span> {iv.invoiceSerialNumber} &nbsp;&nbsp;&nbsp;&nbsp;<span style={B}>Inv No. :</span> {iv.actualInvoiceNumber} &nbsp;&nbsp;&nbsp;&nbsp;<span style={B}>Inv Dt :</span> {dmy(iv.invoiceDate)}</td></tr>
-          </tbody>
-            {rows.map(({ it, d, s }, j) => {
-              const aidc = rowsOf(it, 'C', 'A')[0], ig = rowsOf(it, 'G', 'I')[0], cess = rowsOf(it, 'G', 'P')[0];
-              const igRate = obj(s.igstData).rate;
-              // full description as typed on the item (the JSON splits it at 60 characters, sometimes mid-word)
-              const desc = String(s.desc || s.productDescription || '').trim() || [it.itemDescription1, it.itemDescription2].filter(Boolean).join(' ');
-              const gen = it.genericDescriptionOfTheItem && it.genericDescriptionOfTheItem !== it.itemDescription1 ? it.genericDescriptionOfTheItem : '';
-              const pt = { paddingTop: '6px' };
-              return (
-                <tbody key={j} className="avoid">
-                  <tr><td style={{ ...td, ...B, ...pt }}>{it.itemSerialNumber}</td><td style={{ ...td, ...pt }}>{it.ritcCode}</td>
-                    <td style={{ ...td, ...pt }} colSpan="4">{gen ? `(${gen}) ` : ''}{desc}{it.model && it.model !== 'NA' && !desc.includes(it.model) ? ` (${it.model})` : ''}</td><td style={{ ...tdr, ...pt }}>{it.svbFlag || ''}</td></tr>
-                  <tr><td style={td}>{n2(it.quantity, 6)}</td><td style={tdr}>{n2(it.unitPriceInvoiced, 6)}</td><td style={{ ...td, paddingLeft: '8px' }}>{it.cth}</td><td style={td}>{it.preferentialStandard === 'P' ? 'Pref' : 'Std'}</td>
-                    <td style={td}>{[it.bcdNotification, it.bcdNotificationSrNo].filter(Boolean).join(' ')}</td><td style={tdr}>{n2(s.bcdRate)} %</td><td style={tdr}>{n2(d.bcd)}</td></tr>
-                  <tr><td style={td}>{it.unitQuantityCode}</td><td style={tdr}>{n2(d.av)}</td><td style={{ ...td, paddingLeft: '8px' }}>{it.ceth === 'NOEXCISE' ? it.cth : it.ceth}</td><td /><td style={td}>{[it.cvdNotification, it.cvdNotificationSrNo].filter(Boolean).join(' ')}</td><td style={tdr}>0.00 %</td><td style={tdr}>0.00</td></tr>
-                  {aidc && duty('AIDC Duty (C)', `${aidc.notificationNo} ${aidc.notificationSrNo}`, obj(s.otherDutyData)['Infra Cess_rate'] || 0, d.aidc || 0)}
-                  {duty('Social Welfare Surcharge', [it.socialWelfareNotn, it.socialWelfareNotnSlno].filter(Boolean).join(' '), s.swsRate || 10, d.sws)}
-                  {d.health > 0 && duty('Health Cess', [it.healthNotn, it.healthSrNo].filter(Boolean).join(' '), s.healthCessRate, d.health)}
-                  {duty('IGST', ig ? `${ig.notificationNo} ${ig.notificationSrNo}` : '', igRate, d.igst)}
-                  {(cess || d.compCess > 0) && duty('GST Compensation Cess', cess ? `${cess.notificationNo} ${cess.notificationSrNo}` : '', obj(s.igstData).cessRate || 0, d.compCess || 0)}
-                  {/* 29-Oct-2026: the other notifications of the item (anti-dumping, safeguard, SAPTA, addl CVD, NCD, addl 1/2, other, tariff value, aggregate) */}
-                  {it.antiDumpingDutyNotification && duty('Anti-dumping Duty' + (it.cthSerialNumber || it.supplierSerialNumber ? ` (CTH Sr ${it.cthSerialNumber || '-'} / Supp Sr ${it.supplierSerialNumber || '-'}${it.quantityAsPerAntiDumpingNotn ? ' / Qty ' + it.quantityAsPerAntiDumpingNotn : ''})` : ''), notn(it.antiDumpingDutyNotification, it.antiDumpingDutySerialNumber), obj(s.addData).rate, d.add)}
-                  {it.safeguardDutyNotn && duty('Safeguard Duty', notn(it.safeguardDutyNotn, it.safeguardDutyNotnSrNo), 0, 0)}
-                  {it.saptaNotn && duty('SAPTA / Preferential', notn(it.saptaNotn, it.saptaSerialNumber), s.saptaRate, s.saptaAmount)}
-                  {it.additionalCvdNotn && duty('Additional CVD', notn(it.additionalCvdNotn, it.additionalCvdSrNo), s.adlCvdRate, s.adlCvdAmount)}
-                  {it.ncdNotn && duty('NCD', notn(it.ncdNotn, it.ncdNotnSrNo), obj(s.ncdData).ncdRate, obj(s.ncdData).ncdAmount)}
-                  {it.additionalNotification1 && duty('Additional Notn 1', notn(it.additionalNotification1, it.additionalNotification1SrNo), 0, 0)}
-                  {it.additionalNotification2 && duty('Additional Notn 2', notn(it.additionalNotification2, it.additionalNotification2SrNo), 0, 0)}
-                  {it.otherNotification && duty('Other Notn', notn(it.otherNotification, it.otherNotificationSrNo), 0, 0)}
-                  {it.cusEducessNotfnNumber && duty('Customs Edu. Cess', notn(it.cusEducessNotfnNumber, it.cusEducessNotfnSrNo), 0, 0)}
-                  {it.tariffValueNotn && line('Tariff Val Notn', `${notn(it.tariffValueNotn, it.tariffValueItemSerialNumber)}${it.quantityAsPerTariffValueNotn ? ' / Qty ' + it.quantityAsPerTariffValueNotn : ''}`)}
-                  {it.aggregateDutyNotn && duty('Aggregate Duty Notn', notn(it.aggregateDutyNotn, it.aggregateDutyNotnSrNo), 0, 0)}
-                  {(it.discountRate || it.discountAmount) && line('Item Discount', `${it.discountRate ? n2(it.discountRate) + ' %' : ''} ${it.discountAmount ? n2(it.discountAmount) : ''}`.trim())}
-                  {(it.quantityAsPerCth || it.cthQty) && line('Qty as per CTH', `${it.quantityAsPerCth || ''} ${it.cthQty || ''}`.trim())}
-                  <tr><td style={{ ...td, ...B }}>Manufacturer</td><td style={td} colSpan="3">{String(it.manufacturerName || '').toUpperCase()}</td><td style={td}><span style={B}>Acc. Status :</span> {it.accessoryStatus}</td><td style={td} colSpan="2"><span style={B}>Country of Origin :</span> {country(it.countryOfOrigin)}</td></tr>
-                  <tr><td style={{ ...td, ...B }}>End Use</td><td style={td}>{it.endUseOfItem}</td><td style={td} colSpan="2"><span style={B}>Brand :</span> {it.brandName}</td><td style={td} colSpan="3"><span style={B}>Model :</span> {it.model}</td></tr>
-                  {/* 29-Oct-2026: manufacturer address, source / transit country, accessories, category, policy para, previous BE, SVB, re-import, RSP, DEPB were not printed */}
-                  {(it.itemManufacturerAddress1 || it.itemManufacturerCity || it.itemManufacturerCntry || it.itemManufacturerCode) && line('Mfr. Address', [it.itemManufacturerType && it.itemManufacturerCode ? `${it.itemManufacturerType} ${it.itemManufacturerCode}` : it.itemManufacturerCode, it.itemManufacturerAddress1, it.itemManufacturerAddress2, it.itemManufacturerCity, it.itemManufacturerSubdivision, it.itemManufacturerPin, country(it.itemManufacturerCntry)].filter(Boolean).join(' '))}
-                  {(it.sourceCountry || it.transitCountry) && line('Src/Transit', `${it.sourceCountry ? 'Source ' + country(it.sourceCountry) : ''}${it.sourceCountry && it.transitCountry ? ' / ' : ''}${it.transitCountry ? 'Transit ' + country(it.transitCountry) : ''}`)}
-                  {(it.accessoriesForTheItem || it.itemCategory) && line('Accessories', [it.accessoriesForTheItem, it.itemCategory ? `Category ${it.itemCategory}` : ''].filter(Boolean).join(' / '))}
-                  {(it.policyParaNo || it.policyYear) && line('Policy Para', `${it.policyParaNo || ''} ${it.policyYear ? '(' + it.policyYear + ')' : ''}`.trim())}
-                  {it.previousBeNo && line('Previous BE', [it.previousBeNo, it.previousBeDate ? 'Dt. ' + dmy(it.previousBeDate) : '', it.prevCustomSite, it.prevUnitPriceInvoiced ? `Unit price ${it.prevUnitPriceInvoiced} ${it.prevCurrencyCode || ''}` : ''].filter(Boolean).join(' '))}
-                  {(it.svbReferenceNumber || it.svbLoadAssessableValue || it.svbLoadOnDuty) && line('SVB', svbText(it))}
-                  {reimpOf(it).map((r, q) => <React.Fragment key={'re' + q}>{line('Re-import', `SB ${r.shippingBillNo} Dt. ${dmy(r.shippingBillDate)} ${r.portOfExport || ''}${r.invoiceNoSb ? ' Inv ' + r.invoiceNoSb : ''}${r.itemNoSb ? ' Item ' + r.itemNoSb : ''}${r.notificationNo ? ' Notn ' + notn(r.notificationNo, r.notificationSrNo) : ''} | Export freight ${n2(r.exportFreight)} Insurance ${n2(r.exportInsurance)} Customs duty ${n2(r.customsDuty)} Excise ${n2(r.exciseDuty)}`)}</React.Fragment>)}
-                  {rspOf(it).map((r, q) => <React.Fragment key={'rsp' + q}>{line('RSP / MRP', `Rs. ${n2(r.rsp)} x ${r.quantity}${r.rspNotification ? ' Notn ' + notn(r.rspNotification, r.rspNotificationSrNo) : ''} (RSP applicability ${it.rspApplicability})`)}</React.Fragment>)}
-                  {depbOf(it).map((r, q) => <React.Fragment key={'dp' + q}>{line('Scheme Exmp.', `Exemption ${r.whetherExemption} - Notn ${notn(r.bcdNotification, r.bcdNotificationSrNo)}`)}</React.Fragment>)}
-                </tbody>
-              );
-            })}
-          <tbody>
-            <tr style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000' }}><td style={{ ...tdr, ...B, whiteSpace: 'nowrap' }} colSpan="2">Rs. {n2(ivAv)}</td><td colSpan="3" /><td style={{ ...tdr, ...B }}>Rs.</td><td style={{ ...tdr, ...B }}>{n2(ivDuty)}</td></tr>
-          </tbody>
-          </React.Fragment>
-        );
-      })}
-      </table>
+      {/* items: fixed 7 columns; numbers right-aligned under right-aligned headings */}
+      <div className={cn('tw:mt-[4px]', DASHED_ROW)} />
+      <SectionTitle>Item Details</SectionTitle>
+      <ReportTable className="tw:table-fixed">
+        <ColumnWidths widths={[16, 15, 12, 9, 16, 14, 18]} />
+        <ReportBody>
+          <ReportRow>
+            <HeadCell>Sr. No.</HeadCell><HeadCell>RITC</HeadCell><HeadCell colSpan={4}>Description (Generic Description - Model)</HeadCell><HeadCell align="right">SVB Loading(A/D)</HeadCell>
+          </ReportRow>
+          <ReportRow className="tw:border-b tw:border-solid tw:border-black">
+            <HeadCell>Qty<br />Unit</HeadCell>
+            <HeadCell align="right">Unit Price<br />Ass Val (Rs.)</HeadCell>
+            <HeadCell className="tw:pl-[8px]">CTH<br />CETH</HeadCell>
+            <HeadCell>Std/Pref</HeadCell>
+            <HeadCell>Cus Notn.<br />Exc Notn.</HeadCell>
+            <HeadCell align="right">Cus Dty Rate<br />Exc Dty Rate</HeadCell>
+            <HeadCell align="right">BCD Amt (Rs.)<br />CVD Amt (Rs.)</HeadCell>
+          </ReportRow>
+        </ReportBody>
+        {invoices.map((invoice, invoiceIndex) => {
+          const rows = dutyRows.filter((row) => row.item.invoiceSerialNumber === invoice.invoiceSerialNumber);
+          const invoiceAv = rows.reduce((total, row) => total + row.duty.av, 0);
+          const invoiceDuty = rows.reduce((total, row) => total + row.duty.total, 0);
+          return (
+            <Fragment key={invoiceIndex}>
+              <ReportBody>
+                <ReportRow>
+                  <Cell className="tw:pt-[4px]" colSpan={7}>
+                    <b>Inv Sr. No. :</b> {invoice.invoiceSerialNumber} &nbsp;&nbsp;&nbsp;&nbsp;<b>Inv No. :</b> {invoice.actualInvoiceNumber} &nbsp;&nbsp;&nbsp;&nbsp;<b>Inv Dt :</b> {toDmy(invoice.invoiceDate)}
+                  </Cell>
+                </ReportRow>
+              </ReportBody>
+              {rows.map(({ item, duty, screen }, rowIndex) => (
+                <ItemRows key={rowIndex} item={item} duty={duty} screen={screen} country={country} svbText={svbText}
+                  aidcRow={dutyModelRowsOf(item, 'C', 'A')[0]} igstRow={dutyModelRowsOf(item, 'G', 'I')[0]} cessRow={dutyModelRowsOf(item, 'G', 'P')[0]}
+                  reimports={reimportOf(item)} rsps={rspOf(item)} depbs={depbOf(item)} />
+              ))}
+              <ReportBody>
+                <ReportRow className={RULED_ROW}>
+                  <Cell align="right" className="tw:font-bold tw:whitespace-nowrap" colSpan={2}>Rs. {fixed(invoiceAv)}</Cell>
+                  <EmptyCell colSpan={3} />
+                  <Cell align="right" className="tw:font-bold">Rs.</Cell>
+                  <Cell align="right" className="tw:font-bold">{fixed(invoiceDuty)}</Cell>
+                </ReportRow>
+              </ReportBody>
+            </Fragment>
+          );
+        })}
+      </ReportTable>
 
-      {/* ---- totals: label | Rs. | amount on both sides ---- */}
-      <table className="avoid" style={{ marginTop: '8px', tableLayout: 'fixed' }}>{cols([20, 5, 18, 5, 29, 5, 18])}<tbody>
-        <tr style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000' }}><td style={{ ...td, ...B }}>Total Ass. Value</td><td style={{ ...tdr, ...B }}>Rs.</td><td style={{ ...tdr, ...B }}>{n2(totAv)}</td><td /><td style={{ ...td, ...B }}>BE Gross Total</td><td style={{ ...tdr, ...B }}>Rs.</td><td style={{ ...tdr, ...B }}>{n2(totGross)}</td></tr>
-        {[['BCD', totBcd, 'SWS Duty', totSws], ['Safeguard Duty', 0, 'CESS', 0], ['Antidumping Duty', totAdd, 'Customs Educational Cess', 0], ['NCD Customs', 0, 'Secondary Custom Edu. Cess', 0],
-          ['CVD', 0, 'Additional Duty(Imports)', totOther], ['AIDC Duty', 0, 'Custom Health Cess', totHealth], ['IGST', totIgst, 'IGST Cess', 0], ...(totForegone > 0 ? [['Duty Foregone', totForegone, '', null]] : [])].map(([a, av, b, bv]) => (
-          <tr key={a}><td style={td}>{a}</td><td style={tdr}>Rs.</td><td style={tdr}>{n2(av)}</td><td /><td style={td}>{b}</td><td style={tdr}>{bv === null ? '' : 'Rs.'}</td><td style={tdr}>{bv === null ? '' : n2(bv)}</td></tr>
-        ))}
-        <tr style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000' }}><td style={{ ...td, ...B }} colSpan="5">Duty Payable Rupees {inWords(totDuty)} Only</td><td style={{ ...tdr, ...B }}>Rs.</td><td style={{ ...tdr, ...B }}>{Math.round(totDuty)}</td></tr>
-      </tbody></table>
+      {/* totals: label | Rs. | amount on both sides */}
+      <ReportTable className="tw:mt-[8px] tw:table-fixed tw:print:break-inside-avoid">
+        <ColumnWidths widths={[20, 5, 18, 5, 29, 5, 18]} />
+        <ReportBody>
+          <ReportRow className={RULED_ROW}>
+            <Cell className="tw:font-bold">Total Ass. Value</Cell><Cell align="right" className="tw:font-bold">Rs.</Cell><Cell align="right" className="tw:font-bold">{fixed(totAv)}</Cell>
+            <EmptyCell />
+            <Cell className="tw:font-bold">BE Gross Total</Cell><Cell align="right" className="tw:font-bold">Rs.</Cell><Cell align="right" className="tw:font-bold">{fixed(totGross)}</Cell>
+          </ReportRow>
+          {totalLines.map(([leftLabel, leftValue, rightLabel, rightValue]) => (
+            <ReportRow key={leftLabel}>
+              <Cell>{leftLabel}</Cell><Cell align="right">Rs.</Cell><Cell align="right">{fixed(leftValue)}</Cell>
+              <EmptyCell />
+              <Cell>{rightLabel}</Cell><Cell align="right">{rightValue === null ? '' : 'Rs.'}</Cell><Cell align="right">{rightValue === null ? '' : fixed(rightValue)}</Cell>
+            </ReportRow>
+          ))}
+          <ReportRow className={RULED_ROW}>
+            <Cell className="tw:font-bold" colSpan={5}>Duty Payable Rupees {inWords(totDuty)} Only</Cell>
+            <Cell align="right" className="tw:font-bold">Rs.</Cell>
+            <Cell align="right" className="tw:font-bold">{Math.round(totDuty)}</Cell>
+          </ReportRow>
+        </ReportBody>
+      </ReportTable>
 
-      {/* ---- IGST duty details (sbedutyModel) ---- */}
-      {duties.length > 0 && (<div className="avoid">
-        {sec('IGST Duty Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([5, 5, 6, 5, 6, 13, 7, 11, 8, 11, 7, 8, 8])}<thead><tr style={dash}>{[['Inv No'], ['Itm No'], ['Duty Type'], ['Flg'], ['IGST Flg'], ['IGST Notn No & Slno'], ['IGST Rate', 1], ['IGST Amt', 1], ['IGST Amts & Uqc', 1], ['Exmp Notn No & Slno'], ['Exmp Rate', 1], ['Exmp Amt', 1], ['Exmp Amt & Uqc', 1]].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr></thead>
-          <tbody>{duties.map((d, i) => {
-            const it = its.find(x => x.invoiceSerialNumber === d.invoiceSerialNumber && x.itemSerialNumber === d.itemSerialNumber);
-            const igRow = d.dutyType === 'G' && d.addlDutyFlag === 'I';
-            const rate = igRow && it ? obj(screenItem(it).igstData).rate : 0;
-            const amtv = igRow && it ? dutyOf(it).igst : 0;
-            return <tr key={i}><td style={td}>{d.invoiceSerialNumber}</td><td style={td}>{d.itemSerialNumber}</td><td style={td}>{d.dutyType}</td><td style={td}>{d.addlDutyFlag}</td><td style={td}>{d.customsNotnExemptingIgstFlag}</td>
-              <td style={td}>{[d.notificationNo, d.notificationSrNo].filter(Boolean).join(' ')}</td><td style={tdr}>{n2(rate)}</td><td style={tdr}>{n2(amtv)}</td><td style={tdr}>0.00</td><td style={td}>{[d.exmpNotificationNo, d.exmpNotificationSrNo].filter(Boolean).join(' ')}</td><td style={tdr}>0.00</td><td style={tdr}>0.00</td><td style={tdr}>0.00</td></tr>;
-          })}</tbody></table></div>)}
+      {dutyModelRows.length > 0 && (
+        <ListSection title="IGST Duty Details">
+          <ChecklistList headInThead widths={[5, 5, 6, 5, 6, 13, 7, 11, 8, 11, 7, 8, 8]}
+            columns={['Inv No', 'Itm No', 'Duty Type', 'Flg', 'IGST Flg', 'IGST Notn No & Slno', 'IGST Rate', 'IGST Amt', 'IGST Amts & Uqc', 'Exmp Notn No & Slno', 'Exmp Rate', 'Exmp Amt', 'Exmp Amt & Uqc']}
+            rightAligned={['IGST Rate', 'IGST Amt', 'IGST Amts & Uqc', 'Exmp Rate', 'Exmp Amt', 'Exmp Amt & Uqc']}
+            rows={dutyModelRows.map((row) => {
+              const item = jsonItems.find((jsonItem) => jsonItem.invoiceSerialNumber === row.invoiceSerialNumber && jsonItem.itemSerialNumber === row.itemSerialNumber);
+              const isIgstRow = row.dutyType === 'G' && row.addlDutyFlag === 'I';
+              const rate = isIgstRow && item ? parseJsonObject(screenItem(item).igstData).rate : 0;
+              const amount = isIgstRow && item ? dutyOf(item).igst : 0;
+              return [
+                row.invoiceSerialNumber, row.itemSerialNumber, row.dutyType, row.addlDutyFlag, row.customsNotnExemptingIgstFlag,
+                joinNotification(row.notificationNo, row.notificationSrNo), fixed(rate), fixed(amount), '0.00',
+                joinNotification(row.exmpNotificationNo, row.exmpNotificationSrNo), '0.00', '0.00', '0.00',
+              ];
+            })} />
+        </ListSection>
+      )}
 
-      {/* ---- certificate / bond / licence ---- */}
-      {(m.certModel || []).length > 0 && (<div className="avoid">{sec('Certificate Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([40, 25, 35])}<tbody><tr style={dash}><th style={th}>Certificate No</th><th style={th}>Certificate Date</th><th style={th}>Certificate Type</th></tr>
-          {(m.certModel || []).map((c, i) => <tr key={i}><td style={td}>{c.certificateNumber}</td><td style={td}>{dmy(c.certificationDate)}</td><td style={td}>{c.certificationType}</td></tr>)}</tbody></table></div>)}
-      {(m.bondModel || []).length > 0 && (<div className="avoid">{sec('Bond Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([40, 25, 35])}<tbody><tr style={dash}><th style={th}>Bond No</th><th style={th}>Bond Code</th><th style={th}>Bond Port</th></tr>
-          {(m.bondModel || []).map((c, i) => <tr key={i}><td style={td}>{c.bondNumber}</td><td style={td}>{c.bondCode}</td><td style={td}>{c.bondPort}</td></tr>)}</tbody></table></div>)}
-      {(m.licenseModel || []).length > 0 && (<div className="avoid">{sec('Licence Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([10, 18, 12, 8, 12, 8, 16, 16])}<tbody><tr style={dash}>{[['Inv/Itm'], ['Licence No'], ['Date'], ['Code'], ['Port'], ['Lic Sr'], ['Debit Value', 1], ['Debit Qty', 1]].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr>
-          {(m.licenseModel || []).map((l, i) => <tr key={i}><td style={td}>{l.invoiceSerialNumber} / {l.itemSerialNumberInvoice}</td><td style={td}>{l.licenseRegistrationNumber}</td><td style={td}>{dmy(l.licenseRegistrationDate)}</td><td style={td}>{l.licenseCode}</td><td style={td}>{l.licenseRegnPort}</td><td style={td}>{l.itemSrNoLicense}</td><td style={tdr}>{l.debitValue}</td><td style={tdr}>{l.debitQuantity} {l.debitUnitOfMeasurement}</td></tr>)}</tbody></table></div>)}
+      {(master.certModel || []).length > 0 && (
+        <ListSection title="Certificate Details">
+          <ChecklistList widths={[40, 25, 35]} columns={['Certificate No', 'Certificate Date', 'Certificate Type']}
+            rows={master.certModel.map((row) => [row.certificateNumber, toDmy(row.certificationDate), row.certificationType])} />
+        </ListSection>
+      )}
+      {(master.bondModel || []).length > 0 && (
+        <ListSection title="Bond Details">
+          <ChecklistList widths={[40, 25, 35]} columns={['Bond No', 'Bond Code', 'Bond Port']}
+            rows={master.bondModel.map((row) => [row.bondNumber, row.bondCode, row.bondPort])} />
+        </ListSection>
+      )}
+      {(master.licenseModel || []).length > 0 && (
+        <ListSection title="Licence Details">
+          <ChecklistList widths={[10, 18, 12, 8, 12, 8, 16, 16]}
+            columns={['Inv/Itm', 'Licence No', 'Date', 'Code', 'Port', 'Lic Sr', 'Debit Value', 'Debit Qty']} rightAligned={['Debit Value', 'Debit Qty']}
+            rows={master.licenseModel.map((row) => [
+              `${textOf(row.invoiceSerialNumber)} / ${textOf(row.itemSerialNumberInvoice)}`, row.licenseRegistrationNumber, toDmy(row.licenseRegistrationDate), row.licenseCode,
+              row.licenseRegnPort, row.itemSrNoLicense, row.debitValue, `${textOf(row.debitQuantity)} ${textOf(row.debitUnitOfMeasurement)}`,
+            ])} />
+        </ListSection>
+      )}
 
-      {/* ---- single window ---- */}
-      {(m.infoTypeModel || []).length > 0 && (<div className="avoid">{sec('Single Window Info')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([12, 25, 10, 9, 19, 17, 8])}<tbody><tr style={dash}>{[['Inv/Itm No'], ['Type'], ['Qualifier'], ['Code'], ['Text'], ['Measurement', 1], ['Unit']].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr>
-          {(m.infoTypeModel || []).map((r, i) => <tr key={i}><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td><td style={td}>{r.infoType}{r.infoType === 'CHR' ? ' - Item Characteristics' : r.infoType === 'ORC' ? ' - Origin Criteria' : ''}</td>
-            <td style={td}>{r.infoQualifier}</td><td style={td}>{r.infoCode}</td><td style={td}>{r.infoText}</td><td style={tdr}>{r.infoMsr}</td><td style={{ ...td, paddingLeft: '8px' }}>{r.infoUqc}</td></tr>)}</tbody></table></div>)}
-      {(m.ctrlModel || []).length > 0 && (<div className="avoid">{sec('Single Window Control')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([12, 10, 14, 11, 11, 12, 30])}<tbody><tr style={dash}>{['Inv/Itm No', 'Type', 'Location', 'Start Dt', 'End Dt', 'Result Code', 'Result Text'].map(x => <th key={x} style={th}>{x}</th>)}</tr>
-          {(m.ctrlModel || []).map((r, i) => <tr key={i}><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td><td style={td}>{r.controlTypeCode}</td><td style={td}>{r.controlLocation}</td><td style={td}>{dmy(r.controlStartDate)}</td><td style={td}>{dmy(r.controlEndDate)}</td><td style={td}>{r.controlResultCode}</td><td style={td}>{r.controlResultText}</td></tr>)}</tbody></table></div>)}
-      {(m.sw_ConstModel || []).length > 0 && (<div className="avoid">{sec('Single Window Constituent')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([12, 8, 34, 16, 10, 10, 10])}<tbody><tr style={dash}>{[['Inv/Itm No'], ['Sr'], ['Element Name'], ['Code'], ['%', 1], ['Yield %', 1], ['Active']].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr>
-          {(m.sw_ConstModel || []).map((r, i) => <tr key={i}><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td><td style={td}>{r.constituentSrNo}</td><td style={td}>{r.constituentElementName}</td><td style={td}>{r.constituentElementCode}</td><td style={tdr}>{r.constituentPercentage}</td><td style={tdr}>{r.constituentYieldPercentage}</td><td style={{ ...td, paddingLeft: '8px' }}>{r.activeIngredientFlag}</td></tr>)}</tbody></table></div>)}
-      {(m.sw_ProdModel || []).length > 0 && (<div className="avoid">{sec('Single Window Production (Batch)')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([12, 24, 16, 8, 13, 13, 14])}<tbody><tr style={dash}>{[['Inv/Itm No'], ['Batch Id'], ['Batch Qty', 1], ['UQC'], ['Mfg Date'], ['Expiry'], ['Best Before']].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr>
-          {(m.sw_ProdModel || []).map((r, i) => <tr key={i}><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td><td style={td}>{r.productionBatchIdentifier}</td><td style={tdr}>{r.productionBatchQuantity}</td><td style={{ ...td, paddingLeft: '8px' }}>{r.unitQuantityCode}</td><td style={td}>{dmy(r.dateOfManufacturing)}</td><td style={td}>{dmy(r.dateOfExpiry)}</td><td style={td}>{dmy(r.bestBefore)}</td></tr>)}</tbody></table></div>)}
-      {(m.statementModel || []).length > 0 && (<div className="avoid">{sec('Single Window Statement')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([15, 15, 25, 45])}<tbody><tr style={dash}>{['Inv/Itm No', 'Statement For', 'Statement Type', 'Statement Code'].map(x => <th key={x} style={th}>{x}</th>)}</tr>
-          {(m.statementModel || []).map((r, i) => <tr key={i}><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td>
-            <td style={td}>{String(r.invoiceSerialNumber) === '0' ? 'M' : String(r.itemSerialNumber) === '0' ? 'N' : 'I'}</td>
-            <td style={td}>{r.statementType}{({ DEC: ' - DECLARATION', UTG: ' - UNDERTAKING', REM: ' - REMARK' })[r.statementType] || ''}</td><td style={td}>{r.statementCode}{r.statementText ? ' - ' + r.statementText : ''}</td></tr>)}</tbody></table></div>)}
+      {(master.infoTypeModel || []).length > 0 && (
+        <ListSection title="Single Window Info">
+          <ChecklistList widths={[12, 25, 10, 9, 19, 17, 8]}
+            columns={['Inv/Itm No', 'Type', 'Qualifier', 'Code', 'Text', 'Measurement', 'Unit']} rightAligned={['Measurement']}
+            rows={master.infoTypeModel.map((row) => [
+              invItem(row), `${textOf(row.infoType)}${row.infoType === 'CHR' ? ' - Item Characteristics' : row.infoType === 'ORC' ? ' - Origin Criteria' : ''}`,
+              row.infoQualifier, row.infoCode, row.infoText, row.infoMsr, { value: row.infoUqc, className: 'tw:pl-[8px]' },
+            ])} />
+        </ListSection>
+      )}
+      {(master.ctrlModel || []).length > 0 && (
+        <ListSection title="Single Window Control">
+          <ChecklistList widths={[12, 10, 14, 11, 11, 12, 30]}
+            columns={['Inv/Itm No', 'Type', 'Location', 'Start Dt', 'End Dt', 'Result Code', 'Result Text']}
+            rows={master.ctrlModel.map((row) => [
+              invItem(row), row.controlTypeCode, row.controlLocation, toDmy(row.controlStartDate), toDmy(row.controlEndDate), row.controlResultCode, row.controlResultText,
+            ])} />
+        </ListSection>
+      )}
+      {(master.sw_ConstModel || []).length > 0 && (
+        <ListSection title="Single Window Constituent">
+          <ChecklistList widths={[12, 8, 34, 16, 10, 10, 10]}
+            columns={['Inv/Itm No', 'Sr', 'Element Name', 'Code', '%', 'Yield %', 'Active']} rightAligned={['%', 'Yield %']}
+            rows={master.sw_ConstModel.map((row) => [
+              invItem(row), row.constituentSrNo, row.constituentElementName, row.constituentElementCode, row.constituentPercentage,
+              row.constituentYieldPercentage, { value: row.activeIngredientFlag, className: 'tw:pl-[8px]' },
+            ])} />
+        </ListSection>
+      )}
+      {(master.sw_ProdModel || []).length > 0 && (
+        <ListSection title="Single Window Production (Batch)">
+          <ChecklistList widths={[12, 24, 16, 8, 13, 13, 14]}
+            columns={['Inv/Itm No', 'Batch Id', 'Batch Qty', 'UQC', 'Mfg Date', 'Expiry', 'Best Before']} rightAligned={['Batch Qty']}
+            rows={master.sw_ProdModel.map((row) => [
+              invItem(row), row.productionBatchIdentifier, row.productionBatchQuantity, { value: row.unitQuantityCode, className: 'tw:pl-[8px]' },
+              toDmy(row.dateOfManufacturing), toDmy(row.dateOfExpiry), toDmy(row.bestBefore),
+            ])} />
+        </ListSection>
+      )}
+      {(master.statementModel || []).length > 0 && (
+        <ListSection title="Single Window Statement">
+          <ChecklistList widths={[15, 15, 25, 45]} columns={['Inv/Itm No', 'Statement For', 'Statement Type', 'Statement Code']}
+            rows={master.statementModel.map((row) => [
+              invItem(row),
+              String(row.invoiceSerialNumber) === '0' ? 'M' : String(row.itemSerialNumber) === '0' ? 'N' : 'I',
+              `${textOf(row.statementType)}${STATEMENT_TYPE[row.statementType] || ''}`,
+              `${textOf(row.statementCode)}${row.statementText ? ' - ' + row.statementText : ''}`,
+            ])} />
+        </ListSection>
+      )}
 
-      {(m.supportingDocsModel || []).length > 0 && (<div>{sec('Single Window Supporting Document')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([8, 9, 17, 12, 15, 7, 10, 12, 10])}<tbody><tr style={dash}>{['Inv/Itm', 'Doc For', 'Doc No', 'Doc Type', 'Issued Party', 'Place', 'Issue Dt', 'Bnf Party', 'ICEGate Id'].map(x => <th key={x} style={th}>{x}</th>)}</tr>
-          {(m.supportingDocsModel || []).map((r, i) => <tr key={i} className="avoid"><td style={td}>{r.invoiceSerialNumber} / {r.itemSerialNumber}</td>
-            <td style={td}>{String(r.invoiceSerialNumber) === '0' ? 'BE' : String(r.itemSerialNumber) === '0' ? 'INVOICE' : 'ITEM'}</td>
-            <td style={{ ...td, wordBreak: 'break-all' }}>{r.imageReferenceNo}</td><td style={td}>{r.documentTypeCode}<br />{docTypeName(r.documentTypeCode)}</td>
-            <td style={td}>{[r.documentIssuingPartyName, r.documentIssuingPartyNameAddress1, r.documentIssuingPartyNameAddress2, r.documentIssuingPartyNameCity].filter(x => x && x !== ',').join(' ')}</td>
-            <td style={td}>{r.placeOfIssue}</td><td style={td}>{dmy(r.documentIssueDate)}</td>
-            <td style={td}>{[r.documentBeneficiaryPartyName, r.documentBeneficiaryPartyNameAddress1, r.documentBeneficiaryPartyNameAddress2, r.documentBeneficiaryPartyNameCity, r.documentBeneficiaryPartyPin].filter(Boolean).join(' ')}</td>
-            <td style={{ ...td, wordBreak: 'break-all' }}>{r.icegateUserId}</td></tr>)}</tbody></table></div>)}
+      {(master.supportingDocsModel || []).length > 0 && (
+        <ListSection title="Single Window Supporting Document" avoidBreak={false}>
+          <ChecklistList widths={[8, 9, 17, 12, 15, 7, 10, 12, 10]} rowClassName="tw:print:break-inside-avoid"
+            columns={['Inv/Itm', 'Doc For', 'Doc No', 'Doc Type', 'Issued Party', 'Place', 'Issue Dt', 'Bnf Party', 'ICEGate Id']}
+            rows={master.supportingDocsModel.map((row) => [
+              invItem(row),
+              String(row.invoiceSerialNumber) === '0' ? 'BE' : String(row.itemSerialNumber) === '0' ? 'INVOICE' : 'ITEM',
+              { value: row.imageReferenceNo, className: 'tw:break-all' },
+              <>{row.documentTypeCode}<br />{docTypeName(row.documentTypeCode)}</>,
+              [row.documentIssuingPartyName, row.documentIssuingPartyNameAddress1, row.documentIssuingPartyNameAddress2, row.documentIssuingPartyNameCity].filter((part) => part && part !== ',').join(' '),
+              row.placeOfIssue,
+              toDmy(row.documentIssueDate),
+              [row.documentBeneficiaryPartyName, row.documentBeneficiaryPartyNameAddress1, row.documentBeneficiaryPartyNameAddress2, row.documentBeneficiaryPartyNameCity, row.documentBeneficiaryPartyPin].filter(Boolean).join(' '),
+              { value: row.icegateUserId, className: 'tw:break-all' },
+            ])} />
+        </ListSection>
+      )}
 
-      {/* ---- GSTIN / totals ---- */}
-      <div className="avoid">
-        {sec('GSTIN Details')}
-        <table style={{ tableLayout: 'fixed' }}>{cols([22, 8, 8, 16, 16, 15, 15])}<tbody><tr style={dash}>{[['Document No'], ['Type'], ['State'], ['Cd/Name'], ['IGST Ass. Val', 1], ['IGST Amt.', 1], ['GST Cess Amt', 1]].map(([x, r]) => <th key={x} style={r ? thr : th}>{x}</th>)}</tr>
-          <tr><td style={td}>{ctx.commercialTaxRegistrationNo}</td><td style={td}>{ctx.commercialTaxType}</td><td style={td}>{ctx.stateCode}</td><td style={td}>{stateName(ctx.stateCode)}</td>
-            <td style={tdr}>{Math.round(totAv + totBcd + totSws + totHealth + totAdd + totOther)}</td><td style={tdr}>{Math.round(totIgst)}</td><td style={tdr}>0</td></tr></tbody></table>
-        <div style={{ ...B, marginTop: '6px', ...dash }}>Total Freight / Misc / Insurance Details</div>
-        <table style={{ tableLayout: 'fixed' }}>{cols([33, 34, 33])}<tbody><tr><th style={{ ...th, textAlign: 'center' }}>Total Freight</th><th style={{ ...th, textAlign: 'center' }}>Total Misc</th><th style={{ ...th, textAlign: 'center' }}>Total Insurance</th></tr>
-          <tr><td style={{ ...td, textAlign: 'center' }}>{n2(totFrt)}</td><td style={{ ...td, textAlign: 'center' }}>{n2(totMisc)}</td><td style={{ ...td, textAlign: 'center' }}>{n2(totIns)}</td></tr></tbody></table>
-        <table style={{ tableLayout: 'fixed', borderTop: '1px solid #000', marginTop: '4px' }}>{cols([50, 32, 18])}<tbody>
-          {Object.entries(invs.reduce((acc, iv) => { acc[iv.invoiceCurrency] = (acc[iv.invoiceCurrency] || 0) + (parseFloat(iv.invoiceValue) || 0); return acc; }, {})).map(([c, v], i) => (
-            <tr key={c}><td style={{ ...td, ...B }}>{i === 0 ? 'Grand Total' : ''}</td><td style={{ ...tdr, ...B }}>{n2(v)}</td><td style={{ ...td, ...B }}>{c}</td></tr>))}
-        </tbody></table>
-        <table style={{ marginTop: '14px' }}><tbody><tr><td style={td}>I/We declare that the particulars given herein are true and are correct</td><td style={tdr}>Signature of Importer/CHA With Date</td></tr></tbody></table>
-        <div className="no-print" style={{ marginTop: '10px', fontSize: '8pt', color: '#64748b' }}>Prepared By : {user} &nbsp; | &nbsp; {printedAt} &nbsp; | &nbsp; Duty amounts are an estimate; ICEGATE assesses the final duty.</div>
-      </div>
-    </div>
+      <ListSection title="GSTIN Details">
+        <ChecklistList widths={[22, 8, 8, 16, 16, 15, 15]}
+          columns={['Document No', 'Type', 'State', 'Cd/Name', 'IGST Ass. Val', 'IGST Amt.', 'GST Cess Amt']} rightAligned={['IGST Ass. Val', 'IGST Amt.', 'GST Cess Amt']}
+          rows={[[
+            taxDetails.commercialTaxRegistrationNo, taxDetails.commercialTaxType, taxDetails.stateCode, stateName(taxDetails.stateCode),
+            Math.round(totAv + totBcd + totSws + totHealth + totAdd + totOther), Math.round(totIgst), 0,
+          ]]} />
+        <div className={cn('tw:mt-[6px] tw:font-bold', DASHED_ROW)}>Total Freight / Misc / Insurance Details</div>
+        <ReportTable className="tw:table-fixed">
+          <ColumnWidths widths={[33, 34, 33]} />
+          <ReportBody>
+            <ReportRow>
+              <HeadCell align="center">Total Freight</HeadCell><HeadCell align="center">Total Misc</HeadCell><HeadCell align="center">Total Insurance</HeadCell>
+            </ReportRow>
+            <ReportRow>
+              <Cell align="center">{fixed(totalFreight)}</Cell><Cell align="center">{fixed(totalMisc)}</Cell><Cell align="center">{fixed(totalInsurance)}</Cell>
+            </ReportRow>
+          </ReportBody>
+        </ReportTable>
+        <ReportTable className="tw:mt-[4px] tw:table-fixed tw:border-t tw:border-solid tw:border-black">
+          <ColumnWidths widths={[50, 32, 18]} />
+          <ReportBody>
+            {currencyTotals.map(([currency, value], index) => (
+              <ReportRow key={currency}>
+                <Cell className="tw:font-bold">{index === 0 ? 'Grand Total' : ''}</Cell>
+                <Cell align="right" className="tw:font-bold">{fixed(value)}</Cell>
+                <Cell className="tw:font-bold">{currency}</Cell>
+              </ReportRow>
+            ))}
+          </ReportBody>
+        </ReportTable>
+        <ReportTable className="tw:mt-[14px]">
+          <ReportBody>
+            <ReportRow>
+              <Cell>I/We declare that the particulars given herein are true and are correct</Cell>
+              <Cell align="right">Signature of Importer/CHA With Date</Cell>
+            </ReportRow>
+          </ReportBody>
+        </ReportTable>
+        <div className="no-print tw:mt-[10px] tw:text-[8pt] tw:text-[#64748b]">
+          Prepared By : {user} &nbsp; | &nbsp; {printedAt} &nbsp; | &nbsp; Duty amounts are an estimate; ICEGATE assesses the final duty.
+        </div>
+      </ListSection>
+    </ReportPage>
+  );
+}
+
+function InvoiceHalf({ rows }) {
+  return (
+    <ReportTable className="tw:table-fixed">
+      <ColumnWidths widths={[36, 4, 60]} />
+      <ReportBody>
+        {rows.map(([label, value], index) => <ReportRow key={index}><FieldCells label={label} value={value} /></ReportRow>)}
+      </ReportBody>
+    </ReportTable>
+  );
+}
+
+const optionalRow = (condition, label, value) => (condition ? [[label, value]] : []);
+
+function InvoiceBlock({ invoice, last, miscRows, conditions, rateLine, country, countryText, svbText }) {
+  // a charge given as a % is printed as iCAFFE does: the amount in the invoice currency and the rate to 4 places
+  // ("10.87 USD | 1.1250 %")
+  const amountText = (value, currency, rate) => {
+    if (String(value || '').trim() && parseFloat(value)) return `${fixed(value)} ${currency || ''}`;
+    if (String(rate || '').trim() && parseFloat(rate)) return `${fixed(parseFloat(rate) / 100 * (parseFloat(invoice.invoiceValue) || 0))} ${invoice.invoiceCurrency || ''} | ${fixed(rate, 4)} %`;
+    return '0.00';
+  };
+  const chargeRate = (currency) => rateLine(currency).replace(/^([\d.]+) (\w+)/, '$1 ( $2 )');
+  const miscText = miscRows.map((row) => `${row.miscChargesCode || ''} ${row.miscChargesDscrptn || ''} ${parseFloat(row.miscCharges) ? fixed(row.miscCharges) : (parseFloat(row.miscRate) ? fixed(row.miscRate) + ' %' : '')}`.trim()).join('; ');
+  const leftRows = [
+    ['Inv No.', <>{invoice.actualInvoiceNumber} &nbsp;Dt. {toDmy(invoice.invoiceDate)}</>],
+    ['Inv Value', <>{fixed(invoice.invoiceValue)} {invoice.invoiceCurrency} &nbsp;&nbsp;&nbsp;<b>TOI :</b> {invoice.termsOfInvoice}</>],
+    ['Freight', amountText(invoice.freightValue, invoice.freightCurrency, invoice.freightRate)],
+    ['Insurance', amountText(invoice.insuranceValue, invoice.insuranceCurrency, invoice.insuranceRate)],
+    ['Agency Comm.', amountText(invoice.agencyCommission, invoice.agencyCommissionCurrency, invoice.agencyCommissionRate)],
+    ['Loading Charges', amountText(invoice.loadingCharges, invoice.loadingCurrency, invoice.loadRate)],
+    ['M Chrgs in Inv', amountText(invoice.miscCharges, invoice.miscCurrency, invoice.miscChargesRate)],
+    ['High Sea Sale', amountText(invoice.hssLoadAmount, '', invoice.hssLoadRate)],
+    ['Discount', amountText(invoice.discountAmount, '', invoice.discountRate)],
+    ['Nature of Trans.', NATURE[invoice.natureOfTransaction] || invoice.natureOfTransaction],
+    ['Terms of Payment', PAY_TERMS[invoice.paymentTerms] || invoice.paymentTerms],
+    ['Valuation Method', String(invoice.valuationMethodApplicable || '').toUpperCase()],
+    ...optionalRow(invoice.purchaseOrderNumber, 'PO No / Dt', [invoice.purchaseOrderNumber, toDmy(invoice.purchaseOrderDate)].filter(Boolean).join(' Dt. ')),
+    ...optionalRow(invoice.contractNumber, 'Contract No / Dt', [invoice.contractNumber, toDmy(invoice.contractDate)].filter(Boolean).join(' Dt. ')),
+    ...optionalRow(invoice.termsPlace, 'Terms Place', invoice.termsPlace),
+    ...optionalRow(invoice.natureOfDiscount, 'Nature of Disc.', invoice.natureOfDiscount),
+    ...optionalRow(miscRows.length, 'Misc Chrg Rows', miscText),
+    ...optionalRow(conditions, 'Conditions', conditions),
+    ...optionalRow(invoice.otherRelevantInform, 'Other Info', invoice.otherRelevantInform),
+  ];
+  const rightRows = [
+    ['Supplier Detail', <>{invoice.supplierName}<br />{[invoice.supplierAddress1, invoice.supplierAddress2, invoice.supplierAddress3].filter((part) => part && part !== ',').join(' ')}<br />{countryText(invoice.supplierCountryName)}</>],
+    ['B/S Related', yesNo(invoice.whetherBuyerAndSellerAreRelated) === 'Yes' ? 'YES' : 'NO'],
+    ['Exchange Rate', (
+      <>
+        {rateLine(invoice.invoiceCurrency)}
+        {invoice.freightCurrency && <><br />FRT :- {chargeRate(invoice.freightCurrency)}</>}
+        {invoice.insuranceCurrency && <><br />INS :- {chargeRate(invoice.insuranceCurrency)}</>}
+        {invoice.miscCurrency && <><br />MISC :- {chargeRate(invoice.miscCurrency)}</>}
+      </>
+    )],
+    ['LOC No-Date', [invoice.lcNumber, toDmy(invoice.lcDate)].filter(Boolean).join(' - ')],
+    ...optionalRow(invoice.sellerName, 'Seller Detail', <>{invoice.sellerName}<br />{[invoice.sellerAddress1, invoice.sellerAddress2, invoice.sellerAddress3].filter(Boolean).join(' ')} {countryText(invoice.sellerCountryName)}</>),
+    ...optionalRow(invoice.brokerName, 'Broker Detail', <>{invoice.brokerName}<br />{[invoice.brokerAddress1, invoice.brokerAddress2, invoice.brokerAddress3].filter(Boolean).join(' ')} {country(invoice.brokerCountry)}</>),
+    ...optionalRow(invoice.thirdPartyName, 'Third Party', <>{invoice.thirdPartyName}<br />{[invoice.thirdPartyAddress1, invoice.thirdPartyAddress2, invoice.thirdPartyCity, invoice.thirdPartyCntrySubDvsn].filter(Boolean).join(' ')} {country(invoice.thirdPartyCountryCode)}{invoice.thirdPartyPin ? ' - ' + invoice.thirdPartyPin : ''}</>),
+    ...optionalRow(invoice.authorizedEconomicOperatorCode, 'AEO', [invoice.authorizedEconomicOperatorCode, invoice.authorizedEconomicOperatorCountry, invoice.authorizedEconomicOperatorRole].filter(Boolean).join(' / ')),
+    ...optionalRow(invoice.svbReferenceNumber || invoice.svbLoadAssessableValue || invoice.svbLoadOnDuty, 'SVB (Invoice)', svbText(invoice)),
+  ];
+  return (
+    <ReportTable className={cn('tw:mb-[4px] tw:table-fixed tw:print:break-inside-avoid', !last && 'tw:border-b tw:border-dashed tw:border-black')}>
+      <ColumnWidths widths={[50, 50]} />
+      <ReportBody>
+        <ReportRow>
+          <ReportCell look="bare" className="tw:pr-[8px]"><InvoiceHalf rows={leftRows} /></ReportCell>
+          <ReportCell look="bare"><InvoiceHalf rows={rightRows} /></ReportCell>
+        </ReportRow>
+      </ReportBody>
+    </ReportTable>
+  );
+}
+
+function ItemRows({ item, duty, screen, country, svbText, aidcRow, igstRow, cessRow, reimports, rsps, depbs }) {
+  const igstRate = parseJsonObject(screen.igstData).rate;
+  // full description as typed on the item (the JSON splits it at 60 characters, sometimes mid-word)
+  const description = String(screen.desc || screen.productDescription || '').trim() || [item.itemDescription1, item.itemDescription2].filter(Boolean).join(' ');
+  const generic = item.genericDescriptionOfTheItem && item.genericDescriptionOfTheItem !== item.itemDescription1 ? item.genericDescriptionOfTheItem : '';
+  const otherDuty = parseJsonObject(screen.otherDutyData);
+  const ncd = parseJsonObject(screen.ncdData);
+  const antiDumpingLabel = 'Anti-dumping Duty' + (item.cthSerialNumber || item.supplierSerialNumber
+    ? ` (CTH Sr ${item.cthSerialNumber || '-'} / Supp Sr ${item.supplierSerialNumber || '-'}${item.quantityAsPerAntiDumpingNotn ? ' / Qty ' + item.quantityAsPerAntiDumpingNotn : ''})`
+    : '');
+  const manufacturerAddress = [
+    item.itemManufacturerType && item.itemManufacturerCode ? `${item.itemManufacturerType} ${item.itemManufacturerCode}` : item.itemManufacturerCode,
+    item.itemManufacturerAddress1, item.itemManufacturerAddress2, item.itemManufacturerCity, item.itemManufacturerSubdivision, item.itemManufacturerPin,
+    country(item.itemManufacturerCntry),
+  ].filter(Boolean).join(' ');
+  const sourceTransit = `${item.sourceCountry ? 'Source ' + country(item.sourceCountry) : ''}${item.sourceCountry && item.transitCountry ? ' / ' : ''}${item.transitCountry ? 'Transit ' + country(item.transitCountry) : ''}`;
+  const previousBe = [item.previousBeNo, item.previousBeDate ? 'Dt. ' + toDmy(item.previousBeDate) : '', item.prevCustomSite, item.prevUnitPriceInvoiced ? `Unit price ${item.prevUnitPriceInvoiced} ${item.prevCurrencyCode || ''}` : ''].filter(Boolean).join(' ');
+  return (
+    <ReportBody className="tw:print:break-inside-avoid">
+      <ReportRow>
+        <Cell className="tw:pt-[6px] tw:font-bold">{item.itemSerialNumber}</Cell>
+        <Cell className="tw:pt-[6px]">{item.ritcCode}</Cell>
+        <Cell className="tw:pt-[6px]" colSpan={4}>{generic ? `(${generic}) ` : ''}{description}{item.model && item.model !== 'NA' && !description.includes(item.model) ? ` (${item.model})` : ''}</Cell>
+        <Cell align="right" className="tw:pt-[6px]">{item.svbFlag || ''}</Cell>
+      </ReportRow>
+      <ReportRow>
+        <Cell>{fixed(item.quantity, 6)}</Cell>
+        <Cell align="right">{fixed(item.unitPriceInvoiced, 6)}</Cell>
+        <Cell className="tw:pl-[8px]">{item.cth}</Cell>
+        <Cell>{item.preferentialStandard === 'P' ? 'Pref' : 'Std'}</Cell>
+        <Cell>{joinNotification(item.bcdNotification, item.bcdNotificationSrNo)}</Cell>
+        <Cell align="right">{fixed(screen.bcdRate)} %</Cell>
+        <Cell align="right">{fixed(duty.bcd)}</Cell>
+      </ReportRow>
+      <ReportRow>
+        <Cell>{item.unitQuantityCode}</Cell>
+        <Cell align="right">{fixed(duty.av)}</Cell>
+        <Cell className="tw:pl-[8px]">{item.ceth === 'NOEXCISE' ? item.cth : item.ceth}</Cell>
+        <EmptyCell />
+        <Cell>{joinNotification(item.cvdNotification, item.cvdNotificationSrNo)}</Cell>
+        <Cell align="right">0.00 %</Cell>
+        <Cell align="right">0.00</Cell>
+      </ReportRow>
+      {aidcRow && <DutyLine label="AIDC Duty (C)" notification={`${aidcRow.notificationNo} ${aidcRow.notificationSrNo}`} rate={otherDuty['Infra Cess_rate'] || 0} amount={duty.aidc || 0} />}
+      <DutyLine label="Social Welfare Surcharge" notification={joinNotification(item.socialWelfareNotn, item.socialWelfareNotnSlno)} rate={screen.swsRate || 10} amount={duty.sws} />
+      {duty.health > 0 && <DutyLine label="Health Cess" notification={joinNotification(item.healthNotn, item.healthSrNo)} rate={screen.healthCessRate} amount={duty.health} />}
+      <DutyLine label="IGST" notification={igstRow ? `${igstRow.notificationNo} ${igstRow.notificationSrNo}` : ''} rate={igstRate} amount={duty.igst} />
+      {(cessRow || duty.compCess > 0) && <DutyLine label="GST Compensation Cess" notification={cessRow ? `${cessRow.notificationNo} ${cessRow.notificationSrNo}` : ''} rate={parseJsonObject(screen.igstData).cessRate || 0} amount={duty.compCess || 0} />}
+      {item.antiDumpingDutyNotification && <DutyLine label={antiDumpingLabel} notification={joinNotification(item.antiDumpingDutyNotification, item.antiDumpingDutySerialNumber)} rate={parseJsonObject(screen.addData).rate} amount={duty.add} />}
+      {item.safeguardDutyNotn && <DutyLine label="Safeguard Duty" notification={joinNotification(item.safeguardDutyNotn, item.safeguardDutyNotnSrNo)} rate={0} amount={0} />}
+      {item.saptaNotn && <DutyLine label="SAPTA / Preferential" notification={joinNotification(item.saptaNotn, item.saptaSerialNumber)} rate={screen.saptaRate} amount={screen.saptaAmount} />}
+      {item.additionalCvdNotn && <DutyLine label="Additional CVD" notification={joinNotification(item.additionalCvdNotn, item.additionalCvdSrNo)} rate={screen.adlCvdRate} amount={screen.adlCvdAmount} />}
+      {item.ncdNotn && <DutyLine label="NCD" notification={joinNotification(item.ncdNotn, item.ncdNotnSrNo)} rate={ncd.ncdRate} amount={ncd.ncdAmount} />}
+      {item.additionalNotification1 && <DutyLine label="Additional Notn 1" notification={joinNotification(item.additionalNotification1, item.additionalNotification1SrNo)} rate={0} amount={0} />}
+      {item.additionalNotification2 && <DutyLine label="Additional Notn 2" notification={joinNotification(item.additionalNotification2, item.additionalNotification2SrNo)} rate={0} amount={0} />}
+      {item.otherNotification && <DutyLine label="Other Notn" notification={joinNotification(item.otherNotification, item.otherNotificationSrNo)} rate={0} amount={0} />}
+      {item.cusEducessNotfnNumber && <DutyLine label="Customs Edu. Cess" notification={joinNotification(item.cusEducessNotfnNumber, item.cusEducessNotfnSrNo)} rate={0} amount={0} />}
+      {item.tariffValueNotn && <TextLine label="Tariff Val Notn" text={`${joinNotification(item.tariffValueNotn, item.tariffValueItemSerialNumber)}${item.quantityAsPerTariffValueNotn ? ' / Qty ' + item.quantityAsPerTariffValueNotn : ''}`} />}
+      {item.aggregateDutyNotn && <DutyLine label="Aggregate Duty Notn" notification={joinNotification(item.aggregateDutyNotn, item.aggregateDutyNotnSrNo)} rate={0} amount={0} />}
+      {(item.discountRate || item.discountAmount) && <TextLine label="Item Discount" text={`${item.discountRate ? fixed(item.discountRate) + ' %' : ''} ${item.discountAmount ? fixed(item.discountAmount) : ''}`.trim()} />}
+      {(item.quantityAsPerCth || item.cthQty) && <TextLine label="Qty as per CTH" text={`${item.quantityAsPerCth || ''} ${item.cthQty || ''}`.trim()} />}
+      <ReportRow>
+        <Cell className="tw:font-bold">Manufacturer</Cell>
+        <Cell colSpan={3}>{String(item.manufacturerName || '').toUpperCase()}</Cell>
+        <Cell><b>Acc. Status :</b> {item.accessoryStatus}</Cell>
+        <Cell colSpan={2}><b>Country of Origin :</b> {country(item.countryOfOrigin)}</Cell>
+      </ReportRow>
+      <ReportRow>
+        <Cell className="tw:font-bold">End Use</Cell>
+        <Cell>{item.endUseOfItem}</Cell>
+        <Cell colSpan={2}><b>Brand :</b> {item.brandName}</Cell>
+        <Cell colSpan={3}><b>Model :</b> {item.model}</Cell>
+      </ReportRow>
+      {(item.itemManufacturerAddress1 || item.itemManufacturerCity || item.itemManufacturerCntry || item.itemManufacturerCode) && <TextLine label="Mfr. Address" text={manufacturerAddress} />}
+      {(item.sourceCountry || item.transitCountry) && <TextLine label="Src/Transit" text={sourceTransit} />}
+      {(item.accessoriesForTheItem || item.itemCategory) && <TextLine label="Accessories" text={[item.accessoriesForTheItem, item.itemCategory ? `Category ${item.itemCategory}` : ''].filter(Boolean).join(' / ')} />}
+      {(item.policyParaNo || item.policyYear) && <TextLine label="Policy Para" text={`${item.policyParaNo || ''} ${item.policyYear ? '(' + item.policyYear + ')' : ''}`.trim()} />}
+      {item.previousBeNo && <TextLine label="Previous BE" text={previousBe} />}
+      {(item.svbReferenceNumber || item.svbLoadAssessableValue || item.svbLoadOnDuty) && <TextLine label="SVB" text={svbText(item)} />}
+      {reimports.map((row, index) => (
+        <TextLine key={'re' + index} label="Re-import"
+          text={`SB ${row.shippingBillNo} Dt. ${toDmy(row.shippingBillDate)} ${row.portOfExport || ''}${row.invoiceNoSb ? ' Inv ' + row.invoiceNoSb : ''}${row.itemNoSb ? ' Item ' + row.itemNoSb : ''}${row.notificationNo ? ' Notn ' + joinNotification(row.notificationNo, row.notificationSrNo) : ''} | Export freight ${fixed(row.exportFreight)} Insurance ${fixed(row.exportInsurance)} Customs duty ${fixed(row.customsDuty)} Excise ${fixed(row.exciseDuty)}`} />
+      ))}
+      {rsps.map((row, index) => (
+        <TextLine key={'rsp' + index} label="RSP / MRP"
+          text={`Rs. ${fixed(row.rsp)} x ${row.quantity}${row.rspNotification ? ' Notn ' + joinNotification(row.rspNotification, row.rspNotificationSrNo) : ''} (RSP applicability ${item.rspApplicability})`} />
+      ))}
+      {depbs.map((row, index) => (
+        <TextLine key={'dp' + index} label="Scheme Exmp." text={`Exemption ${row.whetherExemption} - Notn ${joinNotification(row.bcdNotification, row.bcdNotificationSrNo)}`} />
+      ))}
+    </ReportBody>
   );
 }

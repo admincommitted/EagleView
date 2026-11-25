@@ -1,219 +1,203 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Mail, Filter, Search, FileText, IndianRupee, PieChart, CheckCircle, AlertTriangle } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, CheckCircle, Download, FileText, IndianRupee, Mail, PieChart, Search } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { cn } from '@/lib/utils';
+import { errorMessage } from '@/services/axiosInstance';
+import { Badge, Button, DataTable, Input, Tabs, TabsList, TabsTrigger } from '@/components/ui';
+import { accountsApi } from './AccountsHubParts/accountsApi';
+import { SummaryCard } from './LedgerReportParts/ReportLayout';
+import { formatAmount, todayIso } from './LedgerReportParts/format';
+import { assertSuccess, emptyOnFailure, exportSheet } from './LedgerReportParts/reportData';
+
+const NO_BUCKETS = { notDue: 0, days30: 0, days60: 0, days90: 0, over90: 0 };
+
+const REPORT_TYPES = {
+  receivable: { title: 'Accounts Receivable (A/R)', sheet: 'Receivable', icon: 'tw:bg-success', text: 'tw:text-success' },
+  payable: { title: 'Accounts Payable (A/P)', sheet: 'Payable', icon: 'tw:bg-warning', text: 'tw:text-warning' },
+};
+
+const BUCKET_CARDS = [
+  { key: 'notDue', label: 'Not Due Yet', tone: 'success' },
+  { key: 'days30', label: '0 - 30 Days', tone: 'caution' },
+  { key: 'days60', label: '31 - 60 Days', tone: 'warning' },
+  { key: 'over90', label: '> 90 Days (Critical)', tone: 'danger' },
+];
+
+const amountText = (amount) => amount.toLocaleString();
+
+const ageingBucket = (overdueDays) => {
+  if (overdueDays <= 0) return 'Not due';
+  if (overdueDays <= 30) return '1-30';
+  if (overdueDays <= 60) return '31-60';
+  return overdueDays <= 90 ? '61-90' : 'Over 90';
+};
+
+const htmlTag = (tag, content, attributes = '') => `<${tag}${attributes}>${content}</${tag}>`;
+
+function reminderHtml(bill) {
+  const rupees = (amount) => `₹ ${formatAmount(amount)}`;
+  const header = ['Reference', 'Date', 'Due date', 'Amount', 'Pending'].map((heading) => htmlTag('th', heading)).join('');
+  const values = [bill.refNo, bill.date || '-', bill.dueDate || '-', rupees(bill.amount), rupees(bill.pending)].map((value) => htmlTag('td', value)).join('');
+  return `<p>Dear ${bill.party},</p><p>Our records show the following amount outstanding:</p>`
+    + htmlTag('table', htmlTag('tr', header) + htmlTag('tr', values), ' border="1" cellpadding="6" cellspacing="0"')
+    + `<p>${bill.overdueDays > 0 ? `It is overdue by ${bill.overdueDays} day(s).` : ''} Please arrange payment.</p>`;
+}
+
+async function sendReminder(bill) {
+  const toastId = toast.loading('Sending reminder...');
+  try {
+    const ledger = await emptyOnFailure(accountsApi.ledgerReportLedger(bill.ledgerId));
+    const to = ledger.email || ledger.data?.email || '';
+    if (!to) {
+      toast.error(`No e-mail on the ledger "${bill.party}" - add one in Masters > Ledgers`, { id: toastId });
+      return;
+    }
+    assertSuccess(await accountsApi.ledgerReportSendEmail({ to, subject: `Payment reminder - ${bill.refNo}`, html: reminderHtml(bill) }));
+    toast.success(`Reminder e-mailed to ${to}`, { id: toastId });
+  } catch (error) {
+    toast.error(`Could not send: ${errorMessage(error)}`, { id: toastId });
+  }
+}
+
+function AgeingBadge({ overdueDays }) {
+  if (overdueDays <= 0) return <Badge variant="success"><CheckCircle /> Not Due</Badge>;
+  return <Badge variant={overdueDays > 90 ? 'danger' : 'warning'}><AlertTriangle /> Overdue by {overdueDays} days</Badge>;
+}
+
+const billColumns = ({ reportType, openInvoice }) => [
+  { key: 'party', header: 'Party Name', className: 'tw:font-bold tw:text-foreground' },
+  {
+    key: 'refNo',
+    header: 'Bill Ref No.',
+    cell: (bill) => (
+      <>
+        <div>{bill.refNo}</div>
+        {bill.gst && bill.voucherId && (
+          <Button size="sm" variant="secondary" className="tw:mt-1" title={`Open GST invoice ${bill.gst.invoiceNo}`} onClick={() => openInvoice(bill)}>
+            <FileText className="tw:size-3" /> Invoice{bill.gst.irn ? ' · IRN' : ''}
+          </Button>
+        )}
+      </>
+    ),
+  },
+  {
+    key: 'date',
+    header: 'Date & Due Date',
+    cell: (bill) => (
+      <>
+        <div>{bill.date}</div>
+        <div className="tw:mt-0.5 tw:text-[11px] tw:text-muted-foreground">Due: {bill.dueDate}</div>
+      </>
+    ),
+  },
+  { key: 'amount', header: 'Bill Amount (₹)', align: 'right', cell: (bill) => amountText(bill.amount) },
+  { key: 'pending', header: 'Pending (₹)', align: 'right', className: cn('tw:font-bold', REPORT_TYPES[reportType].text), cell: (bill) => amountText(bill.pending) },
+  { key: 'ageing', header: 'Ageing (Status)', align: 'center', cell: (bill) => <AgeingBadge overdueDays={bill.overdueDays} /> },
+  {
+    key: 'actions',
+    header: 'Actions',
+    align: 'center',
+    cell: (bill) => reportType === 'receivable' && bill.overdueDays > 0 && (
+      <Button size="sm" variant="success" onClick={() => sendReminder(bill)}><Mail className="tw:size-3" /> Send Reminder</Button>
+    ),
+  },
+];
 
 export default function OutstandingReports() {
-    const nav = useNavigate(); // 08-Nov-2026: open the GST invoice behind a bill
-    const [reportType, setReportType] = useState('receivable'); // 'receivable' or 'payable'
-    const [loading, setLoading] = useState(false);
-    const [data, setData] = useState([]);
-    
-    // Future Ready: Ageing Buckets
-    const [buckets, setBuckets] = useState({ notDue: 0, days30: 0, days60: 0, days90: 0, over90: 0 });
+  const navigate = useNavigate();
+  const [reportType, setReportType] = useState('receivable');
+  const [loading, setLoading] = useState(false);
+  const [bills, setBills] = useState([]);
+  const [buckets, setBuckets] = useState(NO_BUCKETS);
+  const [basis, setBasis] = useState('');
+  const today = todayIso();
 
-    useEffect(() => {
-        fetchData(reportType);
-    }, [reportType]);
-
-    // 30-Oct-2026: this listed four invented parties ("ABC Logistics Ltd. / INV/2026/101 / Rs 45,000 / 8 days
-    // overdue") that came from the code, not from the books - someone could have chased a customer over them.
-    // It now reads the real ledgers under Sundry Debtors / Sundry Creditors.
-    const auth = () => { const t = localStorage.getItem('token'); return t ? { Authorization: 'Bearer ' + t } : {}; };
-    const today = new Date().toISOString().slice(0, 10);
-    const [basis, setBasis] = useState('');
-    const fetchData = async (type) => {
-        setLoading(true);
-        try {
-            const r = await fetch(`/api/vouchers/outstanding?type=${type}&asOn=${today}`, { headers: auth() });
-            const d = await r.json();
-            if (!r.ok || d.success === false) throw new Error(d.error || ('HTTP ' + r.status));
-            setData(Array.isArray(d.data) ? d.data : []);
-            setBuckets(d.buckets || { notDue: 0, days30: 0, days60: 0, days90: 0, over90: 0 });
-            setBasis(d.note || d.basis || '');
-        } catch (e) {
-            setData([]);
-            setBuckets({ notDue: 0, days30: 0, days60: 0, days90: 0, over90: 0 });
-            toast.error('Could not load outstanding: ' + e.message);
-        }
+  useEffect(() => {
+    const loadOutstanding = async () => {
+      setLoading(true);
+      try {
+        const body = assertSuccess(await accountsApi.controlOutstanding(reportType, todayIso()));
+        setBills(Array.isArray(body.data) ? body.data : []);
+        setBuckets(body.buckets || NO_BUCKETS);
+        setBasis(body.note || body.basis || '');
+      } catch (error) {
+        setBills([]);
+        setBuckets(NO_BUCKETS);
+        toast.error(`Could not load outstanding: ${errorMessage(error)}`);
+      } finally {
         setLoading(false);
+      }
     };
+    loadOutstanding();
+  }, [reportType]);
 
-    // the reminder used to say "sent via Email & SMS" without sending anything. It sends a real e-mail to the
-    // party's ledger e-mail, and says plainly when the ledger has no e-mail on it.
-    const handleSendReminder = async (row) => {
-        const t = toast.loading('Sending reminder...');
-        try {
-            const lr = await fetch('/api/accounts/ledgers/' + row.ledgerId, { headers: auth() });
-            const led = await lr.json().catch(() => ({}));
-            const to = (led && (led.email || (led.data && led.data.email))) || '';
-            if (!to) { toast.error(`No e-mail on the ledger "${row.party}" - add one in Masters > Ledgers`, { id: t }); return; }
-            const money = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-            const html = `<p>Dear ${row.party},</p><p>Our records show the following amount outstanding:</p>`
-                + `<table border="1" cellpadding="6" cellspacing="0"><tr><th>Reference</th><th>Date</th><th>Due date</th><th>Amount</th><th>Pending</th></tr>`
-                + `<tr><td>${row.refNo}</td><td>${row.date || '-'}</td><td>${row.dueDate || '-'}</td><td>${money(row.amount)}</td><td>${money(row.pending)}</td></tr></table>`
-                + `<p>${row.overdueDays > 0 ? 'It is overdue by ' + row.overdueDays + ' day(s).' : ''} Please arrange payment.</p>`;
-            const r = await fetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() },
-                body: JSON.stringify({ to, subject: `Payment reminder - ${row.refNo}`, html }) });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok || d.success === false) throw new Error(d.error || ('HTTP ' + r.status));
-            toast.success('Reminder e-mailed to ' + to, { id: t });
-        } catch (e) {
-            toast.error('Could not send: ' + e.message, { id: t });
-        }
-    };
+  const exportExcel = async () => {
+    if (!bills.length) return toast.error('Nothing to export');
+    const rows = bills.map((bill) => ({
+      Party: bill.party,
+      Reference: bill.refNo,
+      Narration: bill.narration || '',
+      Date: bill.date || '',
+      'Due date': bill.dueDate || '',
+      Amount: bill.amount,
+      Pending: bill.pending,
+      'Overdue days': bill.overdueDays > 0 ? bill.overdueDays : 0,
+      Bucket: ageingBucket(bill.overdueDays),
+    }));
+    await exportSheet({ rows, sheetName: REPORT_TYPES[reportType].sheet, fileName: `outstanding-${reportType}-${today}.xlsx` });
+    toast.success(`${rows.length} row(s) exported`);
+  };
 
-    // Export Excel: what is on the screen, as a real .xlsx
-    const exportExcel = async () => {
-        if (!data.length) { toast.error('Nothing to export'); return; }
-        const XLSX = await import('xlsx');
-        const rows = data.map(r => ({
-            Party: r.party, Reference: r.refNo, Narration: r.narration || '', Date: r.date || '',
-            'Due date': r.dueDate || '', Amount: r.amount, Pending: r.pending,
-            'Overdue days': r.overdueDays > 0 ? r.overdueDays : 0,
-            Bucket: r.overdueDays <= 0 ? 'Not due' : r.overdueDays <= 30 ? '1-30' : r.overdueDays <= 60 ? '31-60' : r.overdueDays <= 90 ? '61-90' : 'Over 90',
-        }));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), reportType === 'receivable' ? 'Receivable' : 'Payable');
-        XLSX.writeFile(wb, `outstanding-${reportType}-${today}.xlsx`);
-        toast.success(rows.length + ' row(s) exported');
-    };
+  const openInvoice = (bill) => navigate(`/accounts-hub?item=gst${bill.gst.kind}&voucher=${bill.voucherId}`);
+  const totalPending = bills.reduce((sum, bill) => sum + bill.pending, 0);
+  const type = REPORT_TYPES[reportType];
 
-    const cardStyle = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' };
-    const thStyle = { padding: '12px 16px', textAlign: 'left', fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold', borderBottom: '2px solid #e2e8f0', background: '#f8fafc' };
-    const tdStyle = { padding: '12px 16px', fontSize: '13px', color: '#1e293b', borderBottom: '1px solid #f1f5f9' };
-
-    const totalPending = data.reduce((acc, curr) => acc + curr.pending, 0);
-
-    return (
-        <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto', fontFamily: 'Segoe UI' }}>
-            
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ background: reportType === 'receivable' ? '#10b981' : '#f59e0b', padding: '12px', borderRadius: '8px', color: '#fff' }}>
-                        <IndianRupee size={24} />
-                    </div>
-                    <div>
-                        <h2 style={{ margin: 0, fontSize: '24px', color: '#0f172a', fontWeight: 'bold' }}>
-                            {reportType === 'receivable' ? 'Accounts Receivable (A/R)' : 'Accounts Payable (A/P)'}
-                        </h2>
-                        <div style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>Bill-by-Bill Outstanding & Ageing Analysis</div>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ background: '#f1f5f9', padding: '4px', borderRadius: '8px', display: 'flex' }}>
-                        <button onClick={() => setReportType('receivable')} style={{ padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', background: reportType === 'receivable' ? '#10b981' : 'transparent', color: reportType === 'receivable' ? '#fff' : '#64748b' }}>
-                            Receivables
-                        </button>
-                        <button onClick={() => setReportType('payable')} style={{ padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', background: reportType === 'payable' ? '#f59e0b' : 'transparent', color: reportType === 'payable' ? '#fff' : '#64748b' }}>
-                            Payables
-                        </button>
-                    </div>
-                    <button onClick={exportExcel} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#334155' }}>
-                        <Download size={16}/> Export Excel
-                    </button>
-                </div>
-            </div>
-
-            {/* Ageing KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                <div style={{...cardStyle, gridColumn: 'span 2', background: '#0f172a', color: '#fff', border: 'none'}}>
-                    <div style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 'bold' }}>Total Outstanding</div>
-                    <div style={{ fontSize: '32px', fontWeight: '900', marginTop: '8px' }}>₹ {totalPending.toLocaleString()}</div>
-                    {basis ? <div style={{ fontSize: '10px', opacity: 0.85, marginTop: '4px' }} title="How the open items were worked out">{basis}</div> : null}
-                    <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <PieChart size={14}/> Across {data.length} pending bills
-                    </div>
-                </div>
-                <div style={{...cardStyle, borderTop: '4px solid #10b981'}}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>Not Due Yet</div>
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#166534', marginTop: '8px' }}>₹ {buckets.notDue.toLocaleString()}</div>
-                </div>
-                <div style={{...cardStyle, borderTop: '4px solid #facc15'}}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>0 - 30 Days</div>
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#ca8a04', marginTop: '8px' }}>₹ {buckets.days30.toLocaleString()}</div>
-                </div>
-                <div style={{...cardStyle, borderTop: '4px solid #f97316'}}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>31 - 60 Days</div>
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#c2410c', marginTop: '8px' }}>₹ {buckets.days60.toLocaleString()}</div>
-                </div>
-                <div style={{...cardStyle, borderTop: '4px solid #ef4444'}}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>&gt; 90 Days (Critical)</div>
-                    <div style={{ fontSize: '20px', fontWeight: '900', color: '#b91c1c', marginTop: '8px' }}>₹ {buckets.over90.toLocaleString()}</div>
-                </div>
-            </div>
-
-            {/* Data Table */}
-            <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                    <h3 style={{ margin: 0, fontSize: '15px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <FileText size={18} color={reportType==='receivable'?'#10b981':'#f59e0b'}/> 
-                        Bill-wise Outstanding Details
-                    </h3>
-                    <div style={{ position: 'relative' }}>
-                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '8px', color: '#94a3b8' }}/>
-                        <input type="text" placeholder="Search Party or Inv No..." style={{ padding: '6px 10px 6px 30px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '12px', outline: 'none', width: '250px' }} />
-                    </div>
-                </div>
-                
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr>
-                            <th style={thStyle}>Party Name</th>
-                            <th style={thStyle}>Bill Ref No.</th>
-                            <th style={thStyle}>Date & Due Date</th>
-                            <th style={{...thStyle, textAlign: 'right'}}>Bill Amount (₹)</th>
-                            <th style={{...thStyle, textAlign: 'right'}}>Pending (₹)</th>
-                            <th style={{...thStyle, textAlign: 'center'}}>Ageing (Status)</th>
-                            <th style={{...thStyle, textAlign: 'center'}}>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan="7" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Loading Advanced Outstanding Data...</td></tr>
-                        ) : (
-                            data.map(row => (
-                                <tr key={row.id}>
-                                    <td style={{...tdStyle, fontWeight: 'bold', color: '#0f172a'}}>{row.party}</td>
-                                    <td style={tdStyle}>
-                                        <div>{row.refNo}</div>
-                                        {row.gst && row.voucherId && (
-                                            <button onClick={() => nav('/accounts-hub?item=gst' + row.gst.kind + '&voucher=' + row.voucherId)} title={'Open GST invoice ' + row.gst.invoiceNo}
-                                                style={{ marginTop: '4px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                <FileText size={11}/> Invoice{row.gst.irn ? ' · IRN' : ''}
-                                            </button>
-                                        )}
-                                    </td>
-                                    <td style={tdStyle}>
-                                        <div>{row.date}</div>
-                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Due: {row.dueDate}</div>
-                                    </td>
-                                    <td style={{...tdStyle, textAlign: 'right'}}>{row.amount.toLocaleString()}</td>
-                                    <td style={{...tdStyle, textAlign: 'right', fontWeight: 'bold', color: reportType==='receivable'?'#059669':'#ea580c'}}>{row.pending.toLocaleString()}</td>
-                                    <td style={{...tdStyle, textAlign: 'center'}}>
-                                        {row.overdueDays <= 0 ? (
-                                            <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: '#dcfce7', color: '#166534', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={12}/> Not Due</span>
-                                        ) : (
-                                            <span style={{ padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', background: row.overdueDays > 90 ? '#fee2e2' : '#fef08a', color: row.overdueDays > 90 ? '#991b1b' : '#854d0e', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                <AlertTriangle size={12}/> Overdue by {row.overdueDays} days
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td style={{...tdStyle, textAlign: 'center'}}>
-                                        {reportType === 'receivable' && row.overdueDays > 0 && (
-                                            <button onClick={() => handleSendReminder(row)} style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', padding: '6px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                <Mail size={12}/> Send Reminder
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
+  return (
+    <div className="tw:mx-auto tw:flex tw:w-full tw:max-w-[1400px] tw:min-w-0 tw:flex-col tw:gap-6 tw:p-3 tw:md:p-6">
+      <div className="tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+        <div className="tw:flex tw:items-center tw:gap-3">
+          <div className={cn('tw:flex tw:rounded-lg tw:p-3 tw:text-primary-foreground', type.icon)}><IndianRupee className="tw:size-6" /></div>
+          <div>
+            <h2 className="tw:m-0 tw:text-2xl tw:font-bold tw:text-foreground">{type.title}</h2>
+            <div className="tw:mt-1 tw:text-[13px] tw:text-muted-foreground">Bill-by-Bill Outstanding & Ageing Analysis</div>
+          </div>
         </div>
-    );
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
+          <Tabs value={reportType} onValueChange={setReportType}>
+            <TabsList variant="pill">
+              <TabsTrigger value="receivable" className="tw:font-bold">Receivables</TabsTrigger>
+              <TabsTrigger value="payable" className="tw:font-bold">Payables</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button size="lg" onClick={exportExcel}><Download /> Export Excel</Button>
+        </div>
+      </div>
+
+      <div className="tw:grid tw:grid-cols-1 tw:gap-4 tw:sm:grid-cols-2 tw:lg:grid-cols-6">
+        <SummaryCard tone="dark" label="Total Outstanding" value={`₹ ${amountText(totalPending)}`} className="tw:sm:col-span-2">
+          {basis ? <div className="tw:text-[10px] tw:opacity-85" title="How the open items were worked out">{basis}</div> : null}
+          <div className="tw:mt-1 tw:flex tw:items-center tw:gap-1.5 tw:text-entry tw:opacity-80"><PieChart className="tw:size-3.5" /> Across {bills.length} pending bills</div>
+        </SummaryCard>
+        {BUCKET_CARDS.map((card) => (
+          <SummaryCard key={card.key} tone={card.tone} label={card.label} value={`₹ ${amountText(buckets[card.key])}`} />
+        ))}
+      </div>
+
+      <div className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:shadow-sm">
+        <div className="tw:flex tw:flex-col tw:gap-2 tw:rounded-t-lg tw:border-b tw:border-border tw:bg-page tw:px-5 tw:py-4 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+          <h3 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-[15px] tw:text-foreground">
+            <FileText className={cn('tw:size-[18px]', type.text)} /> Bill-wise Outstanding Details
+          </h3>
+          <Input data-allow-text="" leftIcon={Search} placeholder="Search Party or Inv No..." className="tw:w-full tw:md:w-[250px]" />
+        </div>
+        <DataTable
+          columns={billColumns({ reportType, openInvoice })}
+          rows={loading ? [] : bills}
+          emptyText={loading ? 'Loading Advanced Outstanding Data...' : 'No pending bills.'}
+          stickyHeader={false}
+        />
+      </div>
+    </div>
+  );
 }

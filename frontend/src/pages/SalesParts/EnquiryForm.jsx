@@ -1,246 +1,302 @@
 // Sales > enquiry form: who asks (customer or a new prospect, contact), what (service, lane, cargo, dates), the
-// quotations made from it, and closing it (lost / dropped) or reopening. 14-Nov-2026.
-import React from 'react';
+// quotations made from it, and closing it (lost / dropped) or reopening.
+import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FilePlus2, Save, XCircle, RotateCcw, Trash2 } from 'lucide-react';
-import { api, C, crore, dmy, inp, btn, Field, Section, grid, Modal, StatusChip } from './salesUi';
-import { DealChip, ENQ_STYLE, QT_STYLE } from './EnquiriesTab';
+import { RotateCcw, Save, Trash2, XCircle } from 'lucide-react';
+import { Button, DateInput, Input, Modal, NumberInput, SelectBox, Textarea } from '@/components/ui';
+import askConfirm from '@/components/common/askConfirm';
+import { salesHubApi } from './salesApi';
+import { activePersons, labelsOf, pairOptions } from './salesFormat';
+import { CheckLabel, DealBadge, FormField, FormSection } from './salesWidgets';
+import { ENQUIRY_STATUS, FORM_GRID } from './salesStyles';
+import { CloseEnquiryModal, CustomerPick, EnquiryQuotes, ProspectBox } from './EnquiryFormParts';
 
-const today = () => new Date(Date.now() + 19800000).toISOString().slice(0, 10);
-const blank = () => ({ date: today(), priority: 'NORMAL', receivedVia: 'E-mail', serviceType: '', origin: '', destination: '', customerId: null, contactId: '', isDg: false, isTemp: false });
-
-// customer / prospect search box
-function CustomerPick({ value, label, onPick, disabled }) {
-  const [text, setText] = React.useState('');
-  const [list, setList] = React.useState([]);
-  const [show, setShow] = React.useState(false);
-  React.useEffect(() => {
-    if (text.trim().length < 2) { setList([]); return undefined; }
-    const t = setTimeout(async () => { try { const d = await api('/customers?limit=15&q=' + encodeURIComponent(text.trim())); setList(d.data || []); setShow(true); } catch (e) { /* typed again */ } }, 250);
-    return () => clearTimeout(t);
-  }, [text]);
-  if (value && !show) return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-      <b style={{ fontSize: '13px' }}>{label}</b>
-      {!disabled && <button type="button" style={btn('ghost')} onClick={() => { setShow(true); setText(''); }}>Change</button>}
-    </div>
-  );
-  return (
-    <div style={{ position: 'relative' }}>
-      <input autoFocus={!!value} style={inp} placeholder="Type 2+ letters of the customer / prospect name, GSTIN, city" value={text} onChange={e => setText(e.target.value)} aria-label="Find customer" />
-      {show && list.length > 0 && (
-        <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid ' + C.line, borderRadius: '4px', boxShadow: '0 8px 20px rgba(0,0,0,.12)', maxHeight: '260px', overflow: 'auto' }}>
-          {list.map(c => (
-            <button key={c.id} type="button" onClick={() => { onPick(c); setShow(false); setText(''); }}
-              style={{ display: 'flex', width: '100%', gap: '8px', alignItems: 'center', padding: '6px 10px', border: 'none', borderBottom: '1px solid #f1f5f9', background: '#fff', cursor: 'pointer', textAlign: 'left', fontSize: '12px' }}>
-              <span style={{ flex: 1 }}>{c.name}<span style={{ color: C.mute }}>{c.city ? ', ' + c.city : ''}</span></span>
-              <StatusChip status={c.status} />
-              <span style={{ color: C.mute, fontSize: '11px' }}>{c.kamName || 'no KAM'}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const IST_OFFSET_MS = 19800000;
+const todayInIndia = () => new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
+const blankEnquiry = () => ({
+  date: todayInIndia(), priority: 'NORMAL', receivedVia: 'E-mail', serviceType: '', origin: '', destination: '', customerId: null, contactId: '', isDg: false, isTemp: false,
+});
+const CLOSED_STATUSES = ['WON', 'LOST', 'DROPPED'];
+// air chargeable weight: the higher of gross and volume weight, 1 CBM = 167 kg
+const AIR_KG_PER_CBM = 167;
+const PICK = { clearable: true, clearLabel: '-', placeholder: '-' };
 
 export default function EnquiryForm({ id, meta, deal, onClose, onSaved, openQuote }) {
-  const [e, setE] = React.useState(blank());
-  const [cust, setCust] = React.useState(null); // the customer's profile (contacts, lanes)
-  const [busy, setBusy] = React.useState(false);
-  const [prospect, setProspect] = React.useState(null); // new prospect mini form
-  const [close, setClose] = React.useState(null); // { status }
-  const [copyFrom, setCopyFrom] = React.useState(null); // list of quotations to copy charges from
-  const closed = ['WON', 'LOST', 'DROPPED'].includes(e.status);
-  const load = React.useCallback(async () => {
+  const [enquiry, setEnquiry] = useState(blankEnquiry);
+  const [profile, setProfile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [prospect, setProspect] = useState(null);
+  const [closing, setClosing] = useState(null);
+  const [copyFrom, setCopyFrom] = useState(null);
+  const closed = CLOSED_STATUSES.includes(enquiry.status);
+
+  const load = useCallback(async () => {
     if (!id) return;
-    try { const d = await api('/enquiries/' + id); setE({ ...d.data, isDg: !!d.data.isDg, isTemp: !!d.data.isTemp }); } catch (err) { toast.error(err.message); }
+    try {
+      const saved = (await salesHubApi.enquiry(id)).data;
+      setEnquiry({ ...saved, isDg: Boolean(saved.isDg), isTemp: Boolean(saved.isTemp) });
+    } catch (error) {
+      toast.error(error.message);
+    }
   }, [id]);
-  React.useEffect(() => { load(); }, [load]);
-  React.useEffect(() => {
-    if (!e.customerId) { setCust(null); return; }
-    api('/customers/' + e.customerId).then(d => setCust(d.data)).catch(() => setCust(null));
-  }, [e.customerId]);
-  const set = (k, v) => setE(o => ({ ...o, [k]: v }));
-  const air = String(e.serviceType || '').startsWith('AIR');
-  // air chargeable weight: the higher of gross and volume weight (1 CBM = 167 kg)
-  const volWt = air && Number(e.cbm) > 0 ? Math.round(Number(e.cbm) * 167 * 10) / 10 : null;
-  const pickCustomer = (c) => setE(o => ({ ...o, customerId: c.id, clientName: c.name, contactId: '', salesPersonId: o.salesPersonId || c.kamId || '' }));
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!enquiry.customerId) { setProfile(null); return; }
+    const loadProfile = async () => {
+      try {
+        setProfile((await salesHubApi.customer(enquiry.customerId)).data);
+      } catch {
+        setProfile(null);
+      }
+    };
+    loadProfile();
+  }, [enquiry.customerId]);
+
+  const set = (field, value) => setEnquiry((current) => ({ ...current, [field]: value }));
+  const air = String(enquiry.serviceType || '').startsWith('AIR');
+  const volumeWeight = air && Number(enquiry.cbm) > 0 ? Math.round(Number(enquiry.cbm) * AIR_KG_PER_CBM * 10) / 10 : null;
+  const pickCustomer = (customer) => setEnquiry((current) => ({
+    ...current, customerId: customer.id, clientName: customer.name, contactId: '', salesPersonId: current.salesPersonId || customer.kamId || '',
+  }));
+
   const save = async () => {
     setBusy(true);
     try {
-      const body = { ...e, contactId: e.contactId || null };
-      if (id) { await api('/enquiries/' + id, { method: 'PUT', body }); toast.success('Enquiry saved'); onSaved(id); load(); }
-      else { const d = await api('/enquiries', { method: 'POST', body }); toast.success('Enquiry ' + d.enquiryNo + ' saved'); onSaved(d.id); }
-    } catch (err) { toast.error(err.message); } finally { setBusy(false); }
-  };
-  const makeProspect = async () => {
-    const p = prospect || {};
-    if (!String(p.name || '').trim()) { toast.error('Type the prospect name'); return; }
-    try {
-      const contacts = p.contact ? [{ name: p.contact, email: p.email || null, mobile: p.mobile || null, isPrimary: 1 }] : [];
-      const d = await api('/customers', { method: 'POST', body: { name: p.name, status: 'PROSPECT', city: p.city || null, email: p.email || null, phone: p.mobile || null, source: 'Website / email enquiry', contacts, allowDuplicate: !!p.allowDuplicate } });
-      toast.success('Prospect added'); pickCustomer({ id: d.id, name: String(p.name).toUpperCase(), kamId: null }); setProspect(null);
-    } catch (err) {
-      if (err.duplicate) { if (window.confirm(err.error + '\n\nAdd it anyway?')) { setProspect({ ...p, allowDuplicate: true }); } } else toast.error(err.message);
+      const body = { ...enquiry, contactId: enquiry.contactId || null };
+      if (id) {
+        await salesHubApi.updateEnquiry(id, body);
+        toast.success('Enquiry saved');
+        onSaved(id);
+        load();
+      } else {
+        const saved = await salesHubApi.createEnquiry(body);
+        toast.success(`Enquiry ${saved.enquiryNo} saved`);
+        onSaved(saved.id);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
     }
   };
+
+  const addProspect = async () => {
+    const typed = prospect || {};
+    if (!String(typed.name || '').trim()) { toast.error('Type the prospect name'); return; }
+    try {
+      const contacts = typed.contact ? [{ name: typed.contact, email: typed.email || null, mobile: typed.mobile || null, isPrimary: 1 }] : [];
+      const saved = await salesHubApi.createCustomer({
+        name: typed.name, status: 'PROSPECT', city: typed.city || null, email: typed.email || null, phone: typed.mobile || null,
+        source: 'Website / email enquiry', contacts, allowDuplicate: Boolean(typed.allowDuplicate),
+      });
+      toast.success('Prospect added');
+      pickCustomer({ id: saved.id, name: String(typed.name).toUpperCase(), kamId: null });
+      setProspect(null);
+    } catch (error) {
+      if (!error.duplicate) { toast.error(error.message); return; }
+      if (await askConfirm({ title: 'Possible duplicate', message: `${error.error}\n\nAdd it anyway?`, okLabel: 'Add anyway', tone: 'warn' })) {
+        setProspect({ ...typed, allowDuplicate: true });
+      }
+    }
+  };
+
   const makeQuote = async (copyFromId) => {
     setBusy(true);
-    try { const d = await api('/quotes', { method: 'POST', body: { enquiryId: id, copyFromId: copyFromId || null } }); toast.success('Quotation ' + d.quoteNo + ' made'); setCopyFrom(null); onSaved(id); load(); openQuote(d.id); }
-    catch (err) { toast.error(err.message); } finally { setBusy(false); }
+    try {
+      const made = await salesHubApi.createQuote(id, copyFromId);
+      toast.success(`Quotation ${made.quoteNo} made`);
+      setCopyFrom(null);
+      onSaved(id);
+      load();
+      openQuote(made.id);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
   };
+
   const loadCopy = async () => {
-    try { const p = new URLSearchParams({ customerId: e.customerId || '', service: e.serviceType || '', origin: e.origin || '', destination: e.destination || '' }); const d = await api('/quotes-to-copy?' + p.toString()); setCopyFrom(d.data || []); }
-    catch (err) { toast.error(err.message); }
+    try {
+      const match = { customerId: enquiry.customerId || '', service: enquiry.serviceType || '', origin: enquiry.origin || '', destination: enquiry.destination || '' };
+      setCopyFrom((await salesHubApi.quotesToCopy(match)).data || []);
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
+
   const setStatus = async (status, reason, lostTo) => {
-    try { await api('/enquiries/' + id + '/status', { method: 'POST', body: { status, reason, lostTo } }); toast.success(status === 'OPEN' ? 'Enquiry reopened' : 'Enquiry closed'); setClose(null); onSaved(id); load(); }
-    catch (err) { toast.error(err.message); }
+    try {
+      await salesHubApi.setEnquiryStatus(id, { status, reason, lostTo });
+      toast.success(status === 'OPEN' ? 'Enquiry reopened' : 'Enquiry closed');
+      setClosing(null);
+      onSaved(id);
+      load();
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
-  const del = async () => {
-    if (!window.confirm('Delete enquiry ' + e.enquiryNo + '?')) return;
-    try { await api('/enquiries/' + id, { method: 'DELETE' }); toast.success('Enquiry deleted'); onSaved(null); onClose(); } catch (err) { toast.error(err.message); }
+
+  const remove = async () => {
+    if (!await askConfirm({ title: 'Delete enquiry', message: `Delete enquiry ${enquiry.enquiryNo}?`, okLabel: 'Delete', tone: 'danger' })) return;
+    try {
+      await salesHubApi.deleteEnquiry(id);
+      toast.success('Enquiry deleted');
+      onSaved(null);
+      onClose();
+    } catch (error) {
+      toast.error(error.message);
+    }
   };
-  const persons = (meta.persons || []).filter(p => p.isActive !== 0);
-  const contacts = (cust && cust.contacts || []).filter(c => c.isActive !== 0);
-  const dis = closed || busy;
-  const I = (k, props = {}) => <input style={inp} value={e[k] ?? ''} disabled={dis} onChange={ev => set(k, props.upper ? ev.target.value.toUpperCase() : ev.target.value)} {...props} upper={undefined} />;
-  const N = (k, props = {}) => <input style={inp} type="number" min="0" step="any" value={e[k] ?? ''} disabled={dis} onChange={ev => set(k, ev.target.value)} {...props} />;
-  const footer = <>
-    {id && !closed && <button type="button" style={btn('danger')} onClick={() => setClose({ status: 'LOST' })}><XCircle size={13} /> Lost / dropped</button>}
-    {id && closed && e.status !== 'WON' && <button type="button" style={btn()} onClick={() => setStatus('OPEN')}><RotateCcw size={13} /> Reopen</button>}
-    {id && !closed && !(e.quotes || []).length && <button type="button" style={btn('danger')} onClick={del}><Trash2 size={13} /> Delete</button>}
-    <span style={{ flex: 1 }} />
-    <button type="button" style={btn()} onClick={onClose}>Close</button>
-    {!closed && <button type="button" style={btn('primary')} disabled={busy} onClick={save}><Save size={13} /> {busy ? 'Saving…' : 'Save enquiry'}</button>}
-  </>;
+
+  const locked = closed || busy;
+  const contacts = (profile?.contacts || []).filter((contact) => contact.isActive !== 0);
+  const text = (field, { upper, ...props } = {}) => (
+    <Input value={enquiry[field] ?? ''} disabled={locked} onChange={(event) => set(field, upper ? event.target.value.toUpperCase() : event.target.value)} {...props} />
+  );
+  const number = (field) => <NumberInput value={enquiry[field]} disabled={locked} onValueChange={(value) => set(field, value)} />;
+  const date = (field) => <DateInput value={enquiry[field] || ''} disabled={locked} onValueChange={(value) => set(field, value)} />;
+  const select = (field, options, extra = PICK) => <SelectBox {...extra} value={enquiry[field] || ''} disabled={locked} onValueChange={(value) => set(field, value)} options={options} />;
+  const cargoCurrencies = [...new Set([...(meta.currencies || []), 'INR'])];
+
+  const footer = (
+    <>
+      {id && !closed && <Button variant="destructive" onClick={() => setClosing({ status: 'LOST' })}><XCircle /> Lost / dropped</Button>}
+      {id && closed && enquiry.status !== 'WON' && <Button onClick={() => setStatus('OPEN')}><RotateCcw /> Reopen</Button>}
+      {id && !closed && !(enquiry.quotes || []).length && <Button variant="destructive" onClick={remove}><Trash2 /> Delete</Button>}
+      <span className="tw:flex-1" />
+      <Button onClick={onClose}>Close</Button>
+      {!closed && <Button variant="default" disabled={busy} onClick={save}><Save /> {busy ? 'Saving…' : 'Save enquiry'}</Button>}
+    </>
+  );
+
   return (
-    <Modal title={id ? `Enquiry ${e.enquiryNo || ''}` : 'New enquiry'} onClose={onClose} width={1040} footer={footer}>
-      {id && <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
-        <DealChip status={e.status} map={ENQ_STYLE} labels={Object.fromEntries((deal.enquiryStatus || []).map(s => [s[0], s[1]]))} />
-        {e.lostReason && <span style={{ color: C.mute }}>{e.lostReason}{e.lostTo ? ' (to ' + e.lostTo + ')' : ''}</span>}
-      </div>}
-      <Section title="Customer">
-        <div style={grid(220)}>
-          <Field label="Customer / prospect *" span={2}>
-            <CustomerPick value={e.customerId} label={e.clientName} onPick={pickCustomer} disabled={dis} />
-            {!e.customerId && !prospect && <button type="button" style={{ ...btn('ghost'), padding: '4px 0' }} onClick={() => setProspect({})}>+ New prospect (not in the list)</button>}
-          </Field>
-          {e.customerId && <Field label="Contact">
-            <select style={inp} value={e.contactId || ''} disabled={dis} onChange={ev => set('contactId', ev.target.value)}>
-              <option value="">{contacts.length ? '- pick -' : 'none on the profile - type below'}</option>
-              {contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.designation ? ' (' + c.designation + ')' : ''}</option>)}
-            </select>
-          </Field>}
-          {e.customerId && !e.contactId && <><Field label="Contact name">{I('contactPerson')}</Field><Field label="E-mail">{I('email')}</Field><Field label="Phone">{I('phone')}</Field></>}
-        </div>
-        {prospect && (
-          <div style={{ marginTop: '8px', padding: '8px', border: '1px dashed ' + C.line, borderRadius: '6px', background: C.soft }}>
-            <div style={grid(180)}>
-              <Field label="Prospect name *"><input style={inp} value={prospect.name || ''} onChange={ev => setProspect({ ...prospect, name: ev.target.value })} /></Field>
-              <Field label="City"><input style={inp} value={prospect.city || ''} onChange={ev => setProspect({ ...prospect, city: ev.target.value })} /></Field>
-              <Field label="Contact person"><input style={inp} value={prospect.contact || ''} onChange={ev => setProspect({ ...prospect, contact: ev.target.value })} /></Field>
-              <Field label="E-mail"><input style={inp} value={prospect.email || ''} onChange={ev => setProspect({ ...prospect, email: ev.target.value })} /></Field>
-              <Field label="Mobile"><input style={inp} value={prospect.mobile || ''} onChange={ev => setProspect({ ...prospect, mobile: ev.target.value })} /></Field>
-            </div>
-            <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-              <button type="button" style={btn('primary')} onClick={makeProspect}>Add prospect</button>
-              <button type="button" style={btn()} onClick={() => setProspect(null)}>Cancel</button>
-              <span style={{ fontSize: '11px', color: C.mute, alignSelf: 'center' }}>Saved in Customers &amp; prospects; complete its profile there later.</span>
-            </div>
-          </div>
-        )}
-      </Section>
-      <Section title="Enquiry">
-        <div style={grid(170)}>
-          <Field label="Date">{I('date', { type: 'date' })}</Field>
-          <Field label="Received by"><select style={inp} value={e.receivedVia || ''} disabled={dis} onChange={ev => set('receivedVia', ev.target.value)}>{(deal.via || []).map(v => <option key={v}>{v}</option>)}</select></Field>
-          <Field label="Quote by" hint="When the customer wants the rates">{I('quoteBy', { type: 'date' })}</Field>
-          <Field label="Priority"><select style={inp} value={e.priority || 'NORMAL'} disabled={dis} onChange={ev => set('priority', ev.target.value)}>{(deal.priority || []).map(p => <option key={p[0]} value={p[0]}>{p[1]}</option>)}</select></Field>
-          <Field label="Sales person" hint="Blank = the customer's KAM">
-            <select style={inp} value={e.salesPersonId || ''} disabled={dis} onChange={ev => set('salesPersonId', ev.target.value)}><option value="">-</option>{persons.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-          </Field>
-          <Field label="Branch"><select style={inp} value={e.branchCode || ''} disabled={dis} onChange={ev => set('branchCode', ev.target.value)}><option value="">(customer's)</option>{(meta.branches || []).map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select></Field>
-        </div>
-      </Section>
-      <Section title="Shipment">
-        <div style={grid(170)}>
-          <Field label="Service *"><select style={inp} value={e.serviceType || ''} disabled={dis} onChange={ev => set('serviceType', ev.target.value)}><option value="">- pick -</option>{(meta.services || []).map(s => <option key={s[0]} value={s[0]}>{s[1]}</option>)}</select></Field>
-          <Field label={String(e.serviceType || '').startsWith('CUSTOMS') ? 'Port of clearance *' : 'Origin *'}>{I('origin', { upper: true, placeholder: 'City / port / airport' })}</Field>
-          <Field label="Destination">{I('destination', { upper: true, placeholder: 'City / port / airport' })}</Field>
-          <Field label="Incoterm"><select style={inp} value={e.incoterms || ''} disabled={dis} onChange={ev => set('incoterms', ev.target.value)}><option value="">-</option>{(meta.incoterms || []).map(t => <option key={t}>{t}</option>)}</select></Field>
-          <Field label="Commodity" span={2}>{I('commodity')}</Field>
-          <Field label="HS code">{I('hsCode')}</Field>
-          <Field label="Cargo ready">{I('readinessDate', { type: 'date' })}</Field>
-          <Field label="Frequency" hint="e.g. one-off, 2 per month">{I('frequency')}</Field>
-          <Field label="Pick-up at">{I('pickupAt')}</Field>
-          <Field label="Deliver to">{I('deliveryAt')}</Field>
-        </div>
-      </Section>
-      <Section title="Cargo">
-        <div style={grid(140)}>
-          <Field label="Packages">{N('pkgs')}</Field>
-          <Field label="Gross wt (kg)">{N('grossWt')}</Field>
-          <Field label="Volume (CBM)">{N('cbm')}</Field>
-          <Field label="Chargeable wt (kg)" hint={volWt ? `Volume wt ${volWt} kg` : undefined}>
-            <div style={{ display: 'flex', gap: '4px' }}>{N('chargeableWt')}{air && !dis && <button type="button" style={btn()} title="Higher of gross and volume weight" onClick={() => set('chargeableWt', Math.max(Number(e.grossWt) || 0, volWt || 0) || '')}>Calc</button>}</div>
-          </Field>
-          <Field label={/_FCL$/.test(e.serviceType || '') ? 'Containers *' : 'Containers'} hint="e.g. 2x40HC, 1x20GP">{I('containers', { upper: true })}</Field>
-          <Field label="Cargo value">{N('cargoValue')}</Field>
-          <Field label="Currency"><select style={inp} value={e.cargoCurrency || ''} disabled={dis} onChange={ev => set('cargoCurrency', ev.target.value)}><option value="">-</option>{(meta.currencies || []).map(c => <option key={c}>{c}</option>)}<option>INR</option></select></Field>
-          <Field label="Special">
-            <label style={{ fontSize: '12px', display: 'flex', gap: '6px' }}><input type="checkbox" disabled={dis} checked={!!e.isDg} onChange={ev => set('isDg', ev.target.checked)} /> Dangerous goods</label>
-            <label style={{ fontSize: '12px', display: 'flex', gap: '6px' }}><input type="checkbox" disabled={dis} checked={!!e.isTemp} onChange={ev => set('isTemp', ev.target.checked)} /> Temperature controlled</label>
-          </Field>
-          <Field label="Target rate" hint="As told by the customer">{I('targetRate')}</Field>
-          <Field label="Competitor quoting">{I('competitor')}</Field>
-          <Field label="Remarks" span={3}><textarea style={{ ...inp, minHeight: '44px' }} value={e.remarks || ''} disabled={dis} onChange={ev => set('remarks', ev.target.value)} /></Field>
-        </div>
-      </Section>
+    <Modal open onClose={onClose} title={id ? `Enquiry ${enquiry.enquiryNo || ''}` : 'New enquiry'} width={1040} footer={footer}>
       {id && (
-        <Section title="Quotations" right={!closed && <>
-          <button type="button" style={btn()} disabled={busy} onClick={loadCopy}>Copy charges from…</button>
-          <button type="button" style={btn('primary')} disabled={busy} onClick={() => makeQuote(null)}><FilePlus2 size={13} /> Make quotation</button>
-        </>}>
-          {(e.quotes || []).length === 0 ? <div style={{ fontSize: '12px', color: C.mute }}>No quotation yet. Save the enquiry, then "Make quotation".</div> : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}><tbody>
-              {(e.quotes || []).map(qq => (
-                <tr key={qq.id} onClick={() => openQuote(qq.id)} style={{ cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '5px 6px', fontWeight: 600, color: C.accent }}>{qq.quoteNo}</td>
-                  <td style={{ padding: '5px 6px' }}>{dmy(qq.date)}</td>
-                  <td style={{ padding: '5px 6px' }}>valid {dmy(qq.validUntil)}</td>
-                  <td style={{ padding: '5px 6px', textAlign: 'right' }}>{crore(qq.totalSellInr)}</td>
-                  <td style={{ padding: '5px 6px', textAlign: 'right', color: Number(qq.marginPct) < (deal.marginWarnPct || 10) ? C.red : C.green }}>{qq.marginPct != null ? qq.marginPct + '%' : ''}</td>
-                  <td style={{ padding: '5px 6px' }}><DealChip status={qq.status} map={QT_STYLE} labels={Object.fromEntries((deal.quoteStatus || []).map(s => [s[0], s[1]]))} /></td>
-                  <td style={{ padding: '5px 6px', color: C.mute }}>{qq.docketNo || ''}</td>
-                </tr>
-              ))}
-            </tbody></table>
-          )}
-          {copyFrom && (
-            <div style={{ marginTop: '8px', border: '1px solid ' + C.line, borderRadius: '6px', maxHeight: '220px', overflow: 'auto' }}>
-              {copyFrom.length === 0 ? <div style={{ padding: '8px', fontSize: '12px', color: C.mute }}>No other quotation to copy from.</div> : copyFrom.map(c => (
-                <button key={c.id} type="button" onClick={() => makeQuote(c.id)} style={{ display: 'flex', gap: '8px', width: '100%', padding: '6px 8px', border: 'none', borderBottom: '1px solid #f1f5f9', background: '#fff', cursor: 'pointer', fontSize: '12px', textAlign: 'left' }}>
-                  <b>{c.quoteNo}</b><span>{c.clientName}</span><span style={{ color: C.mute }}>{c.serviceLabel}, {[c.origin, c.destination].filter(Boolean).join(' > ')}</span><span style={{ marginLeft: 'auto' }}>{crore(c.totalSellInr)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </Section>
+        <div className="tw:mb-2 tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:text-entry">
+          <DealBadge status={enquiry.status} variants={ENQUIRY_STATUS} labels={labelsOf(deal.enquiryStatus)} />
+          {enquiry.lostReason && <span className="tw:text-muted-foreground">{enquiry.lostReason}{enquiry.lostTo ? ` (to ${enquiry.lostTo})` : ''}</span>}
+        </div>
       )}
-      {close && (
-        <Modal title={'Close enquiry ' + e.enquiryNo} onClose={() => setClose(null)} width={460} footer={<>
-          <button type="button" style={btn()} onClick={() => setClose(null)}>Cancel</button>
-          <button type="button" style={btn('danger')} onClick={() => setStatus(close.status, close.reason, close.lostTo)}>Close as {close.status === 'LOST' ? 'lost' : 'dropped'}</button>
-        </>}>
-          <div style={grid(200)}>
-            <Field label="Closed as"><select style={inp} value={close.status} onChange={ev => setClose({ ...close, status: ev.target.value })}><option value="LOST">Lost (went elsewhere)</option><option value="DROPPED">Dropped (no shipment)</option></select></Field>
-            <Field label="Reason *"><select style={inp} value={close.reason || ''} onChange={ev => setClose({ ...close, reason: ev.target.value })}><option value="">- pick -</option>{((meta.lookups || {}).LOST_REASON || []).filter(r => r.isActive !== 0).map(r => <option key={r.id}>{r.value}</option>)}</select></Field>
-            {close.status === 'LOST' && <Field label="Lost to (competitor)"><input style={inp} value={close.lostTo || ''} onChange={ev => setClose({ ...close, lostTo: ev.target.value })} /></Field>}
-          </div>
-          <div style={{ fontSize: '11px', color: C.mute, marginTop: '6px' }}>Open quotations of this enquiry are marked lost too.</div>
-        </Modal>
+
+      <FormSection title="Customer">
+        <div className={FORM_GRID.wide}>
+          <FormField label="Customer / prospect" required span={2}>
+            <div className="tw:flex tw:w-full tw:min-w-0 tw:flex-col tw:items-start tw:gap-1">
+              <CustomerPick customerId={enquiry.customerId} label={enquiry.clientName} onPick={pickCustomer} disabled={locked} />
+              {!enquiry.customerId && !prospect && <Button variant="link" onClick={() => setProspect({})}>+ New prospect (not in the list)</Button>}
+            </div>
+          </FormField>
+          {enquiry.customerId && (
+            <FormField label="Contact">
+              <SelectBox
+                clearable
+                clearLabel={contacts.length ? '- pick -' : 'none on the profile - type below'}
+                placeholder={contacts.length ? '- pick -' : 'none on the profile - type below'}
+                value={enquiry.contactId || ''}
+                disabled={locked}
+                onValueChange={(value) => set('contactId', value)}
+                options={contacts.map((contact) => ({ value: contact.id, label: `${contact.name}${contact.designation ? ` (${contact.designation})` : ''}` }))}
+              />
+            </FormField>
+          )}
+          {enquiry.customerId && !enquiry.contactId && (
+            <>
+              <FormField label="Contact name">{text('contactPerson')}</FormField>
+              <FormField label="E-mail">{text('email')}</FormField>
+              <FormField label="Phone">{text('phone')}</FormField>
+            </>
+          )}
+        </div>
+        {prospect && <ProspectBox prospect={prospect} onChange={setProspect} onAdd={addProspect} onCancel={() => setProspect(null)} />}
+      </FormSection>
+
+      <FormSection title="Enquiry">
+        <div className={FORM_GRID.normal}>
+          <FormField label="Date">{date('date')}</FormField>
+          <FormField label="Received by">{select('receivedVia', deal.via || [], {})}</FormField>
+          <FormField label="Quote by" note="When the customer wants the rates">{date('quoteBy')}</FormField>
+          <FormField label="Priority">
+            <SelectBox value={enquiry.priority || 'NORMAL'} disabled={locked} onValueChange={(value) => set('priority', value)} options={pairOptions(deal.priority)} />
+          </FormField>
+          <FormField label="Sales person" note="Blank = the customer's KAM">
+            {select('salesPersonId', activePersons(meta).map((person) => ({ value: person.id, label: person.name })))}
+          </FormField>
+          <FormField label="Branch">
+            {select('branchCode', (meta.branches || []).map((branch) => ({ value: branch.code, label: `${branch.code} - ${branch.name}` })), { clearable: true, clearLabel: "(customer's)", placeholder: "(customer's)" })}
+          </FormField>
+        </div>
+      </FormSection>
+
+      <FormSection title="Shipment">
+        <div className={FORM_GRID.normal}>
+          <FormField label="Service" required>{select('serviceType', pairOptions(meta.services), { clearable: true, clearLabel: '- pick -', placeholder: '- pick -' })}</FormField>
+          <FormField label={String(enquiry.serviceType || '').startsWith('CUSTOMS') ? 'Port of clearance' : 'Origin'} required>
+            {text('origin', { upper: true, placeholder: 'City / port / airport' })}
+          </FormField>
+          <FormField label="Destination">{text('destination', { upper: true, placeholder: 'City / port / airport' })}</FormField>
+          <FormField label="Incoterm">{select('incoterms', meta.incoterms || [])}</FormField>
+          <FormField label="Commodity" span={2}>{text('commodity')}</FormField>
+          <FormField label="HS code">{text('hsCode')}</FormField>
+          <FormField label="Cargo ready">{date('readinessDate')}</FormField>
+          <FormField label="Frequency" note="e.g. one-off, 2 per month">{text('frequency')}</FormField>
+          <FormField label="Pick-up at">{text('pickupAt')}</FormField>
+          <FormField label="Deliver to">{text('deliveryAt')}</FormField>
+        </div>
+      </FormSection>
+
+      <FormSection title="Cargo">
+        <div className={FORM_GRID.narrow}>
+          <FormField label="Packages">{number('pkgs')}</FormField>
+          <FormField label="Gross wt (kg)">{number('grossWt')}</FormField>
+          <FormField label="Volume (CBM)">{number('cbm')}</FormField>
+          <FormField label="Chargeable wt (kg)" note={volumeWeight ? `Volume wt ${volumeWeight} kg` : undefined}>
+            {number('chargeableWt')}
+            {air && !locked && (
+              <Button title="Higher of gross and volume weight" onClick={() => set('chargeableWt', Math.max(Number(enquiry.grossWt) || 0, volumeWeight || 0) || '')}>Calc</Button>
+            )}
+          </FormField>
+          <FormField label="Containers" required={/_FCL$/.test(enquiry.serviceType || '')} note="e.g. 2x40HC, 1x20GP">{text('containers', { upper: true })}</FormField>
+          <FormField label="Cargo value">{number('cargoValue')}</FormField>
+          <FormField label="Currency">{select('cargoCurrency', cargoCurrencies)}</FormField>
+          <FormField label="Special">
+            <div className="tw:flex tw:flex-col tw:gap-1">
+              <CheckLabel disabled={locked} checked={enquiry.isDg} onCheckedChange={(checked) => set('isDg', checked)}>Dangerous goods</CheckLabel>
+              <CheckLabel disabled={locked} checked={enquiry.isTemp} onCheckedChange={(checked) => set('isTemp', checked)}>Temperature controlled</CheckLabel>
+            </div>
+          </FormField>
+          <FormField label="Target rate" note="As told by the customer">{text('targetRate', { 'data-allow-text': '' })}</FormField>
+          <FormField label="Competitor quoting">{text('competitor')}</FormField>
+          <FormField label="Remarks" span={3}>
+            <Textarea value={enquiry.remarks || ''} disabled={locked} onChange={(event) => set('remarks', event.target.value)} />
+          </FormField>
+        </div>
+      </FormSection>
+
+      {id && (
+        <EnquiryQuotes
+          enquiry={enquiry}
+          deal={deal}
+          closed={closed}
+          busy={busy}
+          copyFrom={copyFrom}
+          onLoadCopy={loadCopy}
+          onMakeQuote={makeQuote}
+          onOpenQuote={openQuote}
+        />
+      )}
+
+      {closing && (
+        <CloseEnquiryModal
+          enquiryNo={enquiry.enquiryNo}
+          closing={closing}
+          meta={meta}
+          onChange={setClosing}
+          onCancel={() => setClosing(null)}
+          onClose={() => setStatus(closing.status, closing.reason, closing.lostTo)}
+        />
       )}
     </Modal>
   );

@@ -1,93 +1,168 @@
-// 04-Nov-2026: Accounts search (Ctrl+K anywhere): screens and reports, ledgers (name / GSTIN / PAN) and vouchers
-// (number, bill / cheque ref, job no, narration or exact amount). Arrow keys + Enter to open.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+// Accounts search: screens and reports, ledgers (name / GSTIN / PAN) and vouchers (number, bill / cheque ref, job no,
+// narration or exact amount). Arrow keys + Enter to open.
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, BookUser, FileText, CornerDownLeft, X } from 'lucide-react';
+import { BookUser, CornerDownLeft, FileText, X } from 'lucide-react';
+import {
+  Button, Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  Dialog, DialogContent, DialogDescription, DialogTitle,
+} from '@/components/ui';
+import axiosInstance from '@/services/axiosInstance';
 import { canOpen } from '../../utils/permissions';
 import { ALL_ITEMS, hrefOf } from './menu';
-import { T, inr, fmtDate, api } from './ui';
+import { inr, fmtDate } from './ui';
 
-export default function CommandSearch({ open, onClose, initial = '' }) {
-  const [q, setQ] = useState(initial);
-  const [data, setData] = useState({ ledgers: [], vouchers: [] });
-  const [sel, setSel] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const nav = useNavigate();
-  const inRef = useRef(null);
-  const listRef = useRef(null);
+const EMPTY_RESULTS = { ledgers: [], vouchers: [] };
+const SEARCH_DELAY_MS = 220;
+const MIN_SEARCH_LENGTH = 2;
+const DEFAULT_SCREEN_IDS = ['receipt', 'payment', 'journal', 'trade', 'tb', 'ledger', 'partybal', 'monthclosing'];
+const LEDGER_COLOUR = '#0369a1';
+const VOUCHER_COLOUR = '#0d9488';
 
-  useEffect(() => { if (open) { setQ(initial); setSel(0); setTimeout(() => inRef.current && inRef.current.focus(), 30); } }, [open]);
-  useEffect(() => {
-    const t = q.trim();
-    if (!open || t.length < 2) { setData({ ledgers: [], vouchers: [] }); return; }
-    setBusy(true);
-    const h = setTimeout(() => api('/api/accounts-hub/search?q=' + encodeURIComponent(t)).then(setData).catch(() => setData({ ledgers: [], vouchers: [] })).finally(() => setBusy(false)), 220);
-    return () => clearTimeout(h);
-  }, [q, open]);
+const RESULT_GROUPS = [
+  { kind: 'screen', title: 'Screens and reports' },
+  { kind: 'ledger', title: 'Ledgers' },
+  { kind: 'voucher', title: 'Vouchers' },
+];
 
-  const screens = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    const ok = ALL_ITEMS.filter(i => canOpen(hrefOf(i).split('?')[0]));
-    if (!t) return ok.filter(i => ['receipt', 'payment', 'journal', 'trade', 'tb', 'ledger', 'partybal', 'monthclosing'].includes(i.id));
-    return ok.filter(i => (i.label + ' ' + (i.keywords || '') + ' ' + i.section.title + ' ' + i.desc).toLowerCase().includes(t)).slice(0, 8);
-  }, [q]);
+const HINTS = ['Up / Down to move', 'Enter to open', 'Esc to close'];
 
-  const rows = useMemo(() => [
-    ...screens.map(i => ({ kind: 'screen', key: 's' + i.id, title: i.label, sub: i.section.title + ' - ' + i.desc, color: i.section.color, Icon: i.section.icon, go: hrefOf(i) })),
-    ...data.ledgers.map(l => ({ kind: 'ledger', key: 'l' + l.id, title: l.name, sub: [l.groupName, l.gstin].filter(Boolean).join(' - '), color: '#0369a1', Icon: BookUser, go: '/accounts-hub?item=ledger&ledger=' + l.id })),
-    ...data.vouchers.map(v => ({ kind: 'voucher', key: 'v' + v.id, title: `${v.typeName} ${v.voucherNumber}`, sub: [fmtDate(v.date), v.refNo, v.jobNo].filter(Boolean).join(' - '), amount: v.totalAmount, color: '#0d9488', Icon: FileText, go: '/accounts-hub?item=' + deskOf(v.baseType) + '&voucher=' + v.id })),
-  ], [screens, data]);
-  useEffect(() => { if (sel >= rows.length) setSel(0); }, [rows.length]);
+const searchAccounts = async (text) => {
+  const { data } = await axiosInstance.get('/accounts-hub/search', { params: { q: text } });
+  if (data.success === false) throw new Error(data.error || data.message);
+  return { ledgers: data.ledgers || [], vouchers: data.vouchers || [] };
+};
 
-  if (!open) return null;
-  const go = (r) => { onClose(); nav(r.go); };
-  const key = (e) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(rows.length - 1, s + 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(0, s - 1)); }
-    else if (e.key === 'Enter' && rows[sel]) { e.preventDefault(); go(rows[sel]); }
-    else if (e.key === 'Escape') onClose();
-  };
-  const groups = [['screen', 'Screens and reports'], ['ledger', 'Ledgers'], ['voucher', 'Vouchers']];
-  let idx = -1;
+const GROUP_HEADING_CLASS = 'tw:p-0 tw:[&_[cmdk-group-heading]]:border-y tw:[&_[cmdk-group-heading]]:border-border tw:[&_[cmdk-group-heading]]:bg-accent tw:[&_[cmdk-group-heading]]:px-4 tw:[&_[cmdk-group-heading]]:py-1 tw:[&_[cmdk-group-heading]]:text-[11px] tw:[&_[cmdk-group-heading]]:font-extrabold tw:[&_[cmdk-group-heading]]:text-head';
+
+const SEARCH_BOX_CLASS = 'tw:**:data-[slot=command-input-wrapper]:h-8 tw:**:data-[slot=command-input-wrapper]:flex-1 tw:**:data-[slot=command-input-wrapper]:rounded-md tw:**:data-[slot=command-input-wrapper]:border tw:**:data-[slot=command-input-wrapper]:border-white/40 tw:**:data-[slot=command-input-wrapper]:bg-background tw:**:data-[slot=command-input-wrapper]:px-2.5 tw:**:data-[slot=command-input-wrapper]:text-foreground';
+
+function ResultRow({ row, onOpen }) {
+  const RowIcon = row.Icon;
   return (
-    <div onMouseDown={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(2px)', zIndex: 3000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '9vh' }}>
-      <div onMouseDown={e => e.stopPropagation()} style={{ width: 640, maxWidth: 'calc(100vw - 24px)', background: T.panel, borderRadius: 8, overflow: 'hidden', boxShadow: '0 30px 60px -15px rgba(15,23,42,0.45)', border: '1px solid #94a3b8' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: T.grad }}>
-          <Search size={18} color="#fff" />
-          <input ref={inRef} value={q} onChange={e => { setQ(e.target.value); setSel(0); }} onKeyDown={key}
-            placeholder="Search a screen, ledger, GSTIN, voucher no, bill no, job no or amount"
-            style={{ flex: 1, border: '1px solid rgba(255,255,255,0.4)', borderRadius: 6, outline: 'none', fontSize: 13, background: '#fff', color: T.text, height: 32, padding: '0 10px' }} />
-          {busy && <span style={{ fontSize: 11, color: '#fff' }}>Searching</span>}
-          <span onClick={onClose} style={{ cursor: 'pointer', color: '#fff', display: 'flex' }}><X size={16} /></span>
-        </div>
-        <div ref={listRef} style={{ maxHeight: '56vh', overflowY: 'auto', padding: '6px 0' }}>
-          {groups.map(([k, title]) => {
-            const g = rows.filter(r => r.kind === k);
-            if (!g.length) return null;
-            return (
-              <div key={k}>
-                <div style={{ padding: '5px 16px', fontSize: 11, fontWeight: 800, color: T.head, background: T.headBg, borderTop: `1px solid ${T.headBorder}`, borderBottom: `1px solid ${T.headBorder}` }}>{title}</div>
-                {g.map(r => { idx++; const i = idx; const on = i === sel; const I = r.Icon; return (
-                  <div key={r.key} onMouseEnter={() => setSel(i)} onClick={() => go(r)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', cursor: 'pointer', background: on ? T.headBg : 'transparent', borderLeft: `3px solid ${on ? r.color : 'transparent'}` }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: r.color + '18', color: r.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 28px' }}><I size={15} /></div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
-                      <div style={{ fontSize: 11, color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.sub}</div>
-                    </div>
-                    {r.amount != null && <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{inr(r.amount)}</span>}
-                    {on && <CornerDownLeft size={14} color={T.muted} />}
-                  </div>); })}
-              </div>
-            );
-          })}
-          {!rows.length && <div style={{ padding: 24, textAlign: 'center', fontSize: 12.5, color: T.muted }}>{q.trim().length < 2 ? 'Type at least 2 letters' : 'Nothing matches "' + q + '"'}</div>}
-        </div>
-        <div style={{ display: 'flex', gap: 14, padding: '8px 16px', borderTop: `1px solid ${T.rule}`, fontSize: 10.5, color: T.muted, background: '#F8FAFC' }}>
-          <span>Up / Down to move</span><span>Enter to open</span><span>Esc to close</span><span style={{ marginLeft: 'auto' }}>Ctrl + K opens this anywhere</span>
-        </div>
+    <CommandItem
+      value={row.key}
+      onSelect={() => onOpen(row)}
+      style={{ '--row-color': row.color }}
+      className="tw:group tw:cursor-pointer tw:gap-3 tw:rounded-none tw:border-l-3 tw:border-transparent tw:px-4 tw:py-2 tw:data-[selected=true]:border-(--row-color) tw:data-[selected=true]:text-foreground"
+    >
+      <span className="tw:flex tw:size-7 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-[7px] tw:bg-(--row-color)/10">
+        <RowIcon className="tw:size-[15px] tw:text-(--row-color)" />
+      </span>
+      <div className="tw:min-w-0 tw:flex-1">
+        <div className="tw:truncate tw:text-[12.5px] tw:font-bold tw:text-foreground">{row.title}</div>
+        <div className="tw:truncate tw:text-[11px] tw:text-muted-foreground">{row.subtitle}</div>
       </div>
-    </div>
+      {row.amount != null && <span className="tw:text-entry tw:font-bold tw:tabular-nums">{inr(row.amount)}</span>}
+      <CornerDownLeft className="tw:hidden tw:size-3.5 tw:text-muted-foreground tw:group-data-[selected=true]:block" />
+    </CommandItem>
   );
 }
+
+export default function CommandSearch({ open, onClose, initial = '' }) {
+  const [query, setQuery] = useState(initial);
+  const [results, setResults] = useState(EMPTY_RESULTS);
+  const [isSearching, setIsSearching] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (open) setQuery(initial);
+  }, [open, initial]);
+
+  useEffect(() => {
+    const text = query.trim();
+    if (!open || text.length < MIN_SEARCH_LENGTH) {
+      setResults(EMPTY_RESULTS);
+      return;
+    }
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        setResults(await searchAccounts(text));
+      } catch {
+        setResults(EMPTY_RESULTS);
+      } finally {
+        setIsSearching(false);
+      }
+    }, SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [query, open]);
+
+  const screens = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    const allowed = ALL_ITEMS.filter((item) => canOpen(hrefOf(item).split('?')[0]));
+    if (!text) return allowed.filter((item) => DEFAULT_SCREEN_IDS.includes(item.id));
+    return allowed
+      .filter((item) => (item.label + ' ' + (item.keywords || '') + ' ' + item.section.title + ' ' + item.desc).toLowerCase().includes(text))
+      .slice(0, 8);
+  }, [query]);
+
+  const rows = useMemo(() => [
+    ...screens.map((item) => ({
+      kind: 'screen', key: 's' + item.id, title: item.label, subtitle: item.section.title + ' - ' + item.desc,
+      color: item.section.color, Icon: item.section.icon, href: hrefOf(item),
+    })),
+    ...results.ledgers.map((ledger) => ({
+      kind: 'ledger', key: 'l' + ledger.id, title: ledger.name, subtitle: [ledger.groupName, ledger.gstin].filter(Boolean).join(' - '),
+      color: LEDGER_COLOUR, Icon: BookUser, href: '/accounts-hub?item=ledger&ledger=' + ledger.id,
+    })),
+    ...results.vouchers.map((voucher) => ({
+      kind: 'voucher', key: 'v' + voucher.id, title: `${voucher.typeName} ${voucher.voucherNumber}`,
+      subtitle: [fmtDate(voucher.date), voucher.refNo, voucher.jobNo].filter(Boolean).join(' - '), amount: voucher.totalAmount,
+      color: VOUCHER_COLOUR, Icon: FileText, href: '/accounts-hub?item=' + deskOf(voucher.baseType) + '&voucher=' + voucher.id,
+    })),
+  ], [screens, results]);
+
+  const openRow = (row) => {
+    onClose();
+    navigate(row.href);
+  };
+
+  const emptyText = query.trim().length < MIN_SEARCH_LENGTH ? 'Type at least 2 letters' : 'Nothing matches "' + query + '"';
+
+  return (
+    <Dialog open={Boolean(open)} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="tw:top-[9vh] tw:w-[640px] tw:max-w-[calc(100vw-24px)] tw:translate-y-0 tw:gap-0 tw:overflow-hidden tw:p-0 tw:shadow-2xl tw:sm:max-w-[calc(100vw-24px)]"
+      >
+        <DialogTitle className="tw:sr-only">Accounts search</DialogTitle>
+        <DialogDescription className="tw:sr-only">Search a screen, ledger or voucher</DialogDescription>
+        <Command shouldFilter={false} vimBindings={false} className="tw:min-h-0 tw:flex-1 tw:rounded-none tw:bg-background">
+          <div className={`tw:flex tw:items-center tw:gap-2.5 tw:bg-primary tw:px-4 tw:py-2.5 tw:text-primary-foreground ${SEARCH_BOX_CLASS}`}>
+            <CommandInput
+              data-allow-text
+              value={query}
+              onValueChange={setQuery}
+              placeholder="Search a screen, ledger, GSTIN, voucher no, bill no, job no or amount"
+              className="tw:h-full tw:text-[13px] tw:text-foreground"
+            />
+            {isSearching && <span className="tw:text-[11px]">Searching</span>}
+            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}
+              className="tw:text-primary-foreground tw:hover:bg-white/15">
+              <X className="tw:size-4" />
+            </Button>
+          </div>
+          <CommandList className="tw:max-h-[56vh] tw:py-1.5">
+            <CommandEmpty className="tw:p-6 tw:text-center tw:text-[12.5px] tw:text-muted-foreground">{emptyText}</CommandEmpty>
+            {RESULT_GROUPS.map((group) => {
+              const groupRows = rows.filter((row) => row.kind === group.kind);
+              if (!groupRows.length) return null;
+              return (
+                <CommandGroup key={group.kind} heading={group.title} className={GROUP_HEADING_CLASS}>
+                  {groupRows.map((row) => <ResultRow key={row.key} row={row} onOpen={openRow} />)}
+                </CommandGroup>
+              );
+            })}
+          </CommandList>
+        </Command>
+        <div className="tw:flex tw:flex-wrap tw:gap-x-3.5 tw:gap-y-1 tw:border-t tw:border-border tw:bg-page tw:px-4 tw:py-2 tw:text-[10.5px] tw:text-muted-foreground">
+          {HINTS.map((hint) => <span key={hint}>{hint}</span>)}
+          <span className="tw:ml-auto">Ctrl + K opens this anywhere</span>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export const deskOf = (base) => ({ Receipt: 'receipt', Payment: 'payment', Journal: 'journal', Contra: 'contra', Purchase: 'trade', 'Debit Note': 'trade', Sales: 'gstservice', 'Credit Note': 'gstservice' }[base] || 'journal');

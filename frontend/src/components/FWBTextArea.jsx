@@ -1,99 +1,70 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { Textarea } from '@/components/ui';
 
-export default function FWBTextArea({ maxLines = 3, maxCharsPerLine = 65, totalMaxChars, value, ...props }) {
-  const [val, setVal] = useState(value || '');
-  const textareaRef = useRef(null);
+// FWB (IATA Cargo-IMP) free text: upper case letters, digits, space and . , - / only, in lines of a fixed length
+const NOT_ALLOWED = /[^A-Z0-9\s.,\-/]/g;
+
+const wrapLine = (line, width) => {
+  if (line.length <= width) return [line];
+  const parts = [];
+  for (let start = 0; start < line.length; start += width) parts.push(line.substring(start, start + width));
+  return parts;
+};
+
+const limitTotal = (lines, total) => {
+  const kept = [];
+  let used = 0;
+  for (const line of lines) {
+    if (used + line.length <= total) {
+      kept.push(line);
+      used += line.length + 1;
+      continue;
+    }
+    const room = total - used;
+    if (room > 0) kept.push(line.substring(0, room));
+    break;
+  }
+  return kept;
+};
+
+export default function FWBTextArea({ maxLines = 3, maxCharsPerLine = 65, totalMaxChars, value, className, ...props }) {
+  const [text, setText] = useState(value || '');
 
   useEffect(() => {
-    if (value !== undefined && value !== val) {
-      setVal(value);
-      if (textareaRef.current && textareaRef.current.value !== value) {
-        textareaRef.current.value = value;
-      }
-    }
+    if (value !== undefined) setText(value);
   }, [value]);
 
-  const handleChange = (e) => {
-    let text = (e.target.value || '').toUpperCase().replace(/[^A-Z0-9\s.,\-\/]/g, '');
-    let manualLines = text.split('\n');
-    let newLines = [];
-    
-    for (let i = 0; i < manualLines.length; i++) {
-        let l = manualLines[i];
-        if (l.length > maxCharsPerLine) {
-            let current = l;
-            while (current.length > maxCharsPerLine) {
-                newLines.push(current.substring(0, maxCharsPerLine));
-                current = current.substring(maxCharsPerLine);
-            }
-            if (current.length > 0) {
-                newLines.push(current);
-            }
-        } else {
-            newLines.push(l);
-        }
-    }
-    
-    if (totalMaxChars) {
-      let currentLen = 0;
-      let truncatedLines = [];
-      for (let l of newLines) {
-        if (currentLen + l.length <= totalMaxChars) {
-          truncatedLines.push(l);
-          currentLen += l.length + 1;
-        } else {
-          let remaining = totalMaxChars - currentLen;
-          if (remaining > 0) {
-            truncatedLines.push(l.substring(0, remaining));
-          }
-          break;
-        }
-      }
-      newLines = truncatedLines;
-    }
-
-    if (newLines.length > maxLines) {
-        newLines = newLines.slice(0, maxLines);
-    }
-    
-    const finalVal = newLines.join('\n');
-    
-    setVal(finalVal);
-    
-    if (textareaRef.current && textareaRef.current.value !== finalVal) {
-      textareaRef.current.value = finalVal;
-    }
-    
-        if (props.onChange) {
-      props.onChange({
-        target: {
-          value: finalVal,
-          name: props.name
-        },
-        preventDefault: e.preventDefault ? () => e.preventDefault() : () => {},
-        stopPropagation: e.stopPropagation ? () => e.stopPropagation() : () => {}
-      });
-    }
+  const handleChange = (event) => {
+    const cleaned = (event.target.value || '').toUpperCase().replace(NOT_ALLOWED, '');
+    let lines = cleaned.split('\n').flatMap((line) => wrapLine(line, maxCharsPerLine));
+    if (totalMaxChars) lines = limitTotal(lines, totalMaxChars);
+    const fitted = lines.slice(0, maxLines).join('\n');
+    setText(fitted);
+    props.onChange?.({
+      target: { value: fitted, name: props.name },
+      preventDefault: () => event.preventDefault(),
+      stopPropagation: () => event.stopPropagation(),
+    });
   };
 
+  const lineCount = text === '' ? 0 : text.split('\n').length;
+  const counter = totalMaxChars
+    ? `${text.length}/${totalMaxChars} Chars (Max ${maxLines} lines)`
+    : `${lineCount}/${maxLines} lines (Max ${maxCharsPerLine} chars/line)`;
+
   return (
-    <div style={{ position: 'relative', width: '100%', marginBottom: '14px' }}>
-      <textarea 
-        {...props} 
-        ref={textareaRef}
-        value={val} 
-        onChange={handleChange} 
-        wrap="off" 
-        style={{
-           ...props.style,
-           whiteSpace: 'pre-wrap',
-           overflowX: 'hidden'
-        }}
+    <div className="tw:relative tw:mb-3.5 tw:w-full">
+      <Textarea
+        data-allow-text=""
+        {...props}
+        value={text}
+        onChange={handleChange}
+        wrap="off"
+        className={cn('tw:overflow-x-hidden tw:whitespace-pre-wrap', className)}
         maxLength={totalMaxChars || (maxLines * maxCharsPerLine + (maxLines - 1))}
       />
-      <div style={{ position: 'absolute', bottom: '-15px', right: '0', fontSize: '10px', color: 'var(--text-muted, var(--text-muted, #64748b))', fontWeight: 'bold' }}>
-        {totalMaxChars ? `${val.length}/${totalMaxChars} Chars (Max ${maxLines} lines)` : `${val === '' ? 0 : val.split('\n').length}/${maxLines} lines (Max ${maxCharsPerLine} chars/line)`}
-      </div>
+      <div className="tw:absolute tw:right-0 tw:-bottom-[15px] tw:text-[10px] tw:font-bold tw:text-muted-foreground">{counter}</div>
     </div>
   );
 }

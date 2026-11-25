@@ -1,100 +1,95 @@
-import React, { useEffect, useState } from 'react';
+// Dimension window: opens with the AWB's dimensions and uses the ratio of the screen (IATA 1:6 = 6000 cm3 per kg).
+// The volumetric weight is worked out by weightCalc.js, the same as the rate lines.
+import { useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
+import { Button, DataTable, Field, Input, Modal, SelectBox } from '@/components/ui';
 import { volWtFromDims, cbmFromDims, divisorOf, chargeableOf } from '../awb/weightCalc';
+import { FormError, GRID_BOX } from './_ModalFrame';
 
-// Dimension window (rebuilt 29-Oct-2026). Before: it always opened empty (the saved dimensions were lost when it was
-// opened again), the "Save & Update Chargeable Wt" button only closed it, rows could not be removed, and the divisor was
-// fixed. Now it opens with the AWB's dimensions, uses the ratio of the screen (IATA 1:6 = 6000 cm3 per kg) and both
-// buttons apply. The volumetric weight is worked out by weightCalc.js, the same as the rate lines.
-const num = (v) => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
-const toRow = (d, i) => ({ id: d.id || `${Date.now()}-${i}`, length: num(d.length ?? d.len), width: num(d.width ?? d.wid), height: num(d.height ?? d.ht),
-  pkgs: parseInt(d.pkgs ?? d.pcs ?? d.pieces ?? d.noOfUnits, 10) || 1, unit: /^IN/i.test(String(d.unit || d.cmIn || '')) ? 'INCH' : 'CMT' });
+const toNumber = (value) => { const number = parseFloat(value); return isNaN(number) ? 0 : number; };
+const toRow = (dimension, index) => ({
+  id: dimension.id || `${Date.now()}-${index}`,
+  length: toNumber(dimension.length ?? dimension.len), width: toNumber(dimension.width ?? dimension.wid), height: toNumber(dimension.height ?? dimension.ht),
+  pkgs: parseInt(dimension.pkgs ?? dimension.pcs ?? dimension.pieces ?? dimension.noOfUnits, 10) || 1,
+  unit: /^IN/i.test(String(dimension.unit || dimension.cmIn || '')) ? 'INCH' : 'CMT',
+});
+const EMPTY_ENTRY = { length: '', width: '', height: '', pkgs: '' };
+const SIZE_FIELDS = [{ key: 'length', label: 'Length', min: '0' }, { key: 'width', label: 'Width', min: '0' }, { key: 'height', label: 'Height', min: '0' }, { key: 'pkgs', label: 'Pieces', min: '1' }];
+const UNITS = ['CMT', 'INCH'];
 
 const DimensionModal = ({ isOpen, onClose, onSave, initialDims, densityGroup }) => {
   const [dims, setDims] = useState([]);
-  const [length, setLength] = useState('');
-  const [width, setWidth] = useState('');
-  const [height, setHeight] = useState('');
-  const [pkgs, setPkgs] = useState('');
+  const [entry, setEntry] = useState(EMPTY_ENTRY);
   const [unit, setUnit] = useState('CMT');
-  const [err, setErr] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
-    setDims((Array.isArray(initialDims) ? initialDims : []).map(toRow).filter(d => d.length && d.width && d.height));
-    setLength(''); setWidth(''); setHeight(''); setPkgs(''); setErr('');
-  }, [isOpen]); // eslint-disable-line
+    setDims((Array.isArray(initialDims) ? initialDims : []).map(toRow).filter((row) => row.length && row.width && row.height));
+    setEntry(EMPTY_ENTRY);
+    setError('');
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
   const divisor = divisorOf(densityGroup);
-  const rowVol = (d) => volWtFromDims([d], densityGroup);
+  const rowVolumetricWeight = (row) => volWtFromDims([row], densityGroup);
 
   const handleAdd = () => {
-    const l = num(length), w = num(width), h = num(height), p = parseInt(pkgs, 10);
-    if (!(l > 0 && w > 0 && h > 0 && p > 0)) { setErr('Enter length, width, height and pieces (all more than 0)'); return; }
-    setErr('');
-    setDims([...dims, { id: Date.now(), length: l, width: w, height: h, pkgs: p, unit }]);
-    setLength(''); setWidth(''); setHeight(''); setPkgs('');
+    const length = toNumber(entry.length), width = toNumber(entry.width), height = toNumber(entry.height), pkgs = parseInt(entry.pkgs, 10);
+    if (!(length > 0 && width > 0 && height > 0 && pkgs > 0)) { setError('Enter length, width, height and pieces (all more than 0)'); return; }
+    setError('');
+    setDims([...dims, { id: Date.now(), length, width, height, pkgs, unit }]);
+    setEntry(EMPTY_ENTRY);
   };
   const totalVolWt = +volWtFromDims(dims, densityGroup).toFixed(2);
-  const apply = () => { if (onSave) onSave(dims, totalVolWt); onClose(); };
-  const inp = { width: '100%', padding: '4px', border: '1px solid #64748b', fontSize: '12px', boxSizing: 'border-box' };
-  const keyAdd = (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } };
+  const apply = () => { onSave?.(dims, totalVolWt); onClose(); };
+  const addOnEnter = (event) => { if (event.key === 'Enter') { event.preventDefault(); handleAdd(); } };
+
+  const columns = [
+    { key: 'length', header: 'Length' }, { key: 'width', header: 'Width' }, { key: 'height', header: 'Height' },
+    { key: 'pkgs', header: 'Pieces' }, { key: 'unit', header: 'Unit' },
+    { key: 'cbm', header: 'CBM', cell: (row) => cbmFromDims([row]).toFixed(3) },
+    { key: 'volWt', header: 'Vol Wt (kg)', className: 'tw:font-bold tw:text-success', cell: (row) => rowVolumetricWeight(row).toFixed(2) },
+    {
+      key: 'remove', header: '', width: '30px', align: 'center',
+      cell: (row) => <Button variant="ghost" size="icon-sm" className="tw:text-destructive" title="Remove" aria-label="Remove" onClick={() => setDims(dims.filter((item) => item.id !== row.id))}><X /></Button>,
+    },
+  ];
+
+  const footer = (
+    <>
+      <Button onClick={onClose}>CANCEL</Button>
+      <Button variant="success" onClick={apply}>APPLY - UPDATE VOL &amp; CHARGEABLE WT</Button>
+    </>
+  );
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-      <div style={{ backgroundColor: '#eef2f6', border: '1px solid #000000', borderRadius: '4px', width: '640px', maxWidth: 'calc(100vw - 24px)', boxShadow: '0 4px 6px rgba(0,0,0,0.2)' }}>
-        <div style={{ backgroundColor: 'var(--primary-bg-light, #e0f2fe)', padding: '6px 12px', borderBottom: '1px solid #94a3b8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: 'bold', color: 'var(--text-main, #0f172a)', fontSize: '13px' }}>Dimensions</span>
-          <button type="button" onClick={onClose} title="Close without applying" style={{ background: 'white', border: '1px solid #64748b', cursor: 'pointer', padding: '0 6px', fontSize: '12px' }}>✕</button>
-        </div>
-
-        <div style={{ padding: '8px' }}>
-          <div style={{ marginBottom: '8px', color: 'var(--primary-text, #0369a1)', fontSize: '11px', fontWeight: 'bold', backgroundColor: '#f0f9ff', padding: '4px 8px', borderRadius: '2px', border: '1px solid #bae6fd' }}>
-            Volumetric weight = L x W x H x pieces / {divisor} (cm, ratio {densityGroup && /^1:/.test(densityGroup) ? densityGroup : '1:6'}); inches are converted to cm. Chargeable weight is rounded up to the next 0.5 kg.
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: '8px', alignItems: 'end', marginBottom: '8px' }}>
-            <div><label style={{ fontSize: '11px', display: 'block' }}>Length</label><input type="number" min="0" value={length} onChange={e => setLength(e.target.value)} onKeyDown={keyAdd} style={inp} /></div>
-            <div><label style={{ fontSize: '11px', display: 'block' }}>Width</label><input type="number" min="0" value={width} onChange={e => setWidth(e.target.value)} onKeyDown={keyAdd} style={inp} /></div>
-            <div><label style={{ fontSize: '11px', display: 'block' }}>Height</label><input type="number" min="0" value={height} onChange={e => setHeight(e.target.value)} onKeyDown={keyAdd} style={inp} /></div>
-            <div><label style={{ fontSize: '11px', display: 'block' }}>Pieces</label><input type="number" min="1" value={pkgs} onChange={e => setPkgs(e.target.value)} onKeyDown={keyAdd} style={inp} /></div>
-            <div><label style={{ fontSize: '11px', display: 'block' }}>Unit</label>
-              <select value={unit} onChange={e => setUnit(e.target.value)} style={inp}><option value="CMT">CMT</option><option value="INCH">INCH</option></select>
-            </div>
-            <button type="button" onClick={handleAdd} style={{ backgroundColor: 'var(--primary-color-end, #2563eb)', color: 'white', border: 'none', padding: '6px 16px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>+Add</button>
-          </div>
-          {err && <div style={{ color: '#b91c1c', fontSize: '11px', marginBottom: '6px' }}>{err}</div>}
-
-          <div style={{ border: '1px solid #64748b', backgroundColor: 'white', minHeight: '100px', maxHeight: '180px', overflowY: 'auto' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1.2fr 1fr 30px', backgroundColor: '#dbeafe', padding: '4px 8px', borderBottom: '1px solid #94a3b8', fontWeight: 'bold', fontSize: '12px', color: '#1e40af' }}>
-              <div>Length</div><div>Width</div><div>Height</div><div>Pieces</div><div>Unit</div><div>CBM</div><div>Vol Wt (kg)</div><div />
-            </div>
-            {dims.map(d => (
-              <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1.2fr 1fr 30px', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', fontSize: '11px', alignItems: 'center' }}>
-                <div>{d.length}</div><div>{d.width}</div><div>{d.height}</div><div>{d.pkgs}</div><div>{d.unit}</div>
-                <div>{cbmFromDims([d]).toFixed(3)}</div>
-                <div style={{ fontWeight: 'bold', color: '#047857' }}>{rowVol(d).toFixed(2)}</div>
-                <button type="button" title="Remove" onClick={() => setDims(dims.filter(x => x.id !== d.id))} style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-              </div>
-            ))}
-            {!dims.length && <div style={{ padding: '10px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>No dimension line yet</div>}
-          </div>
-
-          <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fff', border: '1px solid #64748b', display: 'flex', justifyContent: 'flex-end', gap: '16px', fontSize: '12px', flexWrap: 'wrap' }}>
-            <div>Pieces: <strong>{dims.reduce((a, c) => a + c.pkgs, 0)}</strong></div>
-            <div>Volume: <strong>{cbmFromDims(dims).toFixed(3)} CBM</strong></div>
-            <div style={{ color: '#047857' }}>Volumetric Wt: <strong>{totalVolWt.toFixed(2)} kg</strong></div>
-            <div>Chargeable if gross is lower: <strong>{chargeableOf(0, totalVolWt).toFixed(2)} kg</strong></div>
-          </div>
-        </div>
-
-        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'flex-end', gap: '8px', backgroundColor: 'var(--primary-bg-light, #e0f2fe)', borderTop: '1px solid #94a3b8' }}>
-          <button type="button" onClick={onClose} style={{ padding: '6px 12px', background: '#fff', color: '#334155', border: '1px solid #94a3b8', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>CANCEL</button>
-          <button type="button" onClick={apply} style={{ padding: '6px 12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>APPLY - UPDATE VOL &amp; CHARGEABLE WT</button>
-        </div>
+    <Modal open={isOpen} onClose={onClose} title="Dimensions" width={640} closeOnOutside={false} footer={footer}>
+      <div className="tw:rounded-sm tw:border tw:border-border tw:bg-page tw:px-2 tw:py-1 tw:text-[11px] tw:font-bold tw:text-head tw:normal-case">
+        Volumetric weight = L x W x H x pieces / {divisor} (cm, ratio {densityGroup && /^1:/.test(densityGroup) ? densityGroup : '1:6'}); inches are converted to cm. Chargeable weight is rounded up to the next 0.5 kg.
       </div>
-    </div>
+      <div className="tw:grid tw:grid-cols-2 tw:items-end tw:gap-2 tw:sm:grid-cols-[repeat(5,1fr)_auto]">
+        {SIZE_FIELDS.map((field) => (
+          <Field key={field.key} label={field.label} layout="col">
+            <Input type="number" min={field.min} value={entry[field.key]} onKeyDown={addOnEnter}
+              onChange={(event) => setEntry((current) => ({ ...current, [field.key]: event.target.value }))} />
+          </Field>
+        ))}
+        <Field label="Unit" layout="col">
+          <SelectBox className="tw:w-full" value={unit} onValueChange={setUnit} options={UNITS} />
+        </Field>
+        <Button variant="default" onClick={handleAdd}><Plus /> Add</Button>
+      </div>
+      <FormError>{error}</FormError>
+      <DataTable columns={columns} rows={dims} emptyText="No dimension line yet" containerClassName={GRID_BOX} />
+      <div className="tw:flex tw:flex-wrap tw:justify-end tw:gap-4 tw:rounded-sm tw:border tw:border-border tw:bg-background tw:p-2 tw:text-entry">
+        <div>Pieces: <strong>{dims.reduce((sum, row) => sum + row.pkgs, 0)}</strong></div>
+        <div>Volume: <strong>{cbmFromDims(dims).toFixed(3)} CBM</strong></div>
+        <div className="tw:text-success">Volumetric Wt: <strong>{totalVolWt.toFixed(2)} kg</strong></div>
+        <div>Chargeable if gross is lower: <strong>{chargeableOf(0, totalVolWt).toFixed(2)} kg</strong></div>
+      </div>
+    </Modal>
   );
 };
 
 export default DimensionModal;
-

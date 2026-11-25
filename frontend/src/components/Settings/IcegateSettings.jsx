@@ -1,174 +1,164 @@
-import React, { useState, useEffect } from "react";
-import { Save, CheckCircle, XCircle, RefreshCw, Shield, Key, Globe, User, Lock, Wifi } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { Shield } from 'lucide-react';
+import { Badge, Button, Field, Input, Textarea } from '@/components/ui';
+import { replyOf, settingsApi } from './settingsApi';
+import SettingsNotice from './SettingsNotice';
+
+const DEFAULT_BASE_URL = 'https://cisapi.icegate.gov.in';
+// GET /settings never returns the saved password, only this mask
+const SAVED_PASSWORD_MASK = '***';
+
+const ENDPOINTS = [
+  { label: 'Auth', path: '/authentication/v1.0/api/authenticate' },
+  { label: 'File Submit', path: '/jsonfiling/v1.0/api/fileSubmit' },
+  { label: 'File Status', path: '/jsonfiling/v1.0/api/fileStatus' },
+];
+
+function authFailureText(reply) {
+  const errors = reply.details?.errors || [];
+  const details = errors.join(', ') || reply.details?.message || '';
+  const hint = errors.some((error) => error.includes('API Key'))
+    ? ' ⚠️ ICEGATE API Key needs to be activated on the ICEGATE portal first (Settings > API Key Activation).'
+    : '';
+  return `Auth Failed: ${reply.error}${details ? ` → ${details}` : ''}${hint}`;
+}
 
 export default function IcegateSettings() {
   const [form, setForm] = useState({
-    icegate_login_id: "",
-    icegate_password: "",
-    icegate_api_key: "",
-    icegate_base_url: "https://cisapi.icegate.gov.in",
+    icegate_login_id: '',
+    icegate_password: '',
+    icegate_api_key: '',
+    icegate_base_url: DEFAULT_BASE_URL,
   });
-  const [saving, setSaving]         = useState(false);
-  const [testing, setTesting]       = useState(false);
-  const [msg, setMsg]               = useState({ text: "", type: "" });
-  const [tokenInfo, setTokenInfo]   = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [tokenInfo, setTokenInfo] = useState(null);
   const [passwordSaved, setPasswordSaved] = useState(false);
 
-  useEffect(() => { fetchSettings(); }, []);
+  const setField = (name) => (event) => setForm((current) => ({ ...current, [name]: event.target.value }));
 
-  const fetchSettings = async () => {
-    try {
-      const res  = await fetch("/api/settings");
-      const data = await res.json();
-      setForm(prev => ({
-        ...prev,
-        icegate_login_id: data.icegate_login_id || "",
-        icegate_password: "",  // always keep blank — backend masks as *** for security
-        icegate_api_key:  data.icegate_api_key  || "",
-        icegate_base_url: data.icegate_base_url  || "https://cisapi.icegate.gov.in",
-      }));
-      // Track if password is already saved
-      if (data.icegate_password === "***") {
-        setPasswordSaved(true);
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { body } = await replyOf(settingsApi.settings());
+        setForm((current) => ({
+          ...current,
+          icegate_login_id: body.icegate_login_id || '',
+          icegate_password: '',
+          icegate_api_key: body.icegate_api_key || '',
+          icegate_base_url: body.icegate_base_url || DEFAULT_BASE_URL,
+        }));
+        if (body.icegate_password === SAVED_PASSWORD_MASK) setPasswordSaved(true);
+      } catch (error) {
+        console.error(error);
       }
-    } catch (e) { console.error(e); }
-  };
+    };
+    loadSettings();
+  }, []);
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setSaving(true); setMsg({ text: "", type: "" });
+  const handleSave = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setMessage({ text: '', type: '' });
+    const settings = {
+      icegate_login_id: form.icegate_login_id,
+      icegate_api_key: form.icegate_api_key,
+      icegate_base_url: form.icegate_base_url,
+    };
+    if (form.icegate_password) settings.icegate_password = form.icegate_password;
     try {
-      const fields = [
-        { key: "icegate_login_id", label: "ICEGATE Login ID",  group: "icegate" },
-        { key: "icegate_password", label: "ICEGATE Password",  group: "icegate" },
-        { key: "icegate_api_key",  label: "ICEGATE API Key",   group: "icegate" },
-        { key: "icegate_base_url", label: "ICEGATE Base URL",  group: "icegate" },
-      ];
-      const settingsObj = {
-        icegate_login_id: form.icegate_login_id,
-        icegate_api_key:  form.icegate_api_key,
-        icegate_base_url: form.icegate_base_url,
-      };
-      // Only update password if user typed something new
-      if (form.icegate_password) {
-        settingsObj.icegate_password = form.icegate_password;
-      }
-      const res = await fetch("/api/settings/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: settingsObj })
-      });
-      const data = await res.json();
-      if (data.success) setMsg({ text: "ICEGATE settings saved successfully!", type: "success" });
-      else setMsg({ text: "Save failed: " + (data.error || "Unknown error"), type: "error" });
-    } catch (e) {
-      setMsg({ text: "Network error: " + e.message, type: "error" });
-    } finally { setSaving(false); }
+      const { body } = await replyOf(settingsApi.saveSettings(settings));
+      setMessage(body.success
+        ? { text: 'ICEGATE settings saved successfully!', type: 'success' }
+        : { text: `Save failed: ${body.error || 'Unknown error'}`, type: 'error' });
+    } catch (error) {
+      setMessage({ text: `Network error: ${error.message}`, type: 'error' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTestConnection = async () => {
-    setTesting(true); setMsg({ text: "", type: "" }); setTokenInfo(null);
+    setTesting(true);
+    setMessage({ text: '', type: '' });
+    setTokenInfo(null);
     try {
-      const res  = await fetch("/api/icegate/test-auth", { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setMsg({ text: "ICEGATE Authentication Successful!", type: "success" });
-        setTokenInfo(data);
+      const { body } = await replyOf(settingsApi.testIcegateAuth());
+      if (body.success) {
+        setMessage({ text: 'ICEGATE Authentication Successful!', type: 'success' });
+        setTokenInfo(body);
       } else {
-        // Show ICEGATE's actual error
-        const errDetails = data.details?.errors?.join(", ") || data.details?.message || "";
-        const fullErr = data.error + (errDetails ? " → " + errDetails : "");
-        const hint = (data.details?.errors || []).some(e => e.includes("API Key"))
-          ? " ⚠️ ICEGATE API Key needs to be activated on the ICEGATE portal first (Settings > API Key Activation)."
-          : "";
-        setMsg({ text: "Auth Failed: " + fullErr + hint, type: "error" });
+        setMessage({ text: authFailureText(body), type: 'error' });
       }
-    } catch (e) {
-      setMsg({ text: "Network Error: " + e.message, type: "error" });
-    } finally { setTesting(false); }
+    } catch (error) {
+      setMessage({ text: `Network Error: ${error.message}`, type: 'error' });
+    } finally {
+      setTesting(false);
+    }
   };
-
-  const inp = {
-    width: "100%", padding: "8px 12px", border: "1px solid var(--border-color, #cbd5e1)",
-    borderRadius: "6px", fontSize: "13px", outline: "none", background: "#fff",
-    boxSizing: "border-box", fontFamily: "monospace"
-  };
-  const lbl = { fontSize: "12px", fontWeight: "600", color: "#374151", marginBottom: "4px", display: "block" };
-  const row = { marginBottom: "16px" };
 
   return (
-    <div style={{ maxWidth: "720px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", padding: "12px 16px", background: "linear-gradient(135deg, #1e3a8a, #1d4ed8)", borderRadius: "8px", color: "white" }}>
-        <Shield size={22} />
+    <div className="tw:max-w-[720px]">
+      <div className="tw:mb-5 tw:flex tw:flex-wrap tw:items-center tw:gap-2.5 tw:rounded-lg tw:bg-linear-135 tw:from-blue-900 tw:to-blue-700 tw:px-4 tw:py-3 tw:text-white">
+        <Shield className="tw:size-[22px]" />
         <div>
-          <div style={{ fontWeight: "bold", fontSize: "15px" }}>ICEGATE API Configuration</div>
-          <div style={{ fontSize: "11px", opacity: 0.85 }}>Customs Integrated System — BE/SB JSON Filing</div>
+          <div className="tw:text-[15px] tw:font-bold">ICEGATE API Configuration</div>
+          <div className="tw:text-[11px] tw:opacity-85">Customs Integrated System — BE/SB JSON Filing</div>
         </div>
-        <div style={{ marginLeft: "auto", fontSize: "11px", background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: "12px" }}>CBIC · India Customs</div>
+        <div className="tw:ml-auto tw:rounded-xl tw:bg-white/15 tw:px-2.5 tw:py-1 tw:text-[11px]">CBIC · India Customs</div>
       </div>
 
-      <div style={{ background: "#f0f9ff", border: "1px solid #000000", borderRadius: "6px", padding: "12px", marginBottom: "20px", fontSize: "11px", color: "var(--primary-text, #0369a1)" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "6px" }}>ICEGATE API Endpoints</div>
-        <div style={{ fontFamily: "monospace", display: "flex", flexDirection: "column", gap: "4px" }}>
-          <span><strong>Auth:</strong> /authentication/v1.0/api/authenticate</span>
-          <span><strong>File Submit:</strong> /jsonfiling/v1.0/api/fileSubmit</span>
-          <span><strong>File Status:</strong> /jsonfiling/v1.0/api/fileStatus</span>
+      <div className="tw:mb-5 tw:rounded-md tw:border tw:border-black tw:bg-sky-50 tw:p-3 tw:text-[11px] tw:text-(--primary-text)">
+        <div className="tw:mb-1.5 tw:font-bold">ICEGATE API Endpoints</div>
+        <div className="tw:flex tw:flex-col tw:gap-1 tw:break-all tw:font-mono">
+          {ENDPOINTS.map((endpoint) => (
+            <span key={endpoint.label}><strong>{endpoint.label}:</strong> {endpoint.path}</span>
+          ))}
         </div>
       </div>
 
-      <form onSubmit={handleSave}>
-        <div style={row}>
-          <label style={lbl}>ICEGATE Login ID</label>
-          <input style={inp} value={form.icegate_login_id} onChange={e => setForm(p => ({ ...p, icegate_login_id: e.target.value }))} placeholder="e.g. CCCPL1998" autoComplete="off" />
-          <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "3px" }}>Your registered ICEGATE user ID</div>
-        </div>
+      <form onSubmit={handleSave} className="tw:flex tw:flex-col tw:gap-4">
+        <Field label="ICEGATE Login ID" layout="col" note="Your registered ICEGATE user ID">
+          <Input className="tw:font-mono" data-allow-text="" autoComplete="off" value={form.icegate_login_id} placeholder="e.g. CCCPL1998" onChange={setField('icegate_login_id')} />
+        </Field>
 
-        <div style={row}>
-          <label style={lbl}>
-            ICEGATE Password
-            {passwordSaved && <span style={{ marginLeft: "8px", fontSize: "11px", background: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: "10px", fontWeight: "500" }}>✓ Saved</span>}
-          </label>
-          <input style={inp} type="password" value={form.icegate_password} onChange={e => { setForm(p => ({ ...p, icegate_password: e.target.value })); setPasswordSaved(false); }} placeholder={passwordSaved ? "Leave blank to keep existing password" : "Enter your ICEGATE portal password"} autoComplete="new-password" />
-          {passwordSaved && !form.icegate_password && <div style={{ fontSize: "11px", color: "#059669", marginTop: "3px" }}>Password is already saved. Enter new password only if you want to change it.</div>}
-        </div>
+        <Field
+          label={<>ICEGATE Password {passwordSaved && <Badge variant="success" className="tw:ml-2">✓ Saved</Badge>}</>}
+          layout="col"
+          note={passwordSaved && !form.icegate_password && <span className="tw:text-emerald-600">Password is already saved. Enter new password only if you want to change it.</span>}
+        >
+          <Input
+            type="password"
+            className="tw:font-mono"
+            autoComplete="new-password"
+            value={form.icegate_password}
+            placeholder={passwordSaved ? 'Leave blank to keep existing password' : 'Enter your ICEGATE portal password'}
+            onChange={(event) => { setField('icegate_password')(event); setPasswordSaved(false); }}
+          />
+        </Field>
 
-        <div style={row}>
-          <label style={lbl}>API Key (X-Api-Key Header)</label>
-          <textarea style={{ ...inp, height: "80px", resize: "none", fontSize: "11px" }} value={form.icegate_api_key} onChange={e => setForm(p => ({ ...p, icegate_api_key: e.target.value }))} placeholder="Paste your ICEGATE API Key here..." />
-          <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "3px" }}>Provided by ICEGATE after registration. Sent as X-Api-Key header.</div>
-        </div>
+        <Field label="API Key (X-Api-Key Header)" layout="col" note="Provided by ICEGATE after registration. Sent as X-Api-Key header.">
+          <Textarea className="tw:h-20 tw:resize-none tw:font-mono tw:text-[11px]" value={form.icegate_api_key} placeholder="Paste your ICEGATE API Key here..." onChange={setField('icegate_api_key')} />
+        </Field>
 
-        <div style={row}>
-          <label style={lbl}>Base URL</label>
-          <input style={inp} value={form.icegate_base_url} onChange={e => setForm(p => ({ ...p, icegate_base_url: e.target.value }))} placeholder="https://cisapi.icegate.gov.in" />
-          <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "3px" }}>Production: https://cisapi.icegate.gov.in</div>
-        </div>
+        <Field label="Base URL" layout="col" note={`Production: ${DEFAULT_BASE_URL}`}>
+          <Input className="tw:font-mono" data-allow-text="" value={form.icegate_base_url} placeholder={DEFAULT_BASE_URL} onChange={setField('icegate_base_url')} />
+        </Field>
 
-        {msg.text && (
-          <div style={{ padding: "10px 14px", borderRadius: "6px", marginBottom: "16px", fontSize: "13px", fontWeight: "500",
-            background: msg.type === "success" ? "#dcfce7" : "#fee2e2",
-            color: msg.type === "success" ? "#166534" : "#991b1b",
-            border: "1px solid " + (msg.type === "success" ? "#16a34a" : "#dc2626"),
-            display: "flex", alignItems: "center", gap: "8px" }}>
-            {msg.text}
-          </div>
-        )}
+        {message.text && <SettingsNotice tone={message.type}>{message.text}</SettingsNotice>}
 
         {tokenInfo && (
-          <div style={{ background: "#f0fdf4", border: '1px solid #000000', borderRadius: "6px", padding: "10px 14px", marginBottom: "16px", fontSize: "12px", color: "#166534" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>Token Details</div>
-            <div>Status: <strong>{tokenInfo.status || "Authenticated"}</strong></div>
+          <div className="tw:rounded-md tw:border tw:border-black tw:bg-green-50 tw:px-3.5 tw:py-2.5 tw:text-xs tw:text-green-800">
+            <div className="tw:mb-1 tw:font-bold">Token Details</div>
+            <div>Status: <strong>{tokenInfo.status || 'Authenticated'}</strong></div>
             {tokenInfo.expiresAt && <div>Expires: <strong>{tokenInfo.expiresAt}</strong></div>}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button type="submit" disabled={saving} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 20px", background: saving ? "#94a3b8" : "var(--primary-color-end, #1d4ed8)", color: "white", border: "none", borderRadius: "6px", cursor: saving ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px" }}>
-            {saving ? "Saving..." : "Save Settings"}
-          </button>
-          <button type="button" onClick={handleTestConnection} disabled={testing} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 20px", background: testing ? "#94a3b8" : "#059669", color: "white", border: "none", borderRadius: "6px", cursor: testing ? "not-allowed" : "pointer", fontWeight: "600", fontSize: "13px" }}>
-            {testing ? "Testing..." : "Test ICEGATE Connection"}
-          </button>
+        <div className="tw:flex tw:flex-wrap tw:gap-2.5">
+          <Button type="submit" variant="default" size="lg" disabled={saving}>{saving ? 'Saving...' : 'Save Settings'}</Button>
+          <Button variant="success" size="lg" disabled={testing} onClick={handleTestConnection}>{testing ? 'Testing...' : 'Test ICEGATE Connection'}</Button>
         </div>
       </form>
     </div>

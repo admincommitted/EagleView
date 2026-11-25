@@ -1,47 +1,69 @@
 // Save an AWB / MAWB / HAWB (new: createAwb, changed: updateAwb, void: voidAwb). The server answers 409 for a warning
 // the operator may override, or for a reason it needs:
-// - 10-Nov-2026: the number is not in the AWB stock (or is USED / VOID there) -> { okFlag: '_stockOk' }
-// - 11-Nov-2026: the first carrier / flight is not the airline of the AWB prefix -> { okFlag: '_carrierOk' }
-// - 11-Nov-2026: the AWB was already sent to the airline -> { needReason, reasonFlag: '_amendReason' | '_voidReason' }
+// - the number is not in the AWB stock (or is USED / VOID there) -> { okFlag: '_stockOk' }
+// - the first carrier / flight is not the airline of the AWB prefix -> { okFlag: '_carrierOk' }
+// - the AWB was already sent to the airline -> { needReason, reasonFlag: '_amendReason' | '_voidReason' }
 //   (a departed one answers { flown } - a plain error: the correction then goes to the airline as a CCA)
-import axios from 'axios';
+import askConfirm, { askText } from '@/components/common/askConfirm';
+import { freightApi } from '../freightApi';
 import { showSuccessToast } from '../printLogic';
 
+const MAX_ROUNDS = 5;
+const AMENDED_NOTICE_DELAY_MS = 1200;
+const SENT_NOTICE_DELAY_MS = 700;
+
+const stoppedError = (message) => {
+  const error = new Error(message);
+  error.response = { data: { error: message } };
+  return error;
+};
+
 async function withWarnings(send, payload) {
-  let p = { ...payload };
-  for (let i = 0; i < 5; i++) {
+  let request = { ...payload };
+  for (let round = 0; round < MAX_ROUNDS; round++) {
     try {
-      const r = await send(p);
-      if (r && r.data && r.data.amended) setTimeout(() => showSuccessToast('Amended', r.data.message || 'Saved as an amendment - send the XFWB / XFHL again.', false), 1200);
-      return r;
-    } catch (e) {
-      const d = e && e.response && e.response.data;
-      if (d && d.needReason && d.reasonFlag && !p[d.reasonFlag]) {
-        const why = window.prompt(d.error + '\n\nType the reason (kept in the AWB log). Cancel = do not go on.', '');
-        if (why && why.trim()) { p = { ...p, [d.reasonFlag]: why.trim() }; continue; }
-        const x = new Error('Not done - no reason given');
-        x.response = { data: { error: 'Not done - no reason given. ' + d.error } };
-        throw x;
+      const response = await send(request);
+      if (response?.data?.amended) {
+        setTimeout(() => showSuccessToast('Amended', response.data.message || 'Saved as an amendment - send the XFWB / XFHL again.', false), AMENDED_NOTICE_DELAY_MS);
       }
-      const flag = d && (d.okFlag || (d.stockWarning ? '_stockOk' : null));
-      if (!flag || p[flag]) throw e;
-      if (window.confirm(d.error + '\n\nOK = save anyway\nCancel = do not save (check it)')) { p = { ...p, [flag]: true }; continue; }
-      const x = new Error('Not saved - ' + d.error);
-      x.response = { data: { error: 'Not saved - ' + d.error } };
-      throw x;
+      return response;
+    } catch (error) {
+      const answer = error?.response?.data;
+      if (answer && answer.needReason && answer.reasonFlag && !request[answer.reasonFlag]) {
+        const reason = await askText({
+          title: 'Reason needed',
+          message: answer.error,
+          label: 'Reason (kept in the AWB log)',
+          okLabel: 'Go on',
+          cancelLabel: 'Do not go on',
+        });
+        if (reason && reason.trim()) { request = { ...request, [answer.reasonFlag]: reason.trim() }; continue; }
+        throw stoppedError('Not done - no reason given. ' + answer.error);
+      }
+      const flag = answer && (answer.okFlag || (answer.stockWarning ? '_stockOk' : null));
+      if (!flag || request[flag]) throw error;
+      const saveAnyway = await askConfirm({ title: 'Save anyway?', message: answer.error, okLabel: 'Save anyway', cancelLabel: 'Do not save (check it)' });
+      if (saveAnyway) { request = { ...request, [flag]: true }; continue; }
+      throw stoppedError('Not saved - ' + answer.error);
     }
   }
-  return send(p);
+  return send(request);
 }
 
-export const createAwb = (payload) => withWarnings((p) => axios.post('/api/awb/create', p), payload);
-export const updateAwb = (id, payload) => withWarnings((p) => axios.put(`/api/awb/update/${id}`, p), payload);
-export const voidAwb = (id, payload) => withWarnings((p) => axios.put(`/api/awb/void/${id}`, p), payload);
+// the callers read the server's answer as response.data
+const asResponse = (call) => async (request) => ({ data: await call(request) });
+
+export const createAwb = (payload) => withWarnings(asResponse((request) => freightApi.createAwb(request)), payload);
+export const updateAwb = (id, payload) => withWarnings(asResponse((request) => freightApi.updateAwb(id, request)), payload);
+export const voidAwb = (id, payload) => withWarnings(asResponse((request) => freightApi.voidAwbWithReason(id, request)), payload);
 
 // what to tell the operator when an AWB already sent to the airline is opened
 export function sentNotice(awb) {
-  const st = String((awb && (awb.status || awb.transmissionStatus)) || '').toUpperCase();
+  const status = String((awb && (awb.status || awb.transmissionStatus)) || '').toUpperCase();
   // shown just after the "loaded" message (one message window at a time - this one matters more)
-  if (st === 'TRANSMITTED') setTimeout(() => showSuccessToast('Sent to the airline', 'This AWB has been sent (XFWB / XFHL). You can view and print it; a change is saved as an amendment with a reason and must be sent again. After the flight has left, corrections go as a CCA.', false), 700);
-  else if (st === 'AMENDED') setTimeout(() => showSuccessToast('Amended - not sent yet', 'This AWB was changed after it was sent to the airline. Send the XFWB / XFHL again.', false), 700);
+  if (status === 'TRANSMITTED') {
+    setTimeout(() => showSuccessToast('Sent to the airline', 'This AWB has been sent (XFWB / XFHL). You can view and print it; a change is saved as an amendment with a reason and must be sent again. After the flight has left, corrections go as a CCA.', false), SENT_NOTICE_DELAY_MS);
+  } else if (status === 'AMENDED') {
+    setTimeout(() => showSuccessToast('Amended - not sent yet', 'This AWB was changed after it was sent to the airline. Send the XFWB / XFHL again.', false), SENT_NOTICE_DELAY_MS);
+  }
 }

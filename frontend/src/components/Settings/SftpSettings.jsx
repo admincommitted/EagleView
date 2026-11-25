@@ -1,5 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { Save, Activity, CheckCircle, XCircle, Key, Copy, Download, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Activity, CheckCircle, ChevronDown, ChevronUp, Copy, Download, Info, Key, Save, XCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { downloadBlob } from '@/lib/download';
+import { Button, Field, Input, Textarea } from '@/components/ui';
+import { replyOf, settingsApi } from './settingsApi';
+import SettingsNotice from './SettingsNotice';
+
+const COPIED_FOR_MS = 2000;
+const GENERATED_KEY_PLACEHOLDER = '*** (generated & saved)';
+
+const CREDENTIAL_FIELDS = [
+  { name: 'sftp_username', label: <>Username <span className="tw:text-red-600">*</span> (given by Descartes)</>, placeholder: 'e.g. GLN_YOURCOMPANY' },
+  { name: 'sftp_password', label: 'Password (Optional — Private Key ho to khali chhod dein)', placeholder: 'Leave blank to use Private Key', type: 'password' },
+  { name: 'sftp_private_key', label: 'Private Key (PEM format — saved automatically when generated above)', kind: 'textarea',
+    placeholder: '-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----' },
+  { name: 'sftp_passphrase', label: 'Passphrase (Optional — for Private Key, if one was set)', placeholder: 'Leave blank if no passphrase', type: 'password' },
+];
+
+const MANUAL_STEPS = [
+  { comment: '# Step 1: Run this command in PowerShell', commands: ['ssh-keygen -t rsa -b 4096 -C "edi-automation-descartes" -f "$env:USERPROFILE\\.ssh\\descartes_id_rsa"'] },
+  { comment: '# Step 2: Press Enter for passphrase (leave blank)', commands: ['Enter passphrase: [ENTER]', 'Enter same passphrase again: [ENTER]'] },
+  { comment: '# Step 3: Copy the public key', commands: ['type "$env:USERPROFILE\\.ssh\\descartes_id_rsa.pub"'] },
+];
+
+const textFile = (text) => new Blob([text], { type: 'text/plain' });
+
+function StepCard({ title, intro, children }) {
+  return (
+    <div className="tw:mb-6 tw:rounded-lg tw:bg-card tw:p-4 tw:shadow-sm tw:md:p-6">
+      <h2 className="tw:mt-0 tw:mb-1 tw:text-lg tw:font-semibold tw:text-slate-800">{title}</h2>
+      <p className="tw:mt-0 tw:mb-4 tw:text-[13.5px] tw:text-slate-500">{intro}</p>
+      {children}
+    </div>
+  );
+}
+
+function ManualSteps() {
+  return (
+    <div className="tw:mt-3 tw:overflow-x-auto tw:rounded-lg tw:bg-slate-800 tw:p-4 tw:font-mono tw:text-[13px] tw:leading-[1.7] tw:text-slate-200">
+      {MANUAL_STEPS.map((step, index) => (
+        <div key={step.comment}>
+          <div className={cn('tw:text-slate-400', index === 0 ? 'tw:mb-2' : 'tw:mt-3 tw:mb-1')}>{step.comment}</div>
+          {step.commands.map((command) => <div key={command} className="tw:text-green-300">{command}</div>)}
+        </div>
+      ))}
+      <div className="tw:mt-3 tw:text-slate-400">
+        # Files generated:<br />
+        # descartes_id_rsa      → Private Key (keep with you)<br />
+        # descartes_id_rsa.pub  → Public Key  (send to Descartes)
+      </div>
+    </div>
+  );
+}
+
+function GeneratedKeyPanel({ generatedKey, copied, onCopy }) {
+  return (
+    <div className="tw:mt-5 tw:overflow-hidden tw:rounded-lg tw:border tw:border-lime-400">
+      <div className="tw:border-b tw:border-emerald-100 tw:bg-green-50 tw:p-4">
+        <div className="tw:mb-2 tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+          <span className="tw:text-sm tw:font-semibold tw:text-green-700">📤 PUBLIC KEY — Send to Descartes (Dejin)</span>
+          <div className="tw:flex tw:flex-wrap tw:gap-2">
+            <Button variant="default" onClick={onCopy}><Copy /> {copied ? 'Copied!' : 'Copy'}</Button>
+            <Button onClick={() => downloadBlob(textFile(generatedKey.publicKey), 'descartes_id_rsa.pub')}><Download /> Download .pub</Button>
+          </div>
+        </div>
+        <Textarea readOnly rows={3} className="tw:bg-card tw:font-mono tw:text-xs" value={generatedKey.publicKey} />
+        <p className="tw:mt-1.5 tw:mb-0 tw:text-[12.5px] tw:text-gray-500">
+          ⬆ Email this file/text to <strong>Dejin</strong> as an attachment → they will create the user account
+        </p>
+      </div>
+      <div className="tw:bg-orange-50 tw:p-4">
+        <div className="tw:mb-2 tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+          <span className="tw:text-sm tw:font-semibold tw:text-orange-700">🔒 PRIVATE KEY — Saved to Database</span>
+          <Button variant="warning" className="tw:self-start" onClick={() => downloadBlob(textFile(generatedKey.privateKeyPem), 'descartes_id_rsa')}>
+            <Download /> Backup (.pem)
+          </Button>
+        </div>
+        <p className="tw:m-0 tw:text-[13px] tw:text-amber-800">
+          ⚠ Never share your Private Key. It is used automatically for the SFTP connection.
+          Download it for backup and keep it in a safe place.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function SftpSettings() {
   const [formData, setFormData] = useState({
@@ -8,64 +92,56 @@ export default function SftpSettings() {
     sftp_username: '',
     sftp_password: '',
     sftp_private_key: '',
-    sftp_passphrase: ''
+    sftp_passphrase: '',
   });
-
-  const [status, setStatus]         = useState({ configured: false, loading: true });
-  const [message, setMessage]       = useState({ text: '', type: '' });
-  const [testing, setTesting]       = useState(false);
-  const [saving, setSaving]         = useState(false);
+  const [status, setStatus] = useState({ configured: false, loading: true });
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [generatedKey, setGeneratedKey] = useState(null);   // { publicKey, privateKeyPem }
+  const [generatedKey, setGeneratedKey] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [copied, setCopied]         = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => { fetchSettings(); }, []);
+  const setField = (name, value) => setFormData((current) => ({ ...current, [name]: value }));
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setFormData(prev => ({
-          ...prev,
-          sftp_host:        data.sftp_host        || prev.sftp_host,
-          sftp_port:        data.sftp_port        || prev.sftp_port,
-          sftp_username:    data.sftp_username    || '',
-          sftp_password:    data.sftp_password    || '',
-          sftp_private_key: data.sftp_private_key || '',
-          sftp_passphrase:  data.sftp_passphrase  || ''
-        }));
-        const configured = !!(data.sftp_username && (data.sftp_password || data.sftp_private_key));
-        setStatus({ configured, loading: false });
-      }
-    } catch (err) {
-      console.error('Failed to fetch settings', err);
-      setStatus(prev => ({ ...prev, loading: false }));
+      const settings = await settingsApi.settings();
+      setFormData((current) => ({
+        ...current,
+        sftp_host: settings.sftp_host || current.sftp_host,
+        sftp_port: settings.sftp_port || current.sftp_port,
+        sftp_username: settings.sftp_username || '',
+        sftp_password: settings.sftp_password || '',
+        sftp_private_key: settings.sftp_private_key || '',
+        sftp_passphrase: settings.sftp_passphrase || '',
+      }));
+      const configured = Boolean(settings.sftp_username && (settings.sftp_password || settings.sftp_private_key));
+      setStatus({ configured, loading: false });
+    } catch (error) {
+      console.error('Failed to fetch settings', error);
+      setStatus((current) => ({ ...current, loading: false }));
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => { loadSettings(); }, []);
 
-  const handleSave = async (e) => {
-    e.preventDefault();
+  const handleSave = async (event) => {
+    event.preventDefault();
+    if (!formData.sftp_host || !formData.sftp_port) {
+      setMessage({ text: `Please fill in ${formData.sftp_host ? 'Port' : 'SFTP Host'}.`, type: 'error' });
+      return;
+    }
     setSaving(true);
     setMessage({ text: '', type: '' });
     try {
-      const res = await fetch('/api/settings/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: formData })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const { status: httpStatus, body } = await replyOf(settingsApi.saveSettings(formData));
+      if (httpStatus < 400 && body.success) {
         setMessage({ text: '✅ Settings saved successfully!', type: 'success' });
-        fetchSettings();
+        loadSettings();
       } else {
-        setMessage({ text: data.error || 'Failed to save settings', type: 'error' });
+        setMessage({ text: body.error || 'Failed to save settings', type: 'error' });
       }
     } catch {
       setMessage({ text: 'Error saving settings', type: 'error' });
@@ -78,18 +154,11 @@ export default function SftpSettings() {
     setTesting(true);
     setMessage({ text: 'Testing connection...', type: 'info' });
     try {
-      const res = await fetch('/api/settings/test-sftp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessage({ text: `✅ ${data.message || 'Connection successful!'}`, type: 'success' });
-        setStatus(prev => ({ ...prev, configured: true }));
-      } else {
-        setMessage({ text: `❌ ${data.message || 'Connection failed'}`, type: 'error' });
-        setStatus(prev => ({ ...prev, configured: false }));
-      }
+      const { body } = await replyOf(settingsApi.testSftp());
+      setMessage(body.success
+        ? { text: `✅ ${body.message || 'Connection successful!'}`, type: 'success' }
+        : { text: `❌ ${body.message || 'Connection failed'}`, type: 'error' });
+      setStatus((current) => ({ ...current, configured: Boolean(body.success) }));
     } catch {
       setMessage({ text: 'Error testing connection', type: 'error' });
     } finally {
@@ -97,25 +166,18 @@ export default function SftpSettings() {
     }
   };
 
-  // ── SSH Key Generation ──────────────────────────────────────────────────────
   const handleGenerateKey = async () => {
     setGenerating(true);
     setMessage({ text: '', type: '' });
     setGeneratedKey(null);
     try {
-      const res = await fetch('/api/settings/generate-ssh-key', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saveToDb: true })  // auto-save private key to DB
-      });
-      const data = await res.json();
-      if (data.success) {
-        setGeneratedKey({ publicKey: data.publicKey, privateKeyPem: data.privateKeyPem });
-        // Also update the form field to show it's saved
-        setFormData(prev => ({ ...prev, sftp_private_key: '*** (generated & saved)' }));
+      const { body } = await replyOf(settingsApi.generateSshKey(true));
+      if (body.success) {
+        setGeneratedKey({ publicKey: body.publicKey, privateKeyPem: body.privateKeyPem });
+        setField('sftp_private_key', GENERATED_KEY_PLACEHOLDER);
         setMessage({ text: '🔑 SSH Key generated & private key saved to database!', type: 'success' });
       } else {
-        setMessage({ text: data.error || 'Key generation failed', type: 'error' });
+        setMessage({ text: body.error || 'Key generation failed', type: 'error' });
       }
     } catch {
       setMessage({ text: 'Error generating SSH key', type: 'error' });
@@ -125,238 +187,82 @@ export default function SftpSettings() {
   };
 
   const handleCopyPublicKey = () => {
-    if (!generatedKey?.publicKey) return;
     navigator.clipboard.writeText(generatedKey.publicKey);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), COPIED_FOR_MS);
   };
-
-  const handleDownloadPublicKey = () => {
-    if (!generatedKey?.publicKey) return;
-    const blob = new Blob([generatedKey.publicKey], { type: 'text/plain' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'descartes_id_rsa.pub';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadPrivateKey = () => {
-    if (!generatedKey?.privateKeyPem) return;
-    const blob = new Blob([generatedKey.privateKeyPem], { type: 'text/plain' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'descartes_id_rsa';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ── Styles ─────────────────────────────────────────────────────────────────
-  const card = {
-    background: 'white', borderRadius: '0.5rem',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '1.5rem', marginBottom: '1.5rem'
-  };
-  const label = {
-    fontWeight: '500', color: 'var(--text-muted, #475569)', fontSize: '0.875rem',
-    display: 'block', marginBottom: '0.375rem'
-  };
-  const inputStyle = {
-    width: '100%', padding: '0.75rem', borderRadius: '0.375rem',
-    border: '1px solid var(--border-color, #cbd5e1)', outline: 'none',
-    fontSize: '0.875rem', boxSizing: 'border-box'
-  };
-  const btn = (bg, color = 'white') => ({
-    display: 'flex', alignItems: 'center', gap: '0.5rem',
-    background: bg, color, padding: '0.65rem 1.25rem',
-    borderRadius: '0.375rem', border: 'none', fontWeight: '500',
-    cursor: 'pointer', fontSize: '0.875rem'
-  });
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '860px', margin: '0 auto', background: 'var(--bg-app, #f8fafc)', minHeight: '100vh' }}>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 'bold', color: 'var(--text-main, #1e293b)', margin: 0 }}>
-          SFTP Settings — Descartes myVAN
-        </h1>
+    <div className="tw:mx-auto tw:min-h-screen tw:max-w-[860px] tw:bg-(--bg-app) tw:p-4 tw:md:p-8">
+      <div className="tw:mb-6 tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-center tw:md:justify-between">
+        <h1 className="tw:m-0 tw:text-2xl tw:font-bold tw:text-foreground tw:md:text-[28px]">SFTP Settings — Descartes myVAN</h1>
         {!status.loading && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.4rem 1rem', borderRadius: '9999px',
-            background: status.configured ? '#dcfce7' : '#fee2e2',
-            color: status.configured ? '#166534' : '#991b1b', fontWeight: '500', fontSize: '0.875rem'
-          }}>
-            {status.configured ? <CheckCircle size={16}/> : <XCircle size={16}/>}
+          <div className={cn(
+            'tw:flex tw:items-center tw:gap-2 tw:self-start tw:rounded-full tw:px-4 tw:py-1.5 tw:text-sm tw:font-medium tw:md:self-auto',
+            status.configured ? 'tw:bg-success/10 tw:text-success' : 'tw:bg-destructive/10 tw:text-destructive'
+          )}>
+            {status.configured ? <CheckCircle className="tw:size-4" /> : <XCircle className="tw:size-4" />}
             {status.configured ? 'Configured' : 'Not Configured'}
           </div>
         )}
       </div>
 
-      {/* Global message */}
-      {message.text && (
-        <div style={{
-          padding: '0.875rem 1rem', marginBottom: '1.25rem', borderRadius: '0.375rem', fontSize: '0.9rem',
-          background: message.type === 'success' ? '#dcfce7' : message.type === 'error' ? '#fee2e2' : '#e0f2fe',
-          color:      message.type === 'success' ? '#166534' : message.type === 'error' ? '#991b1b' : '#075985'
-        }}>
-          {message.text}
-        </div>
-      )}
+      {message.text && <SettingsNotice tone={message.type} className="tw:mb-5 tw:text-sm tw:font-normal">{message.text}</SettingsNotice>}
 
-      {/* ── STEP 1: SSH Key Generation ───────────────────────────────────────── */}
-      <div style={card}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', margin: '0 0 0.25rem 0' }}>
-          🔑 Step 1 — Generate SSH Key Pair
-        </h2>
-        <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+      <StepCard
+        title="🔑 Step 1 — Generate SSH Key Pair"
+        intro={<>
           To connect with the Descartes SFTP server, an SSH Public Key is required.
           Click the button below — the Private Key will be saved automatically, and you can copy/download the Public Key
           and email it to <strong>Dejin (Descartes)</strong>.
-        </p>
-
-        <button
-          type="button"
-          onClick={handleGenerateKey}
-          disabled={generating}
-          style={{ ...btn('#7c3aed'), opacity: generating ? 0.7 : 1, cursor: generating ? 'not-allowed' : 'pointer' }}
-        >
-          <Key size={18}/>
+        </>}
+      >
+        <Button size="lg" className="tw:h-auto tw:min-h-8 tw:whitespace-normal tw:border-violet-600 tw:bg-violet-600 tw:text-white tw:hover:bg-violet-700"
+          disabled={generating} onClick={handleGenerateKey}>
+          <Key className="tw:size-[18px]" />
           {generating ? 'Generating...' : 'Generate New SSH Key Pair (RSA 4096-bit)'}
-        </button>
+        </Button>
 
-        {/* Generated Key Display */}
-        {generatedKey && (
-          <div style={{ marginTop: '1.25rem', border: '1px solid #a3e635', borderRadius: '0.5rem', overflow: 'hidden' }}>
-            {/* Public Key — send to Descartes */}
-            <div style={{ background: '#f0fdf4', padding: '1rem', borderBottom: '1px solid #d1fae5' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontWeight: '600', color: '#15803d', fontSize: '0.9rem' }}>
-                  📤 PUBLIC KEY — Send to Descartes (Dejin)
-                </span>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button type="button" onClick={handleCopyPublicKey} style={{ ...btn(copied ? '#16a34a' : '#2563eb'), fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
-                    <Copy size={14}/> {copied ? 'Copied!' : 'Copy'}
-                  </button>
-                  <button type="button" onClick={handleDownloadPublicKey} style={{ ...btn('#0891b2'), fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
-                    <Download size={14}/> Download .pub
-                  </button>
-                </div>
-              </div>
-              <textarea
-                readOnly
-                value={generatedKey.publicKey}
-                rows={3}
-                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '0.75rem', background: '#fff', resize: 'vertical' }}
-              />
-              <p style={{ color: '#6b7280', fontSize: '0.78rem', margin: '0.4rem 0 0 0' }}>
-                ⬆ Email this file/text to <strong>Dejin</strong> as an attachment → they will create the user account
-              </p>
-            </div>
+        {generatedKey && <GeneratedKeyPanel generatedKey={generatedKey} copied={copied} onCopy={handleCopyPublicKey} />}
 
-            {/* Private Key — saved to DB */}
-            <div style={{ background: '#fff7ed', padding: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontWeight: '600', color: '#c2410c', fontSize: '0.9rem' }}>
-                  🔒 PRIVATE KEY — Saved to Database
-                </span>
-                <button type="button" onClick={handleDownloadPrivateKey} style={{ ...btn('#b45309'), fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
-                  <Download size={14}/> Backup (.pem)
-                </button>
-              </div>
-              <p style={{ color: '#92400e', fontSize: '0.8rem', margin: 0 }}>
-                ⚠ Never share your Private Key. It is used automatically for the SFTP connection.
-                Download it for backup and keep it in a safe place.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Instructions toggle */}
-        <div style={{ marginTop: '1rem' }}>
-          <button
-            type="button"
-            onClick={() => setShowInstructions(v => !v)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: 0 }}
-          >
-            <Info size={15}/>
-            {showInstructions ? 'Hide Instructions' : 'How to do manual steps? (via PowerShell)'}
-            {showInstructions ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-          </button>
-
-          {showInstructions && (
-            <div style={{ marginTop: '0.75rem', background: '#1e293b', color: '#e2e8f0', borderRadius: '0.5rem', padding: '1rem', fontSize: '0.82rem', fontFamily: 'monospace', lineHeight: 1.7 }}>
-              <div style={{ color: '#94a3b8', marginBottom: '0.5rem' }}># Step 1: Run this command in PowerShell</div>
-              <div style={{ color: '#86efac' }}>ssh-keygen -t rsa -b 4096 -C "edi-automation-descartes" -f "$env:USERPROFILE\.ssh\descartes_id_rsa"</div>
-              <div style={{ color: '#94a3b8', marginTop: '0.75rem', marginBottom: '0.25rem' }}># Step 2: Press Enter for passphrase (leave blank)</div>
-              <div style={{ color: '#86efac' }}>Enter passphrase: [ENTER]</div>
-              <div style={{ color: '#86efac' }}>Enter same passphrase again: [ENTER]</div>
-              <div style={{ color: '#94a3b8', marginTop: '0.75rem', marginBottom: '0.25rem' }}># Step 3: Copy the public key</div>
-              <div style={{ color: '#86efac' }}>type "$env:USERPROFILE\.ssh\descartes_id_rsa.pub"</div>
-              <div style={{ color: '#94a3b8', marginTop: '0.75rem' }}>
-                # Files generated:<br/>
-                # descartes_id_rsa      → Private Key (keep with you)<br/>
-                # descartes_id_rsa.pub  → Public Key  (send to Descartes)
-              </div>
-            </div>
-          )}
+        <div className="tw:mt-4">
+          <Button variant="link" className="tw:h-auto tw:text-[13.5px]" onClick={() => setShowInstructions((shown) => !shown)}>
+            <Info /> {showInstructions ? 'Hide Instructions' : 'How to do manual steps? (via PowerShell)'}
+            {showInstructions ? <ChevronUp /> : <ChevronDown />}
+          </Button>
+          {showInstructions && <ManualSteps />}
         </div>
-      </div>
+      </StepCard>
 
-      {/* ── STEP 2: SFTP Credentials ─────────────────────────────────────────── */}
-      <div style={card}>
-        <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', margin: '0 0 0.25rem 0' }}>
-          ⚙️ Step 2 — SFTP Credentials (fill in after Descartes sends them)
-        </h2>
-        <p style={{ color: '#64748b', fontSize: '0.85rem', margin: '0 0 1.25rem 0' }}>
-          Enter the username below once Descartes sends it. If you generated the private key above, it is already saved.
-        </p>
-
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: '1rem' }}>
-            <div>
-              <label style={label}>SFTP Host</label>
-              <input type="text" name="sftp_host" value={formData.sftp_host} onChange={handleChange} style={inputStyle} required/>
-            </div>
-            <div>
-              <label style={label}>Port</label>
-              <input type="number" name="sftp_port" value={formData.sftp_port} onChange={handleChange} style={inputStyle} required/>
-            </div>
+      <StepCard
+        title="⚙️ Step 2 — SFTP Credentials (fill in after Descartes sends them)"
+        intro="Enter the username below once Descartes sends it. If you generated the private key above, it is already saved."
+      >
+        <form onSubmit={handleSave} className="tw:flex tw:flex-col tw:gap-5">
+          <div className="tw:grid tw:grid-cols-1 tw:gap-4 tw:sm:grid-cols-[1fr_120px]">
+            <Field label="SFTP Host" layout="col">
+              <Input required data-allow-text="" className="tw:h-9" value={formData.sftp_host} onChange={(event) => setField('sftp_host', event.target.value)} />
+            </Field>
+            <Field label="Port" layout="col">
+              <Input required type="number" className="tw:h-9" value={formData.sftp_port} onChange={(event) => setField('sftp_port', event.target.value)} />
+            </Field>
           </div>
 
-          <div>
-            <label style={label}>Username <span style={{ color: '#dc2626' }}>*</span> (given by Descartes)</label>
-            <input type="text" name="sftp_username" value={formData.sftp_username} onChange={handleChange} style={inputStyle} placeholder="e.g. GLN_YOURCOMPANY"/>
-          </div>
+          {CREDENTIAL_FIELDS.map((field) => (
+            <Field key={field.name} label={field.label} layout="col" labelClassName="tw:whitespace-normal">
+              {field.kind === 'textarea' ? (
+                <Textarea className="tw:min-h-[120px] tw:font-mono tw:text-[13px]" value={formData[field.name]} placeholder={field.placeholder}
+                  onChange={(event) => setField(field.name, event.target.value)} />
+              ) : (
+                <Input type={field.type} data-allow-text="" className="tw:h-9" value={formData[field.name]} placeholder={field.placeholder}
+                  onChange={(event) => setField(field.name, event.target.value)} />
+              )}
+            </Field>
+          ))}
 
-          <div>
-            <label style={label}>Password (Optional — Private Key ho to khali chhod dein)</label>
-            <input type="password" name="sftp_password" value={formData.sftp_password} onChange={handleChange} style={inputStyle} placeholder="Leave blank to use Private Key"/>
-          </div>
-
-          <div>
-            <label style={label}>Private Key (PEM format — saved automatically when generated above)</label>
-            <textarea
-              name="sftp_private_key"
-              value={formData.sftp_private_key}
-              onChange={handleChange}
-              placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
-              style={{ ...inputStyle, minHeight: '120px', fontFamily: 'monospace', fontSize: '0.8rem', resize: 'vertical' }}
-            />
-          </div>
-
-          <div>
-            <label style={label}>Passphrase (Optional — for Private Key, if one was set)</label>
-            <input type="password" name="sftp_passphrase" value={formData.sftp_passphrase} onChange={handleChange} style={inputStyle} placeholder="Leave blank if no passphrase"/>
-          </div>
-
-          {/* Info box */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '0.375rem', padding: '0.875rem', fontSize: '0.82rem', color: '#1e40af' }}>
+          <div className="tw:rounded-md tw:border tw:border-blue-200 tw:bg-blue-50 tw:p-3.5 tw:text-[13px] tw:text-blue-800">
             <strong>ℹ️ Connection Details:</strong>
-            <ul style={{ margin: '0.4rem 0 0 0', paddingLeft: '1.25rem', lineHeight: 1.8 }}>
+            <ul className="tw:mt-1.5 tw:mb-0 tw:pl-5 tw:leading-[1.8]">
               <li><strong>Test Server:</strong> wwwtest.myvan.descartes.com:22</li>
               <li><strong>Production:</strong> ftp.myvan.descartes.com:22</li>
               <li>No public IP needed — with SSH key authentication any internet connection works</li>
@@ -364,19 +270,14 @@ export default function SftpSettings() {
             </ul>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button type="submit" disabled={saving}
-              style={{ ...btn('#2563eb'), opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
-              <Save size={16}/> {saving ? 'Saving...' : 'Save Settings'}
-            </button>
-            <button type="button" onClick={handleTestConnection} disabled={testing}
-              style={{ ...btn('#0f172a', '#f8fafc'), border: '1px solid #cbd5e1', opacity: testing ? 0.7 : 1, cursor: testing ? 'not-allowed' : 'pointer' }}>
-              <Activity size={16}/> {testing ? 'Testing...' : 'Test Connection'}
-            </button>
+          <div className="tw:flex tw:flex-wrap tw:gap-3">
+            <Button type="submit" variant="default" size="lg" disabled={saving}><Save className="tw:size-4" /> {saving ? 'Saving...' : 'Save Settings'}</Button>
+            <Button size="lg" className="tw:border-slate-300 tw:bg-slate-900 tw:text-slate-50 tw:hover:bg-slate-800" disabled={testing} onClick={handleTestConnection}>
+              <Activity className="tw:size-4" /> {testing ? 'Testing...' : 'Test Connection'}
+            </Button>
           </div>
-
         </form>
-      </div>
+      </StepCard>
     </div>
   );
 }

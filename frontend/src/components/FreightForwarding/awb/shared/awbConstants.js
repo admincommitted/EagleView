@@ -97,3 +97,13 @@ export const SPECIAL_HANDLING_CODES = [
   "VUN - VULNERABLE CARGO",
   "WET - WET CARGO"
 ];
+
+export const OCI_INFO_IDENTIFIERS = [
+  { val: 'AGT', label: 'AGT - Forwarding Agent' },
+  { val: 'CNE', label: 'CNE - Consignee' },
+  { val: 'SHP', label: 'SHP - Shipper' },
+  { val: 'CBR', label: 'CBR - Customs Broker' },
+  { val: 'ISS', label: 'ISS - Issuing Carrier' },
+  { val: 'DEC', label: 'DEC - Declarant' },
+  { val: 'SEC', label: 'SEC - Security' },
+];

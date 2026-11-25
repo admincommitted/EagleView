@@ -1,89 +1,65 @@
-// Screen section: Database Field Selector
-// Split out of DSRTemplateMaster.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import { Database, Search, X } from 'lucide-react';
-import React from 'react';
-import { DB_FIELDS } from '../DB_FIELDS';
+import { Database, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button, Checkbox, Input, Label, Modal } from '@/components/ui';
+import { DB_FIELDS, CUSTOM_FIELD_ENTRY } from '../DB_FIELDS';
 
-export default function DatabaseFieldSelectorSection({ ctx }) {
-  const { handleToggleField, isModalOpen, searchQuery, selectedFieldIds, setIsModalOpen, setSearchQuery } = ctx;
+const PICKABLE_FIELDS = DB_FIELDS.filter((field) => field !== CUSTOM_FIELD_ENTRY);
+
+function FieldCard({ field, selected, onToggle }) {
   return (
-    <>
-    {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ width: '900px', height: '80vh', display: 'flex', flexDirection: 'column', background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
-            
-            <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <Database size={24} color="#3b82f6" />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a' }}>Database Field Selector</h3>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Select the fields you want to import into your DSR.</p>
-                </div>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '50%', cursor: 'pointer', color: '#64748b' }}>
-                <X size={20} />
-              </button>
-            </div>
+    <Label
+      className={cn(
+        'tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:whitespace-normal tw:rounded-lg tw:border tw:px-3 tw:py-2.5 tw:shadow-xs tw:transition-all',
+        selected ? 'tw:border-blue-200 tw:bg-blue-50' : 'tw:border-slate-200 tw:bg-white'
+      )}
+    >
+      <Checkbox className="tw:size-4" checked={selected} onCheckedChange={onToggle} />
+      <span className="tw:flex tw:min-w-0 tw:flex-col">
+        <span className={cn('tw:break-all tw:text-[13px]', selected ? 'tw:font-semibold tw:text-blue-700' : 'tw:font-medium tw:text-slate-700')}>{field.title}</span>
+        <span className="tw:text-[10px] tw:font-semibold tw:uppercase tw:text-slate-500">{field.subtitle}</span>
+      </span>
+    </Label>
+  );
+}
 
-            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
-               <div style={{ position: 'relative' }}>
-                 <Search size={18} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                 <input 
-                   type="text" 
-                   placeholder="Search 350+ fields (e.g. 'jobNo', 'port', 'invoice')..." 
-                   value={searchQuery}
-                   onChange={e => setSearchQuery(e.target.value)}
-                   style={{ width: '100%', padding: '10px 12px 10px 40px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
-                 />
-               </div>
-            </div>
+export default function DatabaseFieldSelectorSection({ open, onClose, searchQuery, onSearchChange, selectedFieldIds, onToggleField }) {
+  const query = searchQuery.toLowerCase();
+  const shownFields = PICKABLE_FIELDS.filter((field) => field.title.toLowerCase().includes(query) || field.subtitle.toLowerCase().includes(query));
+  const databaseFieldCount = selectedFieldIds.filter((fieldId) => !fieldId.startsWith('custom_')).length;
 
-            <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem', background: '#f8fafc' }}>
-               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                 {DB_FIELDS.filter(f => f.title !== '[ CREATE NEW CUSTOM FIELD ]').filter(f => f.title.toLowerCase().includes(searchQuery.toLowerCase()) || f.subtitle.toLowerCase().includes(searchQuery.toLowerCase())).map(f => {
-                    const isSelected = selectedFieldIds.includes(f.title);
-                    return (
-                      <label 
-                        key={f.title} 
-                        style={{ 
-                          display: 'flex', 
-                          gap: '12px', 
-                          alignItems: 'center', 
-                          padding: '10px 12px', 
-                          background: isSelected ? '#eff6ff' : 'white', 
-                          border: isSelected ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                        }}
-                      >
-                        <input 
-                          type="checkbox" 
-                          checked={isSelected} 
-                          onChange={() => handleToggleField(f.title, f.title)} 
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '13px', fontWeight: isSelected ? 600 : 500, color: isSelected ? '#1d4ed8' : '#334155', wordBreak: 'break-all' }}>{f.title}</span>
-                          <span style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>{f.subtitle}</span>
-                        </div>
-                      </label>
-                    );
-                 })}
-               </div>
-            </div>
-
-            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid #e2e8f0', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <span style={{ fontSize: '13px', fontWeight: 600, color: '#3b82f6' }}>{selectedFieldIds.filter(id => !id.startsWith('custom_')).length} Database Fields Selected</span>
-               <button onClick={() => setIsModalOpen(false)} className="btn btn-primary" style={{ padding: '8px 24px', fontWeight: 600 }}>
-                 Done
-               </button>
-            </div>
-
-          </div>
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      width={900}
+      title={<span className="tw:flex tw:items-center tw:gap-3"><Database className="tw:size-6 tw:text-blue-500" /> Database Field Selector</span>}
+      description="Select the fields you want to import into your DSR."
+      className="tw:normal-case"
+      bodyClassName="tw:flex tw:h-[70vh] tw:flex-col tw:gap-4 tw:p-0"
+      footer={(
+        <div className="tw:flex tw:w-full tw:items-center tw:justify-between tw:gap-3">
+          <span className="tw:text-[13px] tw:font-semibold tw:text-blue-500">{databaseFieldCount} Database Fields Selected</span>
+          <Button variant="default" size="lg" className="tw:px-6" onClick={onClose}>Done</Button>
         </div>
       )}
-    </>
+    >
+      <div className="tw:px-4 tw:pt-3 tw:md:px-6">
+        <Input
+          leftIcon={Search}
+          data-allow-text=""
+          className="tw:h-9 tw:text-sm"
+          placeholder="Search 350+ fields (e.g. 'jobNo', 'port', 'invoice')..."
+          value={searchQuery}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+      </div>
+      <div className="tw:flex-1 tw:overflow-auto tw:bg-slate-50 tw:p-4 tw:md:p-6">
+        <div className="tw:grid tw:grid-cols-[repeat(auto-fill,minmax(250px,1fr))] tw:gap-3">
+          {shownFields.map((field) => (
+            <FieldCard key={field.title} field={field} selected={selectedFieldIds.includes(field.title)} onToggle={() => onToggleField(field.title)} />
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 }

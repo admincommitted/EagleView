@@ -1,35 +1,39 @@
 import './EFreightAWBForm.css';
-import React from 'react';
 import useEFreightAWBForm from './EFreightAWBFormParts/useEFreightAWBForm';
 import CaptureAwbSection from './EFreightAWBFormParts/sections/CaptureAwbSection';
-import OriginSection from './EFreightAWBFormParts/sections/OriginSection';
+import ShipmentBasicsSection from './EFreightAWBFormParts/sections/ShipmentBasicsSection';
+import ShipmentDescriptionSection from './EFreightAWBFormParts/sections/ShipmentDescriptionSection';
+import RoutingSection from './EFreightAWBFormParts/sections/RoutingSection';
+import { NotifySection, ShipperConsigneeSection } from './EFreightAWBFormParts/sections/PartiesSection';
 import RateAndChargeSection from './EFreightAWBFormParts/sections/RateAndChargeSection';
-import AllMandatoryFieldsSection from './EFreightAWBFormParts/sections/AllMandatoryFieldsSection';
+import AdditionalInfoSection from './EFreightAWBFormParts/sections/AdditionalInfoSection';
+import ActionBar from './EFreightAWBFormParts/sections/ActionBar';
+import DimensionsDrawer from './EFreightAWBFormParts/sections/DimensionsDrawer';
+import AwbDrawers from './EFreightAWBFormParts/sections/AwbDrawers';
 
-// EFreightAWBForm: state/logic in ./EFreightAWBFormParts/use*.jsx, screen sections in ./EFreightAWBFormParts/sections/.
+const FORM_SECTIONS = [
+  ShipmentBasicsSection,
+  ShipmentDescriptionSection,
+  RoutingSection,
+  ShipperConsigneeSection,
+  NotifySection,
+  RateAndChargeSection,
+  AdditionalInfoSection,
+];
+
 export default function EFreightAWBForm() {
-  const ctx = {};
-  Object.assign(ctx, useEFreightAWBForm(ctx));
-  return <div style={{ background: 'linear-gradient(to bottom right, #f1f5f9, #e2e8f0)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      
-      
-      
-      
+  const ctx = useEFreightAWBForm();
+  return (
+    <div className="tw:flex tw:min-h-screen tw:flex-col tw:bg-linear-to-br tw:from-page tw:to-muted">
       <CaptureAwbSection ctx={ctx} />
-        
-<div style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative', overflow: 'hidden' }}>
-        
-        {/* Left Main Content */}
-        <div style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
-          
-          <OriginSection ctx={ctx} />
-
-            <RateAndChargeSection ctx={ctx} />
-
+      <div className="tw:relative tw:flex tw:flex-1 tw:flex-col tw:overflow-hidden">
+        <div className="tw:flex-1 tw:overflow-y-auto tw:p-4 tw:md:p-6">
+          {FORM_SECTIONS.map((FormSection, position) => <FormSection key={position} ctx={ctx} />)}
         </div>
-        
-        <AllMandatoryFieldsSection ctx={ctx} />
-
+        <ActionBar ctx={ctx} />
+      </div>
+      <DimensionsDrawer ctx={ctx} />
+      <AwbDrawers ctx={ctx} />
     </div>
-    </div>;
+  );
 }

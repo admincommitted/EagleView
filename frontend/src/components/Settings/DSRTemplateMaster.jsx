@@ -1,49 +1,73 @@
 import { Plus } from 'lucide-react';
-import React from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui';
 import useDSRTemplateMaster from './DSRTemplateMasterParts/useDSRTemplateMaster';
 import TemplateConfigurationSection from './DSRTemplateMasterParts/sections/TemplateConfigurationSection';
 import DatabaseFieldSelectorSection from './DSRTemplateMasterParts/sections/DatabaseFieldSelectorSection';
 
-// DSRTemplateMaster: state/logic in ./DSRTemplateMasterParts/use*.jsx, screen sections in ./DSRTemplateMasterParts/sections/.
-export default function DSRTemplateMaster() {
-  const ctx = {};
-  Object.assign(ctx, useDSRTemplateMaster(ctx));
-  const { activeId, handleAddTemplate, setActiveId, templates } = ctx;
-  return <div style={{ display: 'flex', gap: '1rem', height: '100%', padding: '1rem' }}>
-      
-      {/* Sidebar List */}
-      <div className="glass-panel" style={{ width: '250px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0, fontSize: '14px', color: '#1e293b' }}>Templates</h3>
-          <button onClick={handleAddTemplate} className="btn btn-primary" style={{ padding: '4px', height: 'auto' }}>
-            <Plus size={16} />
-          </button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', overflow: 'auto' }}>
-          {templates.map(t => (
-            <div 
-              key={t.id} 
-              onClick={() => setActiveId(t.id)}
-              style={{ 
-                padding: '8px 12px', 
-                borderRadius: '6px', 
-                cursor: 'pointer', 
-                background: t.id === activeId ? '#eff6ff' : '#f8fafc',
-                border: t.id === activeId ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
-                color: t.id === activeId ? '#1d4ed8' : '#475569',
-                fontWeight: t.id === activeId ? 600 : 400,
-                fontSize: '12px'
-              }}
-            >
-              {t.name}
-            </div>
-          ))}
-        </div>
+function TemplateList({ templates, activeId, onSelect, onAdd }) {
+  return (
+    <div className="tw:flex tw:w-full tw:shrink-0 tw:flex-col tw:gap-4 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-sm tw:lg:w-[250px]">
+      <div className="tw:flex tw:items-center tw:justify-between">
+        <h3 className="tw:m-0 tw:text-sm tw:text-slate-800">Templates</h3>
+        <Button variant="default" size="icon" title="New template" onClick={onAdd}><Plus className="tw:size-4" /></Button>
       </div>
+      <div className="tw:flex tw:max-h-60 tw:flex-col tw:gap-2 tw:overflow-auto tw:lg:max-h-none">
+        {templates.map((template) => {
+          const active = template.id === activeId;
+          return (
+            <Button
+              key={template.id}
+              size="block"
+              className={cn(
+                'tw:rounded-md tw:px-3 tw:text-xs',
+                active ? 'tw:border-blue-200 tw:bg-blue-50 tw:font-semibold tw:text-blue-700 tw:hover:bg-blue-50' : 'tw:border-slate-200 tw:bg-slate-50 tw:text-slate-600'
+              )}
+              onClick={() => onSelect(template.id)}
+            >
+              {template.name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-      {/* Editor Area */}
-      <TemplateConfigurationSection ctx={ctx} />
+export default function DSRTemplateMaster() {
+  const dsr = useDSRTemplateMaster();
 
-      <DatabaseFieldSelectorSection ctx={ctx} />
-    </div>;
+  return (
+    <div className="tw:flex tw:h-full tw:flex-col tw:gap-4 tw:p-3 tw:lg:flex-row tw:lg:p-4">
+      <TemplateList templates={dsr.templates} activeId={dsr.activeId} onSelect={dsr.setActiveId} onAdd={dsr.handleAddTemplate} />
+
+      <TemplateConfigurationSection
+        template={dsr.activeTemplate}
+        onUpdate={dsr.handleUpdateActive}
+        onDelete={dsr.handleDeleteTemplate}
+        onSave={dsr.handleSaveTemplate}
+        onOpenFieldSelector={() => dsr.setIsModalOpen(true)}
+        columnHandlers={{
+          onAddColumn: dsr.handleAddColumn,
+          onMoveColumn: dsr.handleMoveColumn,
+          onUpdateColumn: dsr.handleUpdateColumn,
+          onRemoveColumn: dsr.handleRemoveColumn,
+        }}
+        colorRuleHandlers={{
+          onAddColorRule: dsr.handleAddColorRule,
+          onUpdateColorRule: dsr.handleUpdateColorRule,
+          onRemoveColorRule: dsr.handleRemoveColorRule,
+        }}
+      />
+
+      <DatabaseFieldSelectorSection
+        open={dsr.isModalOpen}
+        onClose={() => dsr.setIsModalOpen(false)}
+        searchQuery={dsr.searchQuery}
+        onSearchChange={dsr.setSearchQuery}
+        selectedFieldIds={dsr.selectedFieldIds}
+        onToggleField={dsr.handleToggleField}
+      />
+    </div>
+  );
 }

@@ -1,5 +1,3 @@
-
-
 const AWBTermsPage = `
   <div style="page-break-before: always;"></div>
   <div style="width: 190mm; margin: 0 auto; font-family: Arial, sans-serif; font-size: 8px; line-height: 1.2; text-align: justify; color: #000; padding-top: 10mm;">

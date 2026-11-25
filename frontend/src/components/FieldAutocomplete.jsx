@@ -1,140 +1,119 @@
-import React from 'react';
+import { Input } from '@/components/ui';
 import CustomAutocomplete from './CustomAutocomplete';
 
-export default function FieldAutocomplete(props) {
-    const { listType, ...rest } = props;
+const firstBranchCity = (branchesJson) => {
+  try {
+    const branches = JSON.parse(branchesJson);
+    return branches?.length > 0 ? branches[0].city : '';
+  } catch {
+    return '';
+  }
+};
 
-    let fetchUrl = '';
-    let mapData = (data) => [];
-
-    if (listType === 'airport') {
-        fetchUrl = '/api/locations/airports';
-        mapData = (data) => {
-            const seen = new Map();
-            data.forEach(apt => {
-                const code = apt.iataCode || apt.code;
-                if (!code) return;
-                const subtitle = `${apt.cityName || apt.name} - ${apt.airportName || apt.name}`;
-                // Keep entry with longer/more complete subtitle
-                if (!seen.has(code) || subtitle.length > seen.get(code).subtitle.length) {
-                    seen.set(code, {
-                        title: code,
-                        subtitle,
-                        searchKey: apt.cityName || apt.name,
-                        countryCode: apt.countryCode || apt.country || '',
-                    });
-                }
-            });
-            return Array.from(seen.values());
-        };
-    
-    } else if (listType === 'city') {
-        fetchUrl = '/api/locations/cities';
-        mapData = (data) => data.map(c => ({
-            title: c.cityName,
-            subtitle: c.iataCode || '',
-            searchKey: c.cityName
-        }));
-    } else if (listType === 'state') {
-        fetchUrl = '/api/locations/states';
-        mapData = (data) => data.map(s => ({
-            title: s.stateCode,
-            subtitle: s.stateName,
-            searchKey: s.stateName
-        }));
-    } else if (listType === 'airline-code') {
-        fetchUrl = '/api/masters/airlines';
-        mapData = (data) => data.map(al => ({
-            title: al.code2 || al.code,
-            subtitle: al.name,
-            searchKey: al.name
-        }));
-    } else if (listType === 'airline-name') {
-        fetchUrl = '/api/masters/airlines';
-        mapData = (data) => data.map(al => ({
-            title: al.name,
-            subtitle: `${al.code2 || al.code} - ${al.prefix}`,
-            searchKey: al.code2 || al.code
-        }));
-    } else if (listType === 'awb-stock') {
-        if (!props.airlinePrefix || props.airlinePrefix.length < 3) {
-            fetchUrl = null;
-        } else {
-            fetchUrl = `/api/stock/list?prefix=${props.airlinePrefix}&status=AVAILABLE`;
-        }
-        mapData = (data) => data.map(s => ({
-            title: `${s.sequenceNumber}${s.checkDigit}`,
-            searchKey: `${s.sequenceNumber}${s.checkDigit}`
-        }));
-    } else if (listType === 'hawb-stock') {
-        fetchUrl = '/api/stock/hawb/list?status=AVAILABLE';
-        mapData = (data) => data.map(s => ({
-            title: s.fullHawbNumber,
-            searchKey: s.fullHawbNumber
-        }));
-    } else if (listType === 'awb-existing') {
-        fetchUrl = '/api/awb/list';
-        mapData = (data) => data.map(awb => ({
-            title: awb.hawbNumber ? awb.hawbNumber : awb.awbNumber,
-            subtitle: awb.type + (awb.hawbNumber ? ` (Master: ${awb.awbNumber})` : ''),
-            searchKey: awb.hawbNumber ? awb.hawbNumber : awb.awbNumber
-        }));
-    } else if (listType === 'currency') {
-        fetchUrl = '/api/masters/currencies';
-        mapData = (data) => data.map(c => ({
-            title: c.currencyCode || c.code,
-            subtitle: c.currencyName || c.name,
-            searchKey: c.currencyName || c.name
-        }));
-    } else if (listType === 'country') {
-        fetchUrl = '/api/masters/countries';
-        mapData = (data) => data.map(c => ({
-            title: c.code,
-            subtitle: c.name,
-            searchKey: c.name
-        }));
-        } else if (listType === 'charge') {
-        fetchUrl = '/api/masters/charges';
-        mapData = (data) => data.filter(c => c.isActive !== false).map(c => ({
-            title: c.awbChargeCode || c.code,
-            subtitle: c.awbChargeName || c.name,
-            searchKey: c.awbChargeName || c.name
-        }));
-} else if (listType === 'sph') {
-        fetchUrl = '/api/masters/specialhandlingcodes';
-        mapData = (data) => data.map(s => ({
-            title: s.code,
-            subtitle: s.description,
-            searchKey: s.description
-        }));
-    } else if (listType === 'iata-agent') {
-        fetchUrl = '/api/masters/iataagents';
-        mapData = (data) => data.map(i => ({
-            title: i.name,
-            subtitle: i.iataCode,
-            iataCode: i.iataCode,
-            place: (function(){ try { const b=JSON.parse(i.branches); return (b&&b.length>0)?b[0].city:"" } catch(e){return ""} })(),
-            searchKey: i.name
-        }));
-    } else if (listType === 'party') {
-        fetchUrl = '/api/masters/parties';
-        mapData = (data) => data.map(p => ({
-            ...p,
-            title: p.name,
-            subtitle: p.city,
-            searchKey: p.name
-        }));
-    } else {
-        // Fallback for native input
-        return <input {...rest} />;
+// one option per airport code, the one with the fullest name
+const airportOptions = (airports) => {
+  const byCode = new Map();
+  airports.forEach((airport) => {
+    const code = airport.iataCode || airport.code;
+    if (!code) return;
+    const subtitle = `${airport.cityName || airport.name} - ${airport.airportName || airport.name}`;
+    if (!byCode.has(code) || subtitle.length > byCode.get(code).subtitle.length) {
+      byCode.set(code, { title: code, subtitle, searchKey: airport.cityName || airport.name, countryCode: airport.countryCode || airport.country || '' });
     }
+  });
+  return Array.from(byCode.values());
+};
 
-        return (
-        <CustomAutocomplete
-            fetchUrl={fetchUrl}
-            mapData={mapData}
-            enforceSelection={['airport', 'airline-code', 'currency', 'country'].includes(listType)}
-            {...rest}
-        />
-    );
+const LISTS = {
+  airport: { url: '/locations/airports', toOptions: airportOptions },
+  city: {
+    url: '/locations/cities',
+    toOptions: (cities) => cities.map((city) => ({ title: city.cityName, subtitle: city.iataCode || '', searchKey: city.cityName })),
+  },
+  state: {
+    url: '/locations/states',
+    toOptions: (states) => states.map((state) => ({ title: state.stateCode, subtitle: state.stateName, searchKey: state.stateName })),
+  },
+  'airline-code': {
+    url: '/masters/airlines',
+    toOptions: (airlines) => airlines.map((airline) => ({ title: airline.code2 || airline.code, subtitle: airline.name, searchKey: airline.name })),
+  },
+  'airline-name': {
+    url: '/masters/airlines',
+    toOptions: (airlines) => airlines.map((airline) => ({
+      title: airline.name,
+      subtitle: `${airline.code2 || airline.code} - ${airline.prefix}`,
+      searchKey: airline.code2 || airline.code,
+    })),
+  },
+  'awb-stock': {
+    url: ({ airlinePrefix }) => (airlinePrefix?.length >= 3 ? `/stock/list?prefix=${airlinePrefix}&status=AVAILABLE` : null),
+    toOptions: (stock) => stock.map((awb) => ({ title: `${awb.sequenceNumber}${awb.checkDigit}`, searchKey: `${awb.sequenceNumber}${awb.checkDigit}` })),
+  },
+  'hawb-stock': {
+    url: '/stock/hawb/list?status=AVAILABLE',
+    toOptions: (stock) => stock.map((hawb) => ({ title: hawb.fullHawbNumber, searchKey: hawb.fullHawbNumber })),
+  },
+  'awb-existing': {
+    url: '/awb/list',
+    toOptions: (waybills) => waybills.map((awb) => ({
+      title: awb.hawbNumber ? awb.hawbNumber : awb.awbNumber,
+      subtitle: awb.type + (awb.hawbNumber ? ` (Master: ${awb.awbNumber})` : ''),
+      searchKey: awb.hawbNumber ? awb.hawbNumber : awb.awbNumber,
+    })),
+  },
+  currency: {
+    url: '/masters/currencies',
+    toOptions: (currencies) => currencies.map((currency) => ({
+      title: currency.currencyCode || currency.code,
+      subtitle: currency.currencyName || currency.name,
+      searchKey: currency.currencyName || currency.name,
+    })),
+  },
+  country: {
+    url: '/masters/countries',
+    toOptions: (countries) => countries.map((country) => ({ title: country.code, subtitle: country.name, searchKey: country.name })),
+  },
+  charge: {
+    url: '/masters/charges',
+    toOptions: (charges) => charges.filter((charge) => charge.isActive !== false).map((charge) => ({
+      title: charge.awbChargeCode || charge.code,
+      subtitle: charge.awbChargeName || charge.name,
+      searchKey: charge.awbChargeName || charge.name,
+    })),
+  },
+  sph: {
+    url: '/masters/specialhandlingcodes',
+    toOptions: (codes) => codes.map((code) => ({ title: code.code, subtitle: code.description, searchKey: code.description })),
+  },
+  'iata-agent': {
+    url: '/masters/iataagents',
+    toOptions: (agents) => agents.map((agent) => ({
+      title: agent.name,
+      subtitle: agent.iataCode,
+      iataCode: agent.iataCode,
+      place: firstBranchCity(agent.branches),
+      searchKey: agent.name,
+    })),
+  },
+  party: {
+    url: '/masters/parties',
+    toOptions: (parties) => parties.map((party) => ({ ...party, title: party.name, subtitle: party.city, searchKey: party.name })),
+  },
+};
+
+const MUST_PICK_FROM_LIST = ['airport', 'airline-code', 'currency', 'country'];
+
+export default function FieldAutocomplete({ listType, ...props }) {
+  const list = LISTS[listType];
+  if (!list) return <Input {...props} />;
+  const fetchUrl = typeof list.url === 'function' ? list.url(props) : list.url;
+  return (
+    <CustomAutocomplete
+      fetchUrl={fetchUrl}
+      mapData={list.toOptions}
+      enforceSelection={MUST_PICK_FROM_LIST.includes(listType)}
+      {...props}
+    />
+  );
 }

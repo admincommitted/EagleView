@@ -1,251 +1,112 @@
-// Screen section: SVB Loading Invoice
-// Split out of InvoiceGridTab.jsx (28-Oct-2026). Code moved as-is; only the wiring (imports / ctx) is new.
-import ModernDatePicker from '../../../../common/ModernDatePicker';
-import React from 'react';
+import { useMemo } from 'react';
+import { DateInput, Field, FlagInput, Input, Modal, NumberInput, SearchSelect, Textarea } from '@/components/ui';
 
-export default function SvbLoadingInvoiceSection({ ctx }) {
-  const { handleTempChange, isBrokerModalOpen, isConditionsModalOpen, isOtherInfoModalOpen, isSellerModalOpen, isSvbModalOpen, masters, selectedInvoice, setIsBrokerModalOpen, setIsConditionsModalOpen, setIsOtherInfoModalOpen, setIsSellerModalOpen, setIsSvbModalOpen, tempData, invoiceFormData, setInvoiceFormData } = ctx;
+const CONDITION_LINES = [1, 2, 3, 4, 5];
+const ADDRESS_LINES = [1, 2, 3];
+
+function AddressFields({ prefix, countryKey, form, onChange, onCountryChange, countryOptions }) {
+  const valueOf = (key) => form[`${prefix}${key}`] ?? '';
   return (
     <>
-    {isSvbModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '650px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#334155', fontWeight: 'normal' }}>SVB Loading Invoice</h3>
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto 1fr', gap: '12px', alignItems: 'center' }}>
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Ref No.</label>
-                <input type="text" className="input-field mandatory-field" value={invoiceFormData.svbReferenceNumber || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, svbReferenceNumber: e.target.value }))} style={{ border: '1px solid #ef4444' }} />
-                
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Custom House</label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <input type="text" className="input-field mandatory-field" maxLength={6} placeholder="e.g. INDEL4" value={invoiceFormData.customHouseCodeWhichHasImposedLoad || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, customHouseCodeWhichHasImposedLoad: e.target.value.toUpperCase() }))} style={{ flex: 2, background: '#f0fdf4', border: '1px solid #ef4444' }} />
-                </div>
-              </div>
+      <Field label="Name" labelWidth="90px">
+        <Input name={`${prefix}Name`} value={valueOf('Name')} onChange={onChange} placeholder="Name" />
+      </Field>
+      {ADDRESS_LINES.map((line) => (
+        <Field key={line} label={`Address${line}`} labelWidth="90px">
+          <Input name={`${prefix}Address${line}`} value={valueOf(`Address${line}`)} onChange={onChange} placeholder={`Address${line}`} />
+        </Field>
+      ))}
+      <div className="tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-center tw:md:gap-3">
+        <Field label="Country" labelWidth="90px" className="tw:flex-1">
+          <SearchSelect options={countryOptions} value={form[countryKey] ?? ''} onValueChange={onCountryChange} placeholder="Country" allowCustom />
+        </Field>
+        <Field label="Pin" className="tw:md:w-36">
+          <Input name={`${prefix}Pin`} value={valueOf('Pin')} onChange={onChange} />
+        </Field>
+      </div>
+    </>
+  );
+}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '12px', alignItems: 'center', width: '50%' }}>
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Date</label>
-                <ModernDatePicker className="input-field mandatory-field" value={invoiceFormData.svbReferenceDate || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, svbReferenceDate: e?.target?.value !== undefined ? e.target.value : e }))} style={{ border: '1px solid #ef4444' }} />
-              </div>
+export default function SvbLoadingInvoiceSection({ ctx }) {
+  const {
+    handleInvoiceFieldChange, masters, invoiceFormData: form, setInvoiceFormData,
+    isSvbModalOpen, setIsSvbModalOpen, isOtherInfoModalOpen, setIsOtherInfoModalOpen,
+    isConditionsModalOpen, setIsConditionsModalOpen, isSellerModalOpen, setIsSellerModalOpen,
+    isBrokerModalOpen, setIsBrokerModalOpen,
+  } = ctx;
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 60px', gap: '12px', alignItems: 'center' }}>
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>SVB load on ass. value/duty/both[A/D/B]</label>
-                <input type="text" data-allow-text className="input-field mandatory-field" maxLength={1} placeholder="A/D/B" value={invoiceFormData.svbFlag || ''} onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^ADB]/g, ''); setInvoiceFormData(prev => ({ ...prev, svbFlag: v })); }} style={{ border: '1px solid #ef4444', textAlign: 'center' }} />
-              </div>
+  const setField = (key) => (value) => setInvoiceFormData((previous) => ({ ...previous, [key]: value }));
+  const countryOptions = useMemo(
+    () => (masters?.countries || []).map((country) => ({ value: country.code, label: `${country.code} - ${country.name}` })),
+    [masters?.countries]
+  );
 
-              <div style={{ fontWeight: 'bold', color: 'var(--text-main, var(--text-main, #1e293b))', marginTop: '8px' }}>SVB load On -</div>
+  const confirmSvb = () => {
+    setInvoiceFormData((previous) => ({ ...previous, svbLoadingFlag: previous.svbReferenceNumber ? 'Y' : previous.svbLoadingFlag }));
+    setIsSvbModalOpen(false);
+  };
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', alignItems: 'center' }}>
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Ass. Value(%)</label>
-                <input type="text" className="input-field" value={invoiceFormData.svbLoadAssessableValue || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, svbLoadAssessableValue: e.target.value }))} style={{ color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #cbd5e1' }} />
-                
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>SVB Load Status</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input type="text" className="input-field" maxLength={1} value={invoiceFormData.whetherloadProvisionalOnAssValue || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, whetherloadProvisionalOnAssValue: e.target.value.toUpperCase() }))} style={{ width: '40px', border: '1px solid #cbd5e1' }} />
-                  <span style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>[F/P]</span>
-                </div>
-              </div>
+  const closeOnly = (setOpen) => ({ onClose: () => setOpen(false), onOk: () => setOpen(false), closeOnOutside: false });
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', alignItems: 'center' }}>
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>Duty(%)</label>
-                <input type="text" className="input-field" value={invoiceFormData.svbLoadOnDuty || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, svbLoadOnDuty: e.target.value }))} style={{ color: 'var(--primary-color-end, var(--primary-color-end))', border: '1px solid #cbd5e1' }} />
-                
-                <label style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>SVB Load Status</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input type="text" className="input-field" maxLength={1} value={invoiceFormData.whetherProvisionalOnDuty || ''} onChange={(e) => setInvoiceFormData(prev => ({ ...prev, whetherProvisionalOnDuty: e.target.value.toUpperCase() }))} style={{ width: '40px', border: '1px solid #cbd5e1' }} />
-                  <span style={{ color: 'var(--text-main, var(--text-main, #1e293b))' }}>[F/P]</span>
-                </div>
-              </div>
-
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              {/* SVB fields are bound to the invoice now (they were plain boxes that saved nothing). 28-Oct-2026 */}
-              <button onClick={() => { if (invoiceFormData.svbFlag && !/^[ADB]$/.test(invoiceFormData.svbFlag)) { window.alert('SVB load on must be A, D or B'); return; } setInvoiceFormData(prev => ({ ...prev, svbLoadingFlag: prev.svbReferenceNumber ? 'Y' : prev.svbLoadingFlag })); setIsSvbModalOpen(false); }} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsSvbModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
+  return (
+    <>
+      <Modal open={isSvbModalOpen} title="SVB Loading Invoice" width={650} onClose={() => setIsSvbModalOpen(false)} onOk={confirmSvb} closeOnOutside={false}>
+        <div className="tw:grid tw:grid-cols-1 tw:gap-x-4 tw:gap-y-2.5 tw:sm:grid-cols-2">
+          <Field label="Ref No." required labelWidth="70px">
+            <Input required value={form.svbReferenceNumber || ''} onChange={(event) => setField('svbReferenceNumber')(event.target.value)} />
+          </Field>
+          <Field label="Custom House" required labelWidth="96px">
+            <Input required maxLength={6} placeholder="e.g. INDEL4" value={form.customHouseCodeWhichHasImposedLoad || ''}
+              onChange={(event) => setField('customHouseCodeWhichHasImposedLoad')(event.target.value.toUpperCase())} />
+          </Field>
+          <Field label="Date" required labelWidth="70px">
+            <DateInput required value={form.svbReferenceDate || ''} onValueChange={setField('svbReferenceDate')} />
+          </Field>
+          <span className="tw:hidden tw:sm:block" />
+          <Field label="SVB load on ass. value / duty / both [A/D/B]" required className="tw:col-span-full" hint="A = on the assessable value, D = on the duty, B = on both">
+            <FlagInput allowed="ADB" required value={form.svbFlag || ''} onValueChange={setField('svbFlag')} />
+          </Field>
         </div>
-      )}
 
-      {/* Other Relevant Information Modal */}
-      {isOtherInfoModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '500px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#334155', fontWeight: 'normal' }}>Other Relevant Information</h3>
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
-              <textarea 
-                name="otherRelevantInform" value={invoiceFormData.otherRelevantInform ?? ''} onChange={handleTempChange}
-                style={{ width: '100%', height: '150px', border: '1px solid #cbd5e1', borderRadius: '2px', padding: '8px', resize: 'none', color: 'var(--primary-color-end, var(--primary-color-end))', outline: 'none' }}
-              ></textarea>
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              <button onClick={() => setIsOtherInfoModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsOtherInfoModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
+        <span className="tw:mt-1.5 tw:text-entry tw:font-semibold tw:text-head">SVB load on</span>
+        <div className="tw:grid tw:grid-cols-1 tw:gap-x-4 tw:gap-y-2.5 tw:sm:grid-cols-2">
+          <Field label="Ass. Value (%)" labelWidth="96px">
+            <NumberInput value={form.svbLoadAssessableValue || ''} onValueChange={setField('svbLoadAssessableValue')} />
+          </Field>
+          <Field label="SVB Load Status [F/P]" hint="F = final, P = provisional">
+            <FlagInput allowed="FP" value={form.whetherloadProvisionalOnAssValue || ''} onValueChange={setField('whetherloadProvisionalOnAssValue')} />
+          </Field>
+          <Field label="Duty (%)" labelWidth="96px">
+            <NumberInput value={form.svbLoadOnDuty || ''} onValueChange={setField('svbLoadOnDuty')} />
+          </Field>
+          <Field label="SVB Load Status [F/P]" hint="F = final, P = provisional">
+            <FlagInput allowed="FP" value={form.whetherProvisionalOnDuty || ''} onValueChange={setField('whetherProvisionalOnDuty')} />
+          </Field>
         </div>
-      )}
+      </Modal>
 
-      {/* Conditions of Restrictions Modal */}
-      {isConditionsModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#334155', fontWeight: 'normal' }}>Conditions of Restrictions Attached with Sale</h3>
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {[1, 2, 3, 4, 5].map((num) => (
-                <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <label style={{ width: '80px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>{num}.Condition</label>
-                  <input type="text" name={`conditionsAttachedWithSale${num}`} value={invoiceFormData[`conditionsAttachedWithSale${num}`] ?? ''} onChange={handleTempChange} className="input-field" style={{ flex: 1, border: '1px solid #cbd5e1', color: 'var(--primary-color-end, var(--primary-color-end))' }} />
-                </div>
-              ))}
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              <button onClick={() => setIsConditionsModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsConditionsModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
+      <Modal open={isOtherInfoModalOpen} title="Other Relevant Information" width={500} {...closeOnly(setIsOtherInfoModalOpen)}>
+        <Textarea name="otherRelevantInform" value={form.otherRelevantInform ?? ''} onChange={handleInvoiceFieldChange} className="tw:h-[150px] tw:resize-none" />
+      </Modal>
 
-      {/* Seller Details Modal */}
-      {isSellerModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', background: 'var(--bg-panel, #ffffff)', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--primary-text, var(--primary-text))', fontWeight: 'normal' }}>Seller Details</h3>
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Name</label>
-                <input type="text" name="sellerName" value={invoiceFormData.sellerName ?? ''} onChange={handleTempChange} className="input-field" placeholder="NAME" style={{ flex: 1, background: '#f0fdf4', border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address1</label>
-                <input type="text" name="sellerAddress1" value={invoiceFormData.sellerAddress1 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS1" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address2</label>
-                <input type="text" name="sellerAddress2" value={invoiceFormData.sellerAddress2 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS2" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address3</label>
-                <input type="text" name="sellerAddress3" value={invoiceFormData.sellerAddress3 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS3" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Country</label>
-                <input list="country-list" name="sellerCountryName" value={invoiceFormData.sellerCountryName ?? ''} onChange={handleTempChange} type="text" className="input-field" placeholder="COUNTRY" style={{ flex: 1, background: '#f0fdf4', border: '1px solid #cbd5e1' }} />
-                
-                <label style={{ width: '40px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Pin</label>
-                <input type="text" name="sellerPin" value={invoiceFormData.sellerPin ?? ''} onChange={handleTempChange} className="input-field" style={{ width: '100px', border: '1px solid #cbd5e1' }} />
-              </div>
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              <button onClick={() => setIsSellerModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsSellerModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
+      <Modal open={isConditionsModalOpen} title="Conditions of Restrictions Attached with Sale" width={600} {...closeOnly(setIsConditionsModalOpen)}>
+        {CONDITION_LINES.map((line) => (
+          <Field key={line} label={`${line}. Condition`} labelWidth="80px">
+            <Input name={`conditionsAttachedWithSale${line}`} value={form[`conditionsAttachedWithSale${line}`] ?? ''} onChange={handleInvoiceFieldChange} />
+          </Field>
+        ))}
+      </Modal>
 
-      {/* Broker Details Modal */}
-      {isBrokerModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '4px', width: '600px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            <div style={{ padding: '12px 16px', background: 'var(--bg-panel, #ffffff)', borderBottom: '1px solid var(--border-color, #cbd5e1)' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--primary-text, var(--primary-text))', fontWeight: 'normal' }}>Broker's Details</h3>
-            </div>
-            
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Broker Name</label>
-                <input type="text" name="brokerName" value={invoiceFormData.brokerName ?? ''} onChange={handleTempChange} className="input-field" placeholder="NAME" style={{ flex: 1, background: '#f0fdf4', border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address1</label>
-                <input type="text" name="brokerAddress1" value={invoiceFormData.brokerAddress1 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS1" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address2</label>
-                <input type="text" name="brokerAddress2" value={invoiceFormData.brokerAddress2 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS2" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Address3</label>
-                <input type="text" name="brokerAddress3" value={invoiceFormData.brokerAddress3 ?? ''} onChange={handleTempChange} className="input-field" placeholder="ADDRESS3" style={{ flex: 1, border: '1px solid #cbd5e1' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <label style={{ width: '100px', color: 'var(--text-main, var(--text-main, #1e293b))' }}>Country</label>
-                <input list="country-list" name="brokerCountry" value={invoiceFormData.brokerCountry ?? ''} onChange={handleTempChange} type="text" className="input-field" placeholder="COUNTRY" style={{ flex: 1, background: '#f0fdf4', border: '1px solid #cbd5e1' }} />
-                
-                <label style={{ width: '40px', color: 'var(--text-main, var(--text-main, #1e293b))', textAlign: 'center' }}>Pin</label>
-                <input type="text" name="brokerPin" value={invoiceFormData.brokerPin ?? ''} onChange={handleTempChange} className="input-field" style={{ width: '100px', border: '1px solid #cbd5e1' }} />
-              </div>
-            </div>
-            
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-color, #cbd5e1)', display: 'flex', justifyContent: 'flex-end', gap: '8px', background: '#fff' }}>
-              <button onClick={() => setIsBrokerModalOpen(false)} className="btn btn-success" style={{ background: '#4ade80', color: '#fff', border: 'none', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                OK
-              </button>
-              <button onClick={() => setIsBrokerModalOpen(false)} className="btn btn-secondary" style={{ background: '#fff', color: '#334155', border: '1px solid var(--border-color, #cbd5e1)', padding: '6px 20px', fontSize: '13px', borderRadius: '4px' }}>
-                CANCEL
-              </button>
-            </div>
-            
-          </div>
-        </div>
-      )}
+      <Modal open={isSellerModalOpen} title="Seller Details" width={600} {...closeOnly(setIsSellerModalOpen)}>
+        <AddressFields prefix="seller" countryKey="sellerCountryName" form={form} onChange={handleInvoiceFieldChange}
+          onCountryChange={setField('sellerCountryName')} countryOptions={countryOptions} />
+      </Modal>
 
-    
-      {masters && (
-        <>
-          <datalist id="country-list">{masters.countries?.map(c => <option key={c.id} value={c.code}>{c.name}</option>)}</datalist>
-          <datalist id="currency-list">{masters.currencies?.map(c => <option key={c.id} value={c.currencyCode}>{c.currencyName}</option>)}</datalist>
-          <datalist id="uqc-list">{masters.uqcs?.map(c => <option key={c.id} value={c.uqcCode}>{c.description}</option>)}</datalist>
-          <datalist id="scheme-list">{masters.schemeCodes?.map(c => <option key={c.code} value={c.code}>{c.desc}</option>)}</datalist>
-          <datalist id="state-list">{masters.states?.map(c => <option key={c.id} value={c.stateName}>{c.stateCode} - GST {c.taxCode}</option>)}</datalist>
-          <datalist id="state-taxcode-list">{masters.states?.map(c => <option key={c.id} value={c.taxCode}>{c.stateName}</option>)}</datalist>
-          <datalist id="supplier-list">{masters.parties?.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}</datalist>
-          <datalist id="port-list">{masters.ports?.map(p => <option key={p.id} value={p.portCode}>{p.portName}</option>)}</datalist>
-        </>
-      )}
+      <Modal open={isBrokerModalOpen} title="Broker's Details" width={600} {...closeOnly(setIsBrokerModalOpen)}>
+        <AddressFields prefix="broker" countryKey="brokerCountry" form={form} onChange={handleInvoiceFieldChange}
+          onCountryChange={setField('brokerCountry')} countryOptions={countryOptions} />
+      </Modal>
     </>
   );
 }

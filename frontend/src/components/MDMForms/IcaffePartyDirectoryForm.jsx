@@ -1,137 +1,162 @@
-// 04-Nov-2026: iCAFFE Party Directory - exporters, consignees, sub agents, overseas agents, shipping lines, IATA agents
-// and banks read from iCAFFE. Search here; "Add to Party Master" copies the party (with its addresses / AD codes) into
-// the Party master so the job screens can use it.
-import React, { useEffect, useRef, useState } from 'react';
-import { Search, Database, UserPlus, CheckCircle2 } from 'lucide-react';
+// iCAFFE Party Directory - exporters, consignees, sub agents, overseas agents, shipping lines, IATA agents and banks read
+// from iCAFFE. Search here; "Add to Party Master" copies the party (with its addresses / AD codes) into the Party master
+// so the job screens can use it.
+import { useEffect, useState } from 'react';
+import { CheckCircle2, Database, Search, UserPlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge, Button, Card, DataTable, Input, SelectBox } from '@/components/ui';
+import { mastersFormApi } from './masterKit/masterRecordsApi';
 
 const TYPES = [
-  ['', 'All types'], ['EXPORTER', 'Exporter / Importer'], ['CONSIGNEE', 'Consignee / Supplier'], ['SUBAGENT', 'Sub Agent'],
-  ['OVERSEAS_AGENT', 'Overseas Agent'], ['SHIPLINE', 'Shipline'], ['IATA_AGENT', 'IATA Agent'], ['BANK', 'Bank BRO']
+  { value: 'EXPORTER', label: 'Exporter / Importer' }, { value: 'CONSIGNEE', label: 'Consignee / Supplier' }, { value: 'SUBAGENT', label: 'Sub Agent' },
+  { value: 'OVERSEAS_AGENT', label: 'Overseas Agent' }, { value: 'SHIPLINE', label: 'Shipline' }, { value: 'IATA_AGENT', label: 'IATA Agent' }, { value: 'BANK', label: 'Bank BRO' },
 ];
-const LABEL = Object.fromEntries(TYPES);
+const TYPE_LABEL = Object.fromEntries(TYPES.map((type) => [type.value, type.label]));
+const typeLabel = (partyType) => TYPE_LABEL[partyType] || partyType;
 // IATA agents are kept in the IATA Agent Master (Masters > IATA Agent Master), not in the Party master
 const IMPORTABLE = ['EXPORTER', 'CONSIGNEE', 'SUBAGENT', 'OVERSEAS_AGENT', 'SHIPLINE'];
-const th = { padding: '8px 10px', textAlign: 'left', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted, #475569)', textTransform: 'uppercase', borderBottom: '2px solid var(--border-color, #e2e8f0)' };
-const td = { padding: '7px 10px', fontSize: '12px', borderBottom: '1px solid var(--border-color, #e2e8f0)', color: 'var(--text-main, #0f172a)', verticalAlign: 'top' };
+const indianNumber = (value) => Number(value).toLocaleString('en-IN');
+const joined = (values, separator = ', ') => values.filter(Boolean).join(separator);
+
+function DirectoryStats({ stats }) {
+  if (!stats) return null;
+  if (stats.loaded === false) return <div className="tw:text-entry tw:text-warning">Not loaded yet - run load_icaffe_parties.bat.</div>;
+  if (!stats.types?.length) return null;
+  const total = stats.types.reduce((sum, type) => sum + type.n, 0);
+  return (
+    <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-[11px]">
+      <span className="tw:font-bold">{total.toLocaleString('en-IN')} parties:</span>
+      {stats.types.map((type) => (
+        <Badge key={type.partyType} variant="neutral" className="tw:font-semibold">
+          {typeLabel(type.partyType)} {indianNumber(type.n)}{type.imported ? ` (${type.imported} in Party Master)` : ''}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+function PartyAddresses({ party }) {
+  if (!party) return <div className="tw:text-muted-foreground">Select a party to see its addresses.</div>;
+  return (
+    <>
+      <div className="tw:text-[13px] tw:font-bold">{party.name}</div>
+      <div className="tw:mb-2 tw:text-muted-foreground">{party.code} - {typeLabel(party.partyType)}</div>
+      {party.iec && <div><b>IEC:</b> {party.iec}</div>}
+      {party.pan && <div><b>PAN:</b> {party.pan}</div>}
+      {party.classType && <div><b>Class:</b> {party.classType}</div>}
+      {(party.addresses || []).map((address, index) => (
+        <div key={index} className="tw:mt-2 tw:rounded-md tw:border tw:border-border tw:p-2">
+          <div className="tw:font-semibold">{address.branchName || `Address ${index + 1}`}{address.isDefault ? ' (default)' : ''}</div>
+          <div>{joined([address.address1, address.address2])}</div>
+          <div>{joined([address.city, address.state, address.pinCode, address.country])}</div>
+          {address.gstin && <div>GSTIN: {address.gstin}</div>}
+          {(address.phone || address.mobile) && <div>Phone: {joined([address.phone, address.mobile], ' / ')}</div>}
+          {address.email1 && <div>Email: {address.email1}</div>}
+          {address.contactPerson && <div>Contact: {address.contactPerson}</div>}
+        </div>
+      ))}
+      {(party.adCodes || []).length > 0 && (
+        <div className="tw:mt-2.5">
+          <div className="tw:font-bold">AD codes</div>
+          {party.adCodes.map((adCode, index) => (
+            <div key={index}>{adCode.adCode} {adCode.bankName ? `- ${adCode.bankName}` : ''} {adCode.port ? `(${adCode.port})` : ''}</div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function IcaffePartyDirectoryForm() {
-  const [q, setQ] = useState('');
+  const [query, setQuery] = useState('');
   const [type, setType] = useState('');
   const [rows, setRows] = useState([]);
   const [stats, setStats] = useState(null);
-  const [sel, setSel] = useState(null);
+  const [selected, setSelected] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-  const timer = useRef(null);
+  const [message, setMessage] = useState('');
 
-  useEffect(() => { fetch('/api/icaffe-parties/stats').then(r => r.json()).then(setStats).catch(() => setStats(null)); }, []);
-
-  const search = (text, t) => {
-    setBusy(true);
-    fetch(`/api/icaffe-parties?q=${encodeURIComponent(text)}&type=${t}&limit=100`)
-      .then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])).finally(() => setBusy(false));
-  };
   useEffect(() => {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => search(q.trim(), type), q.trim().length ? 300 : 0);
-    return () => clearTimeout(timer.current);
-  }, [q, type]);
+    const loadStats = async () => {
+      try {
+        setStats(await mastersFormApi.icaffePartyStats());
+      } catch {
+        setStats(null);
+      }
+    };
+    loadStats();
+  }, []);
 
-  const addToMaster = async (r) => {
-    setMsg('');
-    const res = await fetch(`/api/icaffe-parties/${r.id}/import`, { method: 'POST' });
-    const d = await res.json().catch(() => ({}));
-    if (!res.ok) { setMsg('Not added: ' + (d.error || 'HTTP ' + res.status)); return; }
-    setMsg((d.created ? 'Added to Party Master: ' : 'Already in Party Master, linked: ') + d.name);
-    const upd = { ...r, importedPartyId: d.partyId };
-    setRows(list => list.map(x => (x.id === r.id ? upd : x)));
-    if (sel && sel.id === r.id) setSel(upd);
+  useEffect(() => {
+    const text = query.trim();
+    const search = async () => {
+      setBusy(true);
+      try {
+        const found = await mastersFormApi.icaffeParties({ q: text, type, limit: 100 });
+        setRows(Array.isArray(found) ? found : []);
+      } catch {
+        setRows([]);
+      } finally {
+        setBusy(false);
+      }
+    };
+    const timer = setTimeout(search, text.length ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [query, type]);
+
+  const addToMaster = async (party) => {
+    setMessage('');
+    try {
+      const imported = await mastersFormApi.importIcaffeParty(party.id);
+      setMessage((imported.created ? 'Added to Party Master: ' : 'Already in Party Master, linked: ') + imported.name);
+      const linked = { ...party, importedPartyId: imported.partyId };
+      setRows((list) => list.map((row) => (row.id === party.id ? linked : row)));
+      if (selected?.id === party.id) setSelected(linked);
+    } catch (error) {
+      const { response } = error;
+      setMessage(`Not added: ${response ? (response.data?.error || `HTTP ${response.status}`) : error.message}`);
+    }
   };
 
-  const total = stats && stats.types ? stats.types.reduce((s, t) => s + t.n, 0) : 0;
+  const columns = [
+    { key: 'code', header: 'Code', className: 'tw:font-semibold' },
+    { key: 'name', header: 'Name', className: 'tw:whitespace-normal' },
+    { key: 'partyType', header: 'Type', cell: (party) => typeLabel(party.partyType) },
+    { key: 'iec', header: 'IEC / GSTIN', cell: (party) => party.iec || party.gstin || '' },
+    { key: 'city', header: 'City', className: 'tw:whitespace-normal', cell: (party) => joined([party.city, party.state]) },
+    {
+      key: 'action', header: '', align: 'right',
+      cell: (party) => IMPORTABLE.includes(party.partyType) && (party.importedPartyId
+        ? <span className="tw:inline-flex tw:items-center tw:gap-1 tw:text-[11px] tw:text-success"><CheckCircle2 className="tw:size-3.5" /> In Party Master</span>
+        : <Button variant="success" size="sm" onClick={(event) => { event.stopPropagation(); addToMaster(party); }}><UserPlus /> Add to Party Master</Button>),
+    },
+  ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
-      <div className="glass-panel" style={{ padding: '1rem 1.25rem' }}>
-        <h3 style={{ margin: '0 0 10px', fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#134e4a', textTransform: 'uppercase' }}>
-          <Database size={18} color="#0f766e" /> iCAFFE Party Directory
+    <div className="tw:flex tw:flex-col tw:gap-4 tw:lg:h-full">
+      <Card className="tw:gap-2.5 tw:px-5 tw:py-4">
+        <h3 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-[15px] tw:font-bold tw:text-head tw:uppercase">
+          <Database className="tw:size-[18px] tw:text-primary" /> iCAFFE Party Directory
         </h3>
-        {stats && stats.loaded === false && <div style={{ fontSize: 12, color: '#b45309' }}>Not loaded yet - run load_icaffe_parties.bat.</div>}
-        {stats && stats.types && stats.types.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 11, marginBottom: 10 }}>
-            <span style={{ fontWeight: 700 }}>{total.toLocaleString('en-IN')} parties:</span>
-            {stats.types.map(t => (
-              <span key={t.partyType} style={{ background: 'var(--bg-input, #f1f5f9)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: 10, padding: '1px 8px' }}>
-                {LABEL[t.partyType] || t.partyType} {Number(t.n).toLocaleString('en-IN')}{t.imported ? ` (${t.imported} in Party Master)` : ''}
-              </span>
-            ))}
+        <DirectoryStats stats={stats} />
+        <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+          <div className="tw:min-w-0 tw:flex-[1_1_260px]">
+            <Input leftIcon={Search} data-allow-text="" placeholder="Name, iCAFFE code, IEC, PAN or GSTIN" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 260px' }}>
-            <Search size={14} style={{ position: 'absolute', left: 8, top: 9, color: '#64748b' }} />
-            <input className="input-field" style={{ width: '100%', paddingLeft: 28 }} placeholder="Name, iCAFFE code, IEC, PAN or GSTIN" value={q} onChange={e => setQ(e.target.value)} />
-          </div>
-          <select className="input-field" value={type} onChange={e => setType(e.target.value)} style={{ width: 180 }}>
-            {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          {busy && <span style={{ fontSize: 11, color: '#64748b' }}>Searching...</span>}
+          <SelectBox options={TYPES} value={type} onValueChange={setType} placeholder="All types" clearable clearLabel="All types" className="tw:w-full tw:sm:w-[180px]" />
+          {busy && <span className="tw:text-[11px] tw:text-muted-foreground">Searching...</span>}
         </div>
-        {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith('Not') ? '#b91c1c' : '#15803d' }}>{msg}</div>}
-      </div>
+        {message && <div className={cn('tw:text-entry tw:font-semibold', message.startsWith('Not') ? 'tw:text-destructive' : 'tw:text-success')}>{message}</div>}
+      </Card>
 
-      <div style={{ display: 'flex', gap: '1rem', flex: 1, minHeight: 0, flexWrap: 'wrap' }}>
-        <div className="glass-panel" style={{ flex: '2 1 480px', overflow: 'auto', padding: 0 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr><th style={th}>Code</th><th style={th}>Name</th><th style={th}>Type</th><th style={th}>IEC / GSTIN</th><th style={th}>City</th><th style={th}></th></tr></thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id} onClick={() => setSel(r)} style={{ cursor: 'pointer', background: sel && sel.id === r.id ? 'rgba(13,148,136,0.08)' : 'transparent' }}>
-                  <td style={{ ...td, whiteSpace: 'nowrap', fontWeight: 600 }}>{r.code}</td>
-                  <td style={td}>{r.name}</td>
-                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{LABEL[r.partyType] || r.partyType}</td>
-                  <td style={{ ...td, whiteSpace: 'nowrap' }}>{r.iec || r.gstin || ''}</td>
-                  <td style={td}>{[r.city, r.state].filter(Boolean).join(', ')}</td>
-                  <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
-                    {IMPORTABLE.includes(r.partyType) && (r.importedPartyId
-                      ? <span style={{ color: '#15803d', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 3 }}><CheckCircle2 size={13} /> In Party Master</span>
-                      : <button type="button" className="btn" onClick={e => { e.stopPropagation(); addToMaster(r); }} style={{ fontSize: 11, padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, background: '#0d9488', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}><UserPlus size={12} /> Add to Party Master</button>)}
-                  </td>
-                </tr>
-              ))}
-              {!rows.length && !busy && <tr><td colSpan="6" style={{ ...td, textAlign: 'center', color: '#64748b', padding: 24 }}>{q ? 'No match.' : 'Type a name to search.'}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="glass-panel" style={{ flex: '1 1 300px', overflow: 'auto', padding: '1rem', fontSize: 12 }}>
-          {!sel ? <div style={{ color: '#64748b' }}>Select a party to see its addresses.</div> : (
-            <>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>{sel.name}</div>
-              <div style={{ color: '#64748b', marginBottom: 8 }}>{sel.code} - {LABEL[sel.partyType] || sel.partyType}</div>
-              {sel.iec && <div><b>IEC:</b> {sel.iec}</div>}
-              {sel.pan && <div><b>PAN:</b> {sel.pan}</div>}
-              {sel.classType && <div><b>Class:</b> {sel.classType}</div>}
-              {(sel.addresses || []).map((a, i) => (
-                <div key={i} style={{ marginTop: 8, padding: 8, border: '1px solid var(--border-color, #e2e8f0)', borderRadius: 6 }}>
-                  <div style={{ fontWeight: 600 }}>{a.branchName || 'Address ' + (i + 1)}{a.isDefault ? ' (default)' : ''}</div>
-                  <div>{[a.address1, a.address2].filter(Boolean).join(', ')}</div>
-                  <div>{[a.city, a.state, a.pinCode, a.country].filter(Boolean).join(', ')}</div>
-                  {a.gstin && <div>GSTIN: {a.gstin}</div>}
-                  {(a.phone || a.mobile) && <div>Phone: {[a.phone, a.mobile].filter(Boolean).join(' / ')}</div>}
-                  {a.email1 && <div>Email: {a.email1}</div>}
-                  {a.contactPerson && <div>Contact: {a.contactPerson}</div>}
-                </div>
-              ))}
-              {(sel.adCodes || []).length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontWeight: 700 }}>AD codes</div>
-                  {sel.adCodes.map((c, i) => <div key={i}>{c.adCode} {c.bankName ? '- ' + c.bankName : ''} {c.port ? '(' + c.port + ')' : ''}</div>)}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+      <div className="tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:gap-4 tw:lg:flex-row">
+        <Card className="tw:min-w-0 tw:overflow-hidden tw:p-0 tw:lg:flex-[2_1_480px]">
+          <DataTable columns={columns} rows={rows} selectedKey={selected?.id} onRowClick={setSelected}
+            emptyText={busy ? '' : (query ? 'No match.' : 'Type a name to search.')} containerClassName="tw:h-full" />
+        </Card>
+        <Card className="tw:min-w-0 tw:overflow-auto tw:p-4 tw:text-entry tw:lg:flex-[1_1_300px]">
+          <PartyAddresses party={selected} />
+        </Card>
       </div>
     </div>
   );

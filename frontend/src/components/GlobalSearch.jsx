@@ -1,109 +1,101 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import {
+  Command, CommandEmpty, CommandInput, CommandItem, CommandList,
+  Dialog, DialogContent, DialogDescription, DialogTitle,
+} from '@/components/ui';
+import axiosInstance from '@/services/axiosInstance';
+
+// the server answers { parties, awbs }, or an array of remark hits that already have a title / description
+const toSearchResults = (data) => {
+  if (Array.isArray(data)) return data;
+  const parties = data?.parties || [];
+  const awbs = data?.awbs || [];
+  return [
+    ...awbs.map((awb) => ({ title: awb.no, description: awb.type, link: awb.type === 'HAWB' ? '/freight/create-hawb' : '/freight/search-awb' })),
+    ...parties.map((party) => ({ title: party.name, description: 'Party' + (party.type ? ' • ' + party.type : ''), link: '/mdm' })),
+  ];
+};
 
 export default function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
-  const inputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === 'k') {
-        e.preventDefault();
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+        event.preventDefault();
         setIsOpen(true);
-      }
-      if (e.key === 'Escape' && isOpen) {
-        setIsOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, []);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (query.trim()) {
-      // backend route is /api/search/global-search → { parties, awbs } or an array of remark hits
-      fetch('/api/search/global-search?q=' + encodeURIComponent(query))
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) { setResults(data); return; }
-          const parties = (data && data.parties) || [];
-          const awbs = (data && data.awbs) || [];
-          setResults([
-            ...awbs.map(a => ({ title: a.no, description: a.type, link: a.type === 'HAWB' ? '/freight/create-hawb' : '/freight/search-awb' })),
-            ...parties.map(p => ({ title: p.name, description: 'Party' + (p.type ? ' • ' + p.type : ''), link: '/mdm' })),
-          ]);
-        })
-        .catch(err => {
-          console.error(err);
-          setResults([]);
-        });
-    } else {
+    if (!query.trim()) {
       setResults([]);
+      return;
     }
+    let isCurrent = true;
+    const search = async () => {
+      try {
+        const { data } = await axiosInstance.get('/search/global-search', { params: { q: query } });
+        if (isCurrent) setResults(toSearchResults(data));
+      } catch (error) {
+        console.error(error);
+        if (isCurrent) setResults([]);
+      }
+    };
+    search();
+    return () => { isCurrent = false; };
   }, [query]);
 
-  if (!isOpen) return null;
+  const openResult = (result) => {
+    setIsOpen(false);
+    if (result.link) navigate(result.link);
+    else toast('Navigating to: ' + (result.title || result.jobNo));
+  };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', justifyContent: 'center', paddingTop: '10vh' }}>
-      <div style={{ background: '#fff', width: '600px', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '16px', borderBottom: '1px solid #e2e8f0' }}>
-          <Search size={20} color="#64748b" style={{ marginRight: '12px' }} />
-          <input 
-            ref={inputRef}
-            type="text" 
-            placeholder="Search jobs, items, parties... (Global)" 
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent
+        className="tw:top-[10vh] tw:max-h-[70vh] tw:w-[600px] tw:translate-y-0 tw:gap-0 tw:overflow-hidden tw:p-0 tw:sm:max-w-[calc(100%-2rem)]"
+      >
+        <DialogTitle className="tw:sr-only">Global search</DialogTitle>
+        <DialogDescription className="tw:sr-only">Search jobs, items and parties</DialogDescription>
+        <Command shouldFilter={false} className="tw:min-h-0 tw:flex-1 tw:rounded-none tw:**:data-[slot=command-input-wrapper]:h-11 tw:**:data-[slot=command-input-wrapper]:gap-3 tw:**:data-[slot=command-input-wrapper]:px-4 tw:**:data-[slot=command-input-wrapper]:pr-10">
+          <CommandInput
+            data-allow-text
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: '16px', color: '#1e293b', background: 'transparent' }}
+            onValueChange={setQuery}
+            placeholder="Search jobs, items, parties... (Global)"
+            className="tw:h-11 tw:text-base"
           />
-          <X size={20} color="#94a3b8" style={{ cursor: 'pointer', marginLeft: '12px' }} onClick={() => setIsOpen(false)} />
-        </div>
-        
-        <div style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
-          {results.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {results.map((res, i) => (
-                <div 
-                  key={i} 
-                  onClick={() => {
-                    setIsOpen(false);
-                    if (res.link) {
-                      navigate(res.link);
-                    } else {
-                      alert("Navigating to: " + (res.title || res.jobNo));
-                    }
-                  }}
-                  style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '4px' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                >
-                  <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '14px' }}>{res.title || res.jobNo}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>{res.description || res.status}</div>
-                </div>
-              ))}
-            </div>
-          ) : query.trim() ? (
-            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>No results found</div>
-          ) : (
-            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>Type something to search...</div>
-          )}
-        </div>
-        
-        <div style={{ padding: '8px 16px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', fontSize: '11px', color: '#94a3b8', textAlign: 'right' }}>
+          <CommandList className="tw:max-h-none tw:min-h-0 tw:flex-1 tw:p-4">
+            <CommandEmpty className="tw:py-6 tw:text-center tw:text-sm tw:text-muted-foreground">
+              {query.trim() ? 'No results found' : 'Type something to search...'}
+            </CommandEmpty>
+            {results.map((result, index) => (
+              <CommandItem
+                key={index}
+                value={String(index)}
+                onSelect={() => openResult(result)}
+                className="tw:mb-2 tw:cursor-pointer tw:flex-col tw:items-start tw:gap-1 tw:rounded-md tw:border tw:border-border tw:p-3"
+              >
+                <div className="tw:text-sm tw:font-semibold tw:text-foreground">{result.title || result.jobNo}</div>
+                <div className="tw:text-entry tw:text-muted-foreground">{result.description || result.status}</div>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+        <div className="tw:border-t tw:border-border tw:bg-page tw:px-4 tw:py-2 tw:text-right tw:text-[11px] tw:text-muted-foreground">
           Press Esc to close
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

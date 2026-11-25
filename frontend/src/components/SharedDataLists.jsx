@@ -1,81 +1,61 @@
-import React, { useEffect, useState } from 'react';
-import { getMaster } from '../utils/masterCache'; // shared copy of small master lists, 09-Nov-2026
+import { useEffect, useState } from 'react';
+import { getMaster } from '../utils/masterCache';
+import { sharedWidgetsApi } from './common/sharedWidgetsApi';
 
+async function loadInto(load, setRows) {
+  try {
+    const rows = await load();
+    if (Array.isArray(rows)) setRows(rows);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function DataList({ id, rows, keyOf = (row) => row.id || row.code, valueOf, labelOf }) {
+  return (
+    <datalist id={id}>
+      {rows.map((row) => <option key={keyOf(row)} value={valueOf(row)}>{labelOf(row)}</option>)}
+    </datalist>
+  );
+}
+
+// <datalist> lists of the app shell, used by the boxes with list="airport-code-list" etc. on the freight screens
 const SharedDataLists = () => {
-    const [airports, setAirports] = useState([]);
-    const [airlines, setAirlines] = useState([]);
-    const [currencies, setCurrencies] = useState([]);
-    const [countries, setCountries] = useState([]);
-    const [iataAgents, setIataAgents] = useState([]);
-    
-    useEffect(() => {
-        fetch('/api/locations/airports').then(res => res.json()).then(data => {
-            if (Array.isArray(data)) setAirports(data);
-        }).catch(err => console.error(err));
-        
-        getMaster('/api/masters/airlines').then(data => {
-            if (Array.isArray(data)) setAirlines(data);
-        }).catch(err => console.error(err));
-        
-        getMaster('/api/masters/currencies').then(data => {
-            if (Array.isArray(data)) setCurrencies(data);
-        }).catch(err => console.error(err));
-        
-        getMaster('/api/masters/countries').then(data => {
-            if (Array.isArray(data)) setCountries(data);
-        }).catch(err => console.error(err));
+  const [airports, setAirports] = useState([]);
+  const [airlines, setAirlines] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+  const [countries, setCountries] = useState([]);
+  const [iataAgents, setIataAgents] = useState([]);
 
-        getMaster('/api/masters/iataagents').then(data => {
-            if (Array.isArray(data)) setIataAgents(data);
-        }).catch(err => console.error(err));
-    }, []);
+  useEffect(() => {
+    loadInto(sharedWidgetsApi.airports, setAirports);
+    loadInto(() => getMaster('/masters/airlines'), setAirlines);
+    loadInto(() => getMaster('/masters/currencies'), setCurrencies);
+    loadInto(() => getMaster('/masters/countries'), setCountries);
+    loadInto(() => getMaster('/masters/iataagents'), setIataAgents);
+  }, []);
 
-    return (
-        <>
-            <datalist id="airport-code-list">
-                {airports.map(apt => (
-                    <option key={apt.id || apt.code} value={apt.iataCode || apt.code}>
-                        {apt.cityName || apt.name} - {apt.airportName || apt.name}
-                    </option>
-                ))}
-            </datalist>
-            <datalist id="airline-code-list">
-                {airlines.map(al => (
-                    <option key={al.id || al.code} value={al.code}>
-                        {al.name}
-                    </option>
-                ))}
-            </datalist>
-            <datalist id="airline-list">
-                {airlines.map(al => (
-                    <option key={`full-${al.id || al.code}`} value={al.name}>
-                        {al.code} - {al.prefix}
-                    </option>
-                ))}
-            </datalist>
-            <datalist id="currency-list">
-                {currencies.map(c => (
-                    <option key={c.id || c.code} value={c.code}>
-                        {c.name}
-                    </option>
-                ))}
-            </datalist>
-            <datalist id="country-list">
-                {countries.map(c => (
-                    <option key={c.id || c.code} value={c.code}>
-                        {c.name}
-                    </option>
-                ))}
-            </datalist>
-            <datalist id="iata-agent-list">
-                {iataAgents.map(i => (
-                    <option key={i.id || i.code} value={i.code}>
-                        {i.name} - {i.city}
-                    </option>
-                ))}
-            </datalist>
-        </>
-    );
+  return (
+    <>
+      <DataList
+        id="airport-code-list"
+        rows={airports}
+        valueOf={(airport) => airport.iataCode || airport.code}
+        labelOf={(airport) => `${airport.cityName || airport.name} - ${airport.airportName || airport.name}`}
+      />
+      <DataList id="airline-code-list" rows={airlines} valueOf={(airline) => airline.code} labelOf={(airline) => airline.name} />
+      <DataList
+        id="airline-list"
+        rows={airlines}
+        keyOf={(airline) => `full-${airline.id || airline.code}`}
+        valueOf={(airline) => airline.name}
+        labelOf={(airline) => `${airline.code} - ${airline.prefix}`}
+      />
+      <DataList id="currency-list" rows={currencies} valueOf={(currency) => currency.code} labelOf={(currency) => currency.name} />
+      <DataList id="country-list" rows={countries} valueOf={(country) => country.code} labelOf={(country) => country.name} />
+      <DataList id="iata-agent-list" rows={iataAgents} valueOf={(agent) => agent.code} labelOf={(agent) => `${agent.name} - ${agent.city}`} />
+    </>
+  );
 };
 
 export default SharedDataLists;

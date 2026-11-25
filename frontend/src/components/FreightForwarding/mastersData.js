@@ -1,4 +1,4 @@
-﻿export const UNIFIED_PARTY_MASTER = [
+export const UNIFIED_PARTY_MASTER = [
     { name: 'ALW LIGHTING INDIA PVT. LTD.', branch: 'DELHI', address: 'VILLAGE BHATHA\\nNEW DELHI, INDIA' },
     { name: 'COMMITTED CARGO CARE LTD', branch: 'DELHI', address: 'A-406, MAHIPALPUR\\nNEW DELHI, INDIA' },
     { name: 'SMART LINK CO., LTD', branch: 'HCM', address: '2 ST. 2, KIM SON\\nHO CHI MINH CITY, VIETNAM' }
@@ -36,8 +36,6 @@ export const AIRLINE_MASTER = [
     { code: 'BA', prefix: '125', name: 'BRITISH AIRWAYS' },
     { code: 'VN', prefix: '738', name: 'VIETNAM AIRLINES' }
 ];
-
-
 
 export const IATA_AGENT_MASTER = [
     { code: '14300000', cass: '1430000', name: 'COMMITTED CARGO CARE LTD', city: 'NEW DELHI' },
