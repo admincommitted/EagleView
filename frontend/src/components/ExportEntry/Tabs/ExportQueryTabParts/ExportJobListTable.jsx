@@ -1,9 +1,20 @@
-import { ClipboardList, Clock, Copy, Edit2, Edit3, Folder, FolderOpen, Link, Lock, MessageSquare, Trash2 } from 'lucide-react';
+import { ClipboardList, Clock, Copy, Edit2, Edit3, Folder, FolderOpen, Link, MessageSquare, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { toDisplayDate } from '@/lib/dates';
 import { Button, DataTable } from '@/components/ui';
-import { finalDocUrl, jobState, sbNoOf, STAGE_TEXT, UNREGISTERED_DOCKET } from './exportJobList';
+import { JobStatusIcon } from '@/components/common/JobListLegend';
+import { EXPORT_STATUS_TITLES, exportStatusOf, finalDocUrl, jobState, sbNoOf, STAGE_TEXT, UNREGISTERED_DOCKET } from './exportJobList';
+
+function JobNoCell({ job }) {
+  const status = exportStatusOf(job);
+  return (
+    <span className="tw:flex tw:items-center tw:gap-1" title={EXPORT_STATUS_TITLES[status]}>
+      <JobStatusIcon status={status} title={EXPORT_STATUS_TITLES[status]} />
+      {job.jobNo}
+    </span>
+  );
+}
 
 const STATUS_ROW_CLASS = {
   locked: 'tw:bg-destructive/10 tw:even:bg-destructive/10 tw:text-destructive',
@@ -96,7 +107,7 @@ function jobColumns({ runAction, showDocuments, showLogs, showTrack, startAmend,
     },
     { key: 'log', header: 'Log', title: 'Audit Logs', ...center, cell: (job) => <IconAction icon={Clock} title="View Logs" className="tw:text-warning" onClick={() => showLogs(job)} /> },
     { key: 'chat', header: 'Chat', ...center, ...opens('timeline', MessageSquare, 'Timeline Log', 'tw:text-success') },
-    { key: 'jobNo', header: 'Job No', cell: (job) => <span className="tw:flex tw:items-center tw:gap-1">{jobState(job).isLocked && <Lock className="tw:size-3" />}{job.jobNo}</span> },
+    { key: 'jobNo', header: 'Job No', cell: (job) => <JobNoCell job={job} /> },
     { key: 'jobDate', header: 'Job Date' },
     { key: 'docketNo', header: 'Docket No', className: 'tw:font-semibold', cell: (job) => <DocketCell job={job} onRegister={registerDocket} onOpen={openDocket} /> },
     { key: 'exporter', header: 'Exporter' },

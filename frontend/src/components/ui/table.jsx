@@ -138,7 +138,7 @@ function TableRow({ className, ...props }) {
     <tr
       data-slot="table-row"
       className={cn(
-        "tw:border-b tw:border-border tw:transition-none tw:even:bg-muted tw:hover:bg-accent/60 tw:data-[state=selected]:bg-accent tw:data-[state=selected]:font-semibold",
+        "tw:border-b tw:border-border/50 tw:transition-none tw:even:bg-muted tw:hover:bg-accent/60 tw:data-[state=selected]:bg-accent tw:data-[state=selected]:font-semibold",
         className
       )}
       {...props}
@@ -163,7 +163,7 @@ function TableCell({ className, ...props }) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("tw:border tw:border-border tw:px-2 tw:py-1 tw:align-middle tw:whitespace-nowrap", className)}
+      className={cn("tw:border tw:border-border/50 tw:px-2 tw:py-1 tw:align-middle tw:whitespace-nowrap", className)}
       {...props}
     />
   )
