@@ -31,6 +31,7 @@ export const STATUS_OPTIONS = [
   { value: 'XRAY_DONE', label: 'X-RAY DONE' },
   { value: 'LEO', label: 'LEO / CLEARED' },
   { value: 'CANCELLED', label: 'VOID' },
+  { value: 'SB_RECEIVED', label: 'SB NO RECEIVED' },
 ];
 
 export const NO_FILTERS = { searchTerm: '', searchType: 'ALL', fromDate: '', toDate: '', status: 'All', mode: 'ALL' };
@@ -76,6 +77,16 @@ export const jobState = (job) => ({
   isFiled: Boolean(sbNoOf(job) || job.icegateStatus),
 });
 
+// one status per job for the Job No icon and the legend: void > locked (LEO given) > SB No received
+export function exportStatusOf(job) {
+  const { isLocked, isVoid, hasSb } = jobState(job);
+  if (isVoid) return 'void';
+  if (isLocked) return 'locked';
+  return hasSb ? 'received' : 'open';
+}
+
+export const EXPORT_STATUS_TITLES = { locked: 'Locked - LEO given (change it with Amend)', void: 'Void (cancelled) job', received: 'SB No received' };
+
 export const finalDocUrl = (job, docType) => job.finalDocs?.find((doc) => doc.docType === docType)?.fileUrl;
 
 const hasText = (value, term) => Boolean(value) && String(value).toLowerCase().includes(term);
@@ -97,6 +108,7 @@ const modeOf = (job) => {
 
 const matchesStatus = (job, status) => {
   if (status === 'LEO') return AFTER_LEO.includes(job.stage);
+  if (status === 'SB_RECEIVED') return exportStatusOf(job) === 'received';
   return status === 'All' || job.stage === status;
 };
 

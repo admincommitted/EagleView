@@ -4,10 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const ALIGN = { left: "tw:text-left", center: "tw:text-center", right: "tw:text-right tw:tabular-nums" }
 
+// a column's className styles its cells; the heading keeps the header colours (a grey / primary text colour meant for
+// the cells made the heading invisible on the coloured header row). headerClassName styles the heading only.
+const HEADING_COLOURS = "tw:bg-primary tw:text-primary-foreground"
+
 const keyOf = (row, index, rowKey) => (typeof rowKey === "function" ? rowKey(row, index) : row[rowKey] ?? index)
 
 /**
- * columns: [{ key, header, title, align, width, className, cell: (row, index) => content }]
+ * columns: [{ key, header, title, align, width, className (cells), headerClassName (heading), cell: (row, index) => content }]
  * selection: { keys, onToggle(key), onToggleAll() } adds a tick column.
  * rowClassName(row) colours a row (status); onRowContextMenu(row, event) for a right-click menu.
  * On a phone the rows show as cards; mobileCards={false} keeps the grid.
@@ -41,7 +45,7 @@ function DataTable({
             </TableHead>
           )}
           {columns.map((column) => (
-            <TableHead key={column.key} title={column.title} className={cn(ALIGN[column.align], column.className)} style={column.width ? { width: column.width } : undefined}>
+            <TableHead key={column.key} title={column.title} className={cn(ALIGN[column.align], column.className, HEADING_COLOURS, column.headerClassName)} style={column.width ? { width: column.width } : undefined}>
               {column.header}
             </TableHead>
           ))}

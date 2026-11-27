@@ -1,21 +1,26 @@
-import { ClipboardList, Clock, Copy, Edit2, Edit3, FileSpreadsheet, Folder, FolderOpen, Link, Lock, MapPin, MessageSquare, Trash2 } from 'lucide-react';
+import { ClipboardList, Clock, Copy, Edit2, Edit3, FileSpreadsheet, Folder, FolderOpen, Link, MapPin, MessageSquare, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Button, DataTable } from '@/components/ui';
-import { finalDocUrl, jobState, UNREGISTERED_DOCKET } from './jobList';
+import { JobStatusIcon } from '@/components/common/JobListLegend';
+import { BE_TYPE_LOOKS, beTypeOf, finalDocUrl, jobState, jobStatusOf, STATUS_TITLES, UNREGISTERED_DOCKET } from './jobList';
 
-const STATUS_ROW_CLASS = {
-  locked: 'tw:bg-destructive/10 tw:even:bg-destructive/10 tw:text-destructive',
-  void: 'tw:bg-warning/10 tw:even:bg-warning/10 tw:text-warning tw:line-through tw:decoration-destructive',
-  filed: 'tw:bg-success/10 tw:even:bg-success/10 tw:text-success',
-};
+// the row's light colour is its BE type (Home / In-Bond / Ex-Bond); the status is the icon before the Job No, and a
+// void job is also struck through
+const rowClassOf = (job) => cn(
+  BE_TYPE_LOOKS.find((look) => look.value === beTypeOf(job))?.rowClassName,
+  jobState(job).isVoid && 'tw:text-muted-foreground tw:line-through tw:decoration-destructive',
+);
 
-const rowStatusClass = (job) => {
-  const { isLocked, isVoid, hasBe } = jobState(job);
-  if (isLocked) return STATUS_ROW_CLASS.locked;
-  if (isVoid) return STATUS_ROW_CLASS.void;
-  return hasBe ? STATUS_ROW_CLASS.filed : undefined;
-};
+function JobNoCell({ job }) {
+  const status = jobStatusOf(job);
+  return (
+    <span className="tw:flex tw:items-center tw:gap-1" title={STATUS_TITLES[status]}>
+      <JobStatusIcon status={status} title={STATUS_TITLES[status]} />
+      {job.jobNo}
+    </span>
+  );
+}
 
 function IconAction({ icon: Icon, title, onClick, disabled, className }) {
   return (
@@ -82,7 +87,7 @@ function jobColumns({ runAction, showDocuments, showLogs, registerDocket, openDo
     { key: 'delete', header: 'Del', title: 'Delete', ...center, ...lockable(Trash2, 'Delete Job', 'delete', 'tw:text-destructive') },
     { key: 'log', header: 'Log', title: 'Audit Logs', ...center, cell: (job) => <IconAction icon={Clock} title="View Logs" className="tw:text-warning" onClick={() => showLogs(job)} /> },
     { key: 'chat', header: 'Chat', ...center, ...opens(MessageSquare, 'timeline', 'tw:text-success', 'Timeline Log') },
-    { key: 'jobNo', header: 'Job No', cell: (job) => <span className="tw:flex tw:items-center tw:gap-1">{jobState(job).isLocked && <Lock className="tw:size-3" />}{job.jobNo}</span> },
+    { key: 'jobNo', header: 'Job No', cell: (job) => <JobNoCell job={job} /> },
     { key: 'jobDate', header: 'Job Date' },
     { key: 'docketNo', header: 'Docket No', className: 'tw:font-semibold', cell: (job) => <DocketCell job={job} onRegister={registerDocket} onOpen={openDocket} /> },
     { key: 'importer', header: 'Importer' },
@@ -119,7 +124,7 @@ export default function JobListTable({ jobs, handlers, onRowMenu, className }) {
     <DataTable
       columns={jobColumns(handlers)}
       rows={jobs}
-      rowClassName={rowStatusClass}
+      rowClassName={rowClassOf}
       onRowContextMenu={onRowMenu}
       emptyText="No jobs found"
       containerClassName={cn('tw:h-full', className)}
