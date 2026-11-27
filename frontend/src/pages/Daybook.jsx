@@ -50,7 +50,8 @@ export default function Daybook() {
         setVouchers(body.data || []);
         setSelectedId(null);
       } catch (error) {
-        console.error('Error fetching daybook', errorMessage(error));
+        setVouchers([]);
+        toast.error(`Day Book: ${errorMessage(error)}`);
       } finally {
         setLoading(false);
       }

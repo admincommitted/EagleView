@@ -59,7 +59,11 @@ export const autoSentMessages = (notifyMode, notifyTime) => [
 ];
 
 // WhatsApp formatting in the preview: *bold*, _italic_, sample values for the variables
-export const previewHtml = (template) => template
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (text) => String(text ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+
+// the typed template is plain text: it is escaped first, so only the preview's own markup becomes HTML
+export const previewHtml = (template) => escapeHtml(template)
   .replace(/{name}/g, '<span class="tw:font-bold tw:text-green-700">ABC Exports Ltd.</span>')
   .replace(/{awb}/g, '<span class="tw:font-bold tw:text-blue-700">020-12345678</span>')
   .replace(/{status}/g, '<span class="tw:font-bold tw:text-red-700">Shipment arrived at Delhi Airport ✅</span>')

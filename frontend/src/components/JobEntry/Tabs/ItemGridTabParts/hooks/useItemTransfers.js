@@ -141,8 +141,10 @@ export default function useItemTransfers(grid) {
     }
   };
 
-  const handleDownloadSample = () => downloadItemWorkbook(true);
-  const handleDownloadTemplate = () => downloadItemWorkbook(false);
+  // an ex-bond job (BE type X) gets the WH Bal / Left columns of its Items grid in the file
+  const exBond = String(jobData?.autoField_51 || jobData?.beType || '').toUpperCase() === 'X';
+  const handleDownloadSample = () => downloadItemWorkbook(true, { exBond });
+  const handleDownloadTemplate = () => downloadItemWorkbook(false, { exBond });
 
   return { saveItemTemplate, useItemTemplate: addItemFromTemplate, handleCopyFromOtherJob, handleAiPdf, handleDownloadSample, handleDownloadTemplate };
 }

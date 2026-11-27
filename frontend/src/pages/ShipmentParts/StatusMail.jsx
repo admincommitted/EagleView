@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Mail, X } from 'lucide-react';
-import { Button, Input, Textarea } from '@/components/ui';
+import { Button, HtmlPreview, Input, Textarea } from '@/components/ui';
 import { toDisplayDate } from '@/lib/dates';
 import { FormGrid, GridField, Panel, StatusMessage } from './layout';
 import { shipmentApi } from './shipmentApi';
@@ -52,7 +52,7 @@ export default function StatusMail({ shipmentId, docketNo, onClose }) {
               <Textarea className="tw:h-[50px]" value={mail.message} onChange={setPart('message')} />
             </GridField>
           </FormGrid>
-          <div className="tw:max-h-[260px] tw:overflow-auto tw:rounded-md tw:border tw:border-primary/25 tw:bg-background tw:p-2 tw:text-entry" dangerouslySetInnerHTML={{ __html: mail.html }} />
+          <HtmlPreview title="Status mail preview" html={mail.html} className="tw:h-[260px] tw:border tw:border-primary/25" />
           <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
             <Button variant="success" onClick={send} disabled={busy}><Mail /> {busy ? 'Sending' : 'Send Mail'}</Button>
             <StatusMessage message={message} />

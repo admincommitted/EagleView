@@ -192,7 +192,7 @@ export function useJobSave({ jobData, setJobData, items, esanchitDocs, transport
     if (!jobData.id) {
       if (!toldToSaveFirst.current) {
         toldToSaveFirst.current = true;
-        toast('Rows are kept on the screen - press SAVE in 1. Job Header to create the job', { duration: 7000, icon: 'ℹ️' });
+        toast('Rows are kept on the screen - press SAVE in 2. Job Header to create the job', { duration: 7000, icon: 'ℹ️' });
       }
       return;
     }

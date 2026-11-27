@@ -1,0 +1,11 @@
+node_modules/
+public/
+uploads/
+logs/
+field-app-src/
+_tariff_load/
+assets/
+tests/contract/runs/
+package-lock.json
+*.sqlite
+*.json

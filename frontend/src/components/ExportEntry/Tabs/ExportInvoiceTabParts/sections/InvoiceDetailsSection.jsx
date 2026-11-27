@@ -112,7 +112,7 @@ export default function InvoiceDetailsSection({ ctx }) {
             <span className="tw:whitespace-nowrap tw:text-[10px] tw:text-warning" title="ICEGATE advisory: CIF-B, CI-I, CF-F, FOB-N">âš  usually {usualAddFlag}</span>
           )}
         </Field>
-        <Field label="Inv FOB â‚¹" labelWidth={LABEL_WIDTH}>
+        <Field label="Inv FOB ₹" labelWidth={LABEL_WIDTH}>
           <Input name="invFobInr" readOnly tabIndex={-1} className="tw:text-right tw:font-bold" value={formData.invFobInr || ''} title="Invoice FOB in INR, worked out from value, rate and charges" />
         </Field>
         <Field label="IGST Based On" labelWidth={LABEL_WIDTH}>

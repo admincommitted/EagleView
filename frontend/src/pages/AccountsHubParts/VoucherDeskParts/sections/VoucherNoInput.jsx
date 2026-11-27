@@ -8,3 +8,6 @@ export function VoucherNoInput({ header, editId, onChange }) {
       value={header.voucherNumber} onChange={(event) => onChange(event.target.value)} />
   );
 }
+
+// these wrap a box the floating Field label can sit in
+VoucherNoInput.floatsLabel = true;

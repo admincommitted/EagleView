@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Ban, CheckCircle, FileSpreadsheet, Lock } from 'lucide-react';
+import { FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DocketRegisterModal, { docketPath } from '../../DocketRegisterModal';
 import QueryResolutionDrawer from '../../JobEntry/Tabs/QueryResolutionDrawer';
-import { cn } from '@/lib/utils';
 import { blobErrorMessage, downloadBlob } from '@/lib/download';
 import { ActionMenu, Badge, Button, CardTitle } from '@/components/ui';
 import { exportEntryApi } from '../exportEntryApi';
-import { AFTER_LEO, filterJobs, finalDocUrl, NO_FILTERS, sbNoOf } from './ExportQueryTabParts/exportJobList';
+import { JobListLegend, STATUS_LEGEND_ICONS } from '@/components/common/JobListLegend';
+import { EXPORT_STATUS_TITLES, exportStatusOf, filterJobs, finalDocUrl, NO_FILTERS } from './ExportQueryTabParts/exportJobList';
 import { downloadJobListExcel } from './ExportQueryTabParts/exportJobExcel';
 import { exportRowMenu } from './ExportQueryTabParts/exportRowMenu';
 import useExportJobList from './ExportQueryTabParts/useExportJobList';
@@ -36,22 +36,25 @@ async function downloadLeoCopies(jobs) {
   }
 }
 
-const isFiledNotLocked = (job) => sbNoOf(job) && !AFTER_LEO.includes(job.stage) && job.stage !== 'CANCELLED';
+// legend chip -> the Status filter it sets (the row colour of the list is the status; the icon is before the Job No)
+const STATUS_LEGEND = [
+  { value: 'LEO', status: 'locked', label: 'Locked (LEO given)' },
+  { value: 'CANCELLED', status: 'void', label: 'Void' },
+  { value: 'SB_RECEIVED', status: 'received', label: 'Received SB No' },
+];
 
-// the legend = the row colours of the list; Locked / Void show only those jobs on a click
 function StatusLegend({ jobs, status, onStatusChange }) {
-  const toggle = (value) => onStatusChange(status === value ? 'All' : value);
-  return (
-    <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:border-t tw:border-border tw:bg-background tw:px-4 tw:py-2">
-      <Button variant="ghost" size="sm" className="tw:h-auto tw:rounded-full tw:p-0" title="LEO given: the SB is locked" onClick={() => toggle('LEO')}>
-        <Badge variant="danger" className={cn(status === 'LEO' && 'tw:ring-2 tw:ring-destructive')}><Lock /> LOCKED JOB ({jobs.filter((job) => AFTER_LEO.includes(job.stage)).length})</Badge>
-      </Button>
-      <Button variant="ghost" size="sm" className="tw:h-auto tw:rounded-full tw:p-0" title="Cancelled jobs" onClick={() => toggle('CANCELLED')}>
-        <Badge variant="warning" className={cn(status === 'CANCELLED' && 'tw:ring-2 tw:ring-warning')}><Ban /> VOID JOB ({jobs.filter((job) => job.stage === 'CANCELLED').length})</Badge>
-      </Button>
-      <Badge variant="success"><CheckCircle /> RECEIVED SB NO ({jobs.filter(isFiledNotLocked).length})</Badge>
-    </div>
-  );
+  const groups = [{
+    name: 'status',
+    title: 'Status',
+    items: STATUS_LEGEND.map((item) => ({
+      value: item.value, label: item.label, title: EXPORT_STATUS_TITLES[item.status],
+      icon: STATUS_LEGEND_ICONS[item.status].icon, iconClassName: STATUS_LEGEND_ICONS[item.status].className,
+      count: jobs.filter((job) => exportStatusOf(job) === item.status).length,
+    })),
+  }];
+  const picked = { status: STATUS_LEGEND.some((item) => item.value === status) ? status : null };
+  return <JobListLegend groups={groups} picked={picked} onPick={(group, value) => onStatusChange(value || 'All')} />;
 }
 
 function ListNotice({ loadError, otherCount, allBranches, onToggleAll, branchName }) {

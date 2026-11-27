@@ -216,6 +216,22 @@ export const ADD_COLS = [...ITEM_KEY, flagColumn('Remove (Y/N)', 'isRemove', ['I
   numberColumn('Rate', 'rate'), numberColumn('Amount', 'amount')];
 
 export const SHEET_COLS = { Invoices: INV_COLS, Items: ITEM_COLS, Containers: CONT_COLS, ...SW_COLS, Supporting_Docs: DOC_COLS, Item_SVB: SVB_COLS, Licence: LIC_COLS, Antidumping: ADD_COLS };
+// ex-bond (BE type X): the Items grid's "WH Bal" (quantity still in the warehouse) and "Left" (WH Bal less this
+// ex-bond's quantity), just after Quantity. Read File takes WH Bal; Left is always worked out, never read.
+export const EXBOND_ITEM_COLS = [
+  textColumn('WH Bal', '_whBalanceQty', ['WH Balance', 'WH_BAL', 'Warehouse Balance']),
+  textColumn('Left', '_whLeft', ['WH Left', 'Balance Left']),
+];
+export function itemColumnsFor(exBond) {
+  if (!exBond) return ITEM_COLS;
+  const afterQty = ITEM_COLS.findIndex((column) => column.k === 'qty') + 1;
+  return [...ITEM_COLS.slice(0, afterQty), ...EXBOND_ITEM_COLS, ...ITEM_COLS.slice(afterQty)];
+}
+const SAMPLE_WH_BALANCES = [150, 20, 5];
+const withWarehouseBalance = (sample, index) => {
+  const balance = SAMPLE_WH_BALANCES[index] ?? sample.qty;
+  return { ...sample, _whBalanceQty: balance, _whLeft: balance - (parseFloat(sample.qty) || 0) };
+};
 
 // sample rows (our headers' order) - dummy data only
 const SAMPLE = {
@@ -241,21 +257,25 @@ const SAMPLE = {
 
 // ---------------------------------------------------------------------------------------------------------------
 // template / sample downloads
-const sampleRows = (sheetName, columns) => (SAMPLE[sheetName] || []).map((sample) => columns.map((column) => sample[column.k] ?? ''));
+const sampleRows = (sheetName, columns, exBond) => (SAMPLE[sheetName] || [])
+  .map((sample, index) => (exBond && sheetName === 'Items' ? withWarehouseBalance(sample, index) : sample))
+  .map((sample) => columns.map((column) => sample[column.k] ?? ''));
 const headerRow = (columns) => columns.map((column) => column.h);
 
-export function downloadJobWorkbook(withSample, only) {
+// exBond: the Items sheet also has the WH Bal / Left columns of an ex-bond job
+export function downloadJobWorkbook(withSample, only, { exBond = false } = {}) {
   const workbook = XLSX.utils.book_new();
-  Object.entries(SHEET_COLS).forEach(([sheetName, columns]) => {
+  Object.entries(SHEET_COLS).forEach(([sheetName, sheetColumns]) => {
     if (only && !only.includes(sheetName)) return;
-    const rows = withSample ? sampleRows(sheetName, columns) : [];
+    const columns = sheetName === 'Items' ? itemColumnsFor(exBond) : sheetColumns;
+    const rows = withSample ? sampleRows(sheetName, columns, exBond) : [];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headerRow(columns), ...rows]), sheetName);
   });
   const baseName = only && only.length === 1 ? ({ Invoices: 'Invoice', Items: 'Item' })[only[0]] || only[0] : 'Job';
-  XLSX.writeFile(workbook, `Import_${baseName}_Upload_${withSample ? 'Sample' : 'Template'}.xlsx`);
+  XLSX.writeFile(workbook, `Import_${exBond ? 'ExBond_' : ''}${baseName}_Upload_${withSample ? 'Sample' : 'Template'}.xlsx`);
 }
 export const downloadInvoiceSample = () => downloadJobWorkbook(true, ['Invoices']);
-export const downloadItemWorkbook = (withSample) => downloadJobWorkbook(withSample);
+export const downloadItemWorkbook = (withSample, options) => downloadJobWorkbook(withSample, undefined, options);
 export function downloadItemCsv() {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headerRow(ITEM_COLS), ...sampleRows('Items', ITEM_COLS)]), 'Items');
@@ -459,7 +479,11 @@ export function readJobWorkbook(arrayBuffer, invoices = [], startSrByInv = {}, e
     if (!itemSrNo) { lastSrByInvoice[invSrNo] = (lastSrByInvoice[invSrNo] || 0) + 1; itemSrNo = String(lastSrByInvoice[invSrNo]); }
     else lastSrByInvoice[invSrNo] = Math.max(lastSrByInvoice[invSrNo] || 0, parseInt(itemSrNo, 10) || 0);
     if (ritc && ritc.length !== 8) warnings.push(`Items row ${index + 2}: RITC ${ritc} is not 8 digits`);
-    items.push(itemFromRow(values, index, { invSrNo, itemSrNo, ritc, invNo: cellText(values.invNo) || invoiceNoAt(invSrNo) }));
+    const item = itemFromRow(values, index, { invSrNo, itemSrNo, ritc, invNo: cellText(values.invNo) || invoiceNoAt(invSrNo) });
+    // an ex-bond file's WH Bal (0 is a real balance); a linked warehouse BE puts its own balance back on open / save
+    const warehouseBalance = parseFloat(cellText(columnValue(row, EXBOND_ITEM_COLS[0])).replace(/,/g, ''));
+    if (Number.isFinite(warehouseBalance)) item._whBalanceQty = warehouseBalance;
+    items.push(item);
   });
   found.items = items.length;
 

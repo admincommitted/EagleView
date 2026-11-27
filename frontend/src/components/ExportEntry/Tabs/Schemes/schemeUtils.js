@@ -181,6 +181,21 @@ export const itemTotalPmv = (item) => {
   const unitPmv = itemUnitPmv(item), quantity = num(item && (item.qty || item.quantity));
   return unitPmv > 0 && quantity > 0 ? round2(unitPmv * quantity) : 0;
 };
+// the PMV the Shipping Bill files (CACHE01 presentMarketValue): the item's own per-unit PMV, else its FOB per unit,
+// worked out as the server's builder does - the checklist shows what is sent
+export const filedUnitPmv = (item) => {
+  const own = num(item && (item.pmv || item.unitPmv));
+  if (own > 0) return own;
+  const fob = num(item && (item.itemFob || item.fobValue || item.value));
+  const quantity = num(item && (item.qty || item.quantity));
+  return quantity > 0 ? round2(fob / quantity) : fob;
+};
+export const filedTotalPmv = (item) => {
+  const total = itemTotalPmv(item);
+  if (total > 0) return total;
+  const quantity = num(item && (item.qty || item.quantity));
+  return round2(filedUnitPmv(item) * (quantity || 1));
+};
 export const RDT_QTY_NEEDED = 'Quantity in the RoDTEP schedule unit is needed (SW info DTY / RDT, e.g. KGS for an item in NOS)';
 
 // one RoSCTL row per scheme 60 item: schedule row, levies, estimate (null = cap per unit, quantity not keyed)

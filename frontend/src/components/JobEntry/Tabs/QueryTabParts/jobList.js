@@ -69,4 +69,34 @@ export const jobState = (job) => ({
   hasBe: Boolean(job.beNo.trim()) && job.beNo !== 'N/A',
 });
 
+// one status per job for the Job No icon and the legend: locked > void > BE No received
+export function jobStatusOf(job) {
+  const { isLocked, isVoid, hasBe } = jobState(job);
+  if (isLocked) return 'locked';
+  if (isVoid) return 'void';
+  return hasBe ? 'received' : 'open';
+}
+
+export const STATUS_TITLES = { locked: 'Locked job', void: 'Void job', received: 'BE No received' };
+
+// BE type of a listed job (the list sends boeType HOME_CONSUMPTION / WAREHOUSE / EX_BOND) and its light row colour
+const BE_TYPE_CODES = { HOME_CONSUMPTION: 'H', WAREHOUSE: 'W', EX_BOND: 'X' };
+export const beTypeOf = (job) => BE_TYPE_CODES[String(job.boeType || '').toUpperCase()] || String(job.autoField_51 || 'H').charAt(0).toUpperCase();
+
+// a tinted row plus a thick coloured edge on its first cell, so the type reads at a glance (class names written in
+// full: Tailwind finds only whole names in the code)
+export const BE_TYPE_LOOKS = [
+  { value: 'H', label: 'Home (H)', title: 'Home consumption Bill of Entry', rowClassName: '', swatchClassName: 'tw:bg-background' },
+  {
+    value: 'W', label: 'In-Bond / Warehouse (W)', title: 'Warehouse (in-bond) Bill of Entry',
+    rowClassName: 'tw:bg-sky-200 tw:even:bg-sky-200 tw:hover:bg-sky-300 tw:dark:bg-sky-900/70 tw:dark:even:bg-sky-900/70 tw:dark:hover:bg-sky-800 tw:[&>td:first-child]:border-l-4 tw:[&>td:first-child]:border-l-sky-600',
+    swatchClassName: 'tw:bg-sky-200 tw:border-sky-600',
+  },
+  {
+    value: 'X', label: 'Ex-Bond (X)', title: 'Ex-bond Bill of Entry (cleared from a warehouse)',
+    rowClassName: 'tw:bg-violet-200 tw:even:bg-violet-200 tw:hover:bg-violet-300 tw:dark:bg-violet-900/70 tw:dark:even:bg-violet-900/70 tw:dark:hover:bg-violet-800 tw:[&>td:first-child]:border-l-4 tw:[&>td:first-child]:border-l-violet-600',
+    swatchClassName: 'tw:bg-violet-200 tw:border-violet-600',
+  },
+];
+
 export const finalDocUrl = (job, docType) => job.finalDocs?.find((doc) => doc.docType === docType)?.fileUrl;

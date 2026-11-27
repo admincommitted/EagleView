@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Clock, Eye, Loader2, Save, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button, Card, Field, Input, Label, Switch, Textarea } from '@/components/ui';
+import { Button, Card, Field, HtmlPreview, Input, Label, Switch, Textarea } from '@/components/ui';
 import { EMAIL_TYPES, fillWithSample, PREVIEW_FOOTER, PREVIEW_HEADER, SUBJECT_VARIABLES } from './emailTemplates';
 
 const NOTIFY_MODES = [
@@ -43,9 +43,7 @@ function EmailPreview({ config }) {
         <span className="tw:font-semibold tw:text-muted-foreground">Subject: </span>
         <span className="tw:font-bold tw:text-foreground">{fillWithSample(config.subject || '')}</span>
       </div>
-      <div className="tw:max-h-80 tw:overflow-y-auto tw:p-2.5">
-        <div className="tw:text-[13px] tw:leading-relaxed" dangerouslySetInnerHTML={{ __html: PREVIEW_HEADER + fillWithSample(config.body || '') + PREVIEW_FOOTER }} />
-      </div>
+      <HtmlPreview title="E-mail preview" html={PREVIEW_HEADER + fillWithSample(config.body || '') + PREVIEW_FOOTER} />
       <div className="tw:border-t tw:border-border tw:bg-page tw:px-3 tw:py-1.5 tw:text-center tw:text-[10px] tw:text-muted-foreground">
         Sample preview with dummy data
       </div>

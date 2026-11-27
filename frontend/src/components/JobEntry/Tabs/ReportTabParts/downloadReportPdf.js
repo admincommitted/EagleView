@@ -12,6 +12,9 @@ const MAX_PARTS = 60;   // beyond this the file gets too big and too slow
 const SHRINK = 0.82;
 const SHRUNK_PROPERTIES = ['font-size', 'padding-top', 'padding-bottom', 'margin-top', 'margin-bottom'];
 const MARGINS = ['margin-top', 'margin-bottom'];
+// a scroll box (ReportPage on a narrow screen scrolls sideways) is drawn by html2canvas cut to its box: the copy shows
+// all of it, at the paper width
+const SCROLLING = /auto|scroll|hidden/;
 
 const setImportant = (node, name, value) => node.style.setProperty(name, value, 'important');
 
@@ -30,10 +33,15 @@ export function shrunkCopy(el, landscape = false) {
     return {
       sizes: SHRUNK_PROPERTIES.map((name) => parseFloat(style.getPropertyValue(name)) || 0),
       colors: COLOR_PROPERTIES.map((name) => style.getPropertyValue(name)),
+      scrolls: SCROLLING.test(`${style.overflowX} ${style.overflowY}`),
     };
   });
   nodes.forEach((node, index) => {
-    const { sizes, colors } = readings[index];
+    const { sizes, colors, scrolls } = readings[index];
+    if (scrolls) {
+      setImportant(node, 'overflow', 'visible');
+      setImportant(node, 'max-height', 'none');
+    }
     SHRUNK_PROPERTIES.forEach((name, position) => {
       const size = sizes[position];
       const isMargin = MARGINS.includes(name);

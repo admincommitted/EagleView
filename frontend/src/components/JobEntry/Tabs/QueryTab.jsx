@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Ban, CheckCircle, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DocketRegisterModal, { docketPath } from '../../DocketRegisterModal';
 import DsrExcelGrid from './DsrExcelGrid';
 import { blobErrorMessage, downloadBlob } from '@/lib/download';
 import { errorMessage } from '@/services/axiosInstance';
 import { ActionMenu, Badge, CardTitle } from '@/components/ui';
+import { JobListLegend, STATUS_LEGEND_ICONS } from '@/components/common/JobListLegend';
 import { jobEntryApi } from '../jobEntryApi';
-import { finalDocUrl, NO_FILTERS, serverFilters, toListRow } from './QueryTabParts/jobList';
+import { BE_TYPE_LOOKS, beTypeOf, finalDocUrl, jobStatusOf, NO_FILTERS, serverFilters, STATUS_TITLES, toListRow } from './QueryTabParts/jobList';
 import { jobRowMenu } from './QueryTabParts/jobRowMenu';
 import JobDocumentsModal from './QueryTabParts/JobDocumentsModal';
 import JobListTable from './QueryTabParts/JobListTable';
@@ -73,15 +73,30 @@ async function saveDsrField(jobId, field, value) {
   }
 }
 
-function StatusLegend() {
-  return (
-    <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:border-t tw:border-border tw:bg-background tw:px-4 tw:py-2">
-      <Badge variant="danger"><Lock /> LOCKED JOB</Badge>
-      <Badge variant="warning"><Ban /> VOID JOB</Badge>
-      <Badge variant="success"><CheckCircle /> RECEIVED BE NO</Badge>
-    </div>
-  );
-}
+const STATUS_LEGEND = [
+  { value: 'locked', label: 'Locked' },
+  { value: 'void', label: 'Void' },
+  { value: 'received', label: 'Received BE No' },
+];
+
+// the legend under the list (row colour = BE type, icon = status); a chip shows only its jobs of the list loaded
+const legendGroups = (jobs) => [
+  {
+    name: 'beType',
+    title: 'BE type',
+    items: BE_TYPE_LOOKS.map((look) => ({ ...look, count: jobs.filter((job) => beTypeOf(job) === look.value).length })),
+  },
+  {
+    name: 'status',
+    title: 'Status',
+    items: STATUS_LEGEND.map((item) => ({
+      ...item, title: STATUS_TITLES[item.value], icon: STATUS_LEGEND_ICONS[item.value].icon, iconClassName: STATUS_LEGEND_ICONS[item.value].className,
+      count: jobs.filter((job) => jobStatusOf(job) === item.value).length,
+    })),
+  },
+];
+
+const matchesLegend = (job, picked) => (!picked.beType || beTypeOf(job) === picked.beType) && (!picked.status || jobStatusOf(job) === picked.status);
 
 export default function QueryTab({ onAction, refreshKey }) {
   const navigate = useNavigate();
@@ -92,9 +107,12 @@ export default function QueryTab({ onAction, refreshKey }) {
   const [logsJob, setLogsJob] = useState(null);
   const [docketJob, setDocketJob] = useState(null);
   const [rowMenu, setRowMenu] = useState(null);
+  const [legendPick, setLegendPick] = useState({ beType: null, status: null });
   const announceResult = useRef(false);
 
-  const { jobs: shownJobs, setJobs, total, loading } = useJobList(appliedFilters, refreshKey, announceResult);
+  const { jobs: loadedJobs, setJobs, total, loading } = useJobList(appliedFilters, refreshKey, announceResult);
+  const shownJobs = loadedJobs.filter((job) => matchesLegend(job, legendPick));
+  const pickLegend = (group, value) => setLegendPick((picked) => ({ ...picked, [group]: value }));
 
   const search = (filters) => {
     announceResult.current = true;
@@ -131,10 +149,10 @@ export default function QueryTab({ onAction, refreshKey }) {
       <div className="glass-panel tw:flex tw:min-h-[420px] tw:flex-1 tw:flex-col tw:overflow-hidden tw:md:min-h-0">
         <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:border-b tw:border-border tw:bg-background tw:px-3 tw:py-2.5 tw:md:px-4">
           <CardTitle>Active Import Jobs Dashboard</CardTitle>
-          <Badge variant="info">{shownJobs.length}</Badge>
+          <Badge variant="info">{shownJobs.length}{shownJobs.length !== loadedJobs.length ? ` of ${loadedJobs.length}` : ''}</Badge>
           {loading && <span className="tw:text-[11px] tw:text-muted-foreground">loading...</span>}
-          {!loading && total > shownJobs.length && (
-            <span className="tw:text-[11px] tw:text-muted-foreground">latest {shownJobs.length} of {total} - use Search / dates for older jobs</span>
+          {!loading && total > loadedJobs.length && (
+            <span className="tw:text-[11px] tw:text-muted-foreground">latest {loadedJobs.length} of {total} - use Search / dates for older jobs</span>
           )}
           <span className="tw:ml-auto tw:text-[11px] tw:text-muted-foreground">Right-click a job for all its actions</span>
         </div>
@@ -145,7 +163,7 @@ export default function QueryTab({ onAction, refreshKey }) {
             : <DsrExcelGrid data={shownJobs} onSave={saveDsrField} />}
         </div>
 
-        <StatusLegend />
+        <JobListLegend groups={legendGroups(loadedJobs)} picked={legendPick} onPick={pickLegend} />
       </div>
 
       {rowMenu && <ActionMenu key={`${rowMenu.x}-${rowMenu.y}`} open position={rowMenu} items={rowMenu.items} onOpenChange={(open) => !open && setRowMenu(null)} />}

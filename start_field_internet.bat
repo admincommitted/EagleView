@@ -6,6 +6,6 @@ REM Needs: the EagleView backend running (start_edi_backend.bat) and cloudflared
 REM     winget install --id Cloudflare.cloudflared
 REM Keep this window open while field boys are out. The link changes each time this is started.
 cd /d "%~dp0node-backend"
-node field_gateway.js
+node src/gateway/fieldGateway.js
 echo.
 pause

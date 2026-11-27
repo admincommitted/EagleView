@@ -2,4 +2,4 @@
 Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 WshShell.CurrentDirectory = fso.GetParentFolderName(WScript.ScriptFullName) & "\node-backend"
-WshShell.Run "cmd /c set PORT=5001&& node server.js", 0, False
+WshShell.Run "cmd /c set PORT=5001&& node src/server.js", 0, False

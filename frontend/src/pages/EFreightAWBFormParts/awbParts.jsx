@@ -95,3 +95,8 @@ export function AwbDrawer({ open, title, onClose, onConfirm, confirmLabel, class
     </Sheet>
   );
 }
+
+// these wrap a box the floating Field label can sit in
+LooseSelect.floatsLabel = true;
+FormCombo.floatsLabel = true;
+UnitInput.floatsLabel = true;

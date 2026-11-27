@@ -21,9 +21,12 @@ const bestPortMatches = (ports, typed) => {
     .slice(0, MAX_PORT_ROWS);
 };
 
+// the port can be found by its code or by its name; either box fills both
 export function RichPortSelect({ ports, jobData, setJobData, id }) {
   const [query, setQuery] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
   const matches = useMemo(() => (query ? bestPortMatches(ports, query) : []), [ports, query]);
+  const nameMatches = useMemo(() => (nameQuery ? bestPortMatches(ports, nameQuery) : []), [ports, nameQuery]);
 
   const selectPort = (port) => setJobData((prev) => ({ ...prev, locationName: port.portName, autoField_1: port.portName, portCode: port.portCode, autoField_2: port.portCode }));
 
@@ -45,7 +48,20 @@ export function RichPortSelect({ ports, jobData, setJobData, id }) {
         onFocus={() => setQuery('')}
         onSelect={selectPort}
       />
-      <Input readOnly placeholder="LOCATION NAME" value={jobData.locationName || jobData.autoField_1 || ''} />
+      <ComboInput
+        upper
+        placeholder="LOCATION NAME"
+        listClassName="tw:min-w-72"
+        options={nameMatches}
+        filter={() => true}
+        limit={MAX_PORT_ROWS}
+        getValue={(port) => port.portName}
+        getLabel={(port) => `${port.portCode} (${port.category})`}
+        value={jobData.locationName || jobData.autoField_1 || ''}
+        onValueChange={setNameQuery}
+        onFocus={() => setNameQuery('')}
+        onSelect={selectPort}
+      />
     </>
   );
 }

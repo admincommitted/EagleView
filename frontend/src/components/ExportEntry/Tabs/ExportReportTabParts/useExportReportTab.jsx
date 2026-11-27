@@ -24,6 +24,13 @@ const printArea = () => document.getElementById('report-print-area');
 const shownTextLength = (el) => (el?.textContent || '').length;
 const printedOnText = () => 'Printed On : ' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
 
+// the text of a cell, a line break read as a space ("EXPINV-01<br>18/11/2026" is not one word)
+const cellText = (cell) => {
+  const copy = cell.cloneNode(true);
+  copy.querySelectorAll('br').forEach((lineBreak) => lineBreak.replaceWith(' '));
+  return copy.textContent;
+};
+
 // amounts like "1,234.50" become numbers in Excel; codes stay text
 const sheetValue = (text) => {
   const value = String(text || '').replace(/\s+/g, ' ').trim();
@@ -38,7 +45,7 @@ function reportSheetRows(el, title, jobNo) {
     table.querySelectorAll('tr').forEach((tableRow) => {
       const row = [];
       tableRow.querySelectorAll('th, td').forEach((cell) => {
-        row.push(sheetValue(cell.textContent));
+        row.push(sheetValue(cellText(cell)));
         const span = parseInt(cell.getAttribute('colspan'), 10) || 1;
         for (let extra = 1; extra < span; extra++) row.push('');
       });
@@ -145,7 +152,7 @@ export default function useExportReportTab() {
     const rows = checklistSheetRows({ exportData, containers, checklist, singleWindow, totals, infoCodeText, docTypeText });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Checklist');
-    XLSX.writeFile(workbook, `Shipping_Bill_${jobNo || 'Checklist'}.xlsx`);
+    XLSX.writeFile(workbook, `Shipping_Bill_${jobTag}.xlsx`);
   };
 
   // Excel of the report shown (the S/B checklist keeps its own detailed Excel)
@@ -164,7 +171,7 @@ export default function useExportReportTab() {
   };
 
   const handleDownloadPDF = async () => {
-    const result = await downloadReportPdf(reportRef.current, { fileName: `Shipping_Bill_${jobNo || 'Checklist'}` });
+    const result = await downloadReportPdf(reportRef.current, { fileName: `Shipping_Bill_${jobTag}`, watermark: watermark ? 'DRAFT' : '' });
     if (result === 'long') {
       toast('This report is too long for a PDF file - Print opens now; choose "Save as PDF" there', { duration: 7000 });
       onPrint();

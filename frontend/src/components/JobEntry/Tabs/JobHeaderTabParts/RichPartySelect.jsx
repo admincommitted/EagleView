@@ -144,3 +144,6 @@ export function RichPartySelect({ parties, jobData, setJobData, type = 'IMPORTER
     />
   );
 }
+
+// renders a ComboInput, so its Field label can float inside it
+RichPartySelect.floatsLabel = true;

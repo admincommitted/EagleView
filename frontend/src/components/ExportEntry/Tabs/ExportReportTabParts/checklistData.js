@@ -5,7 +5,7 @@ import { rateText } from '../../../../utils/cbicExchange';
 import { invoiceRate, invoiceFobFc, contractOf } from '../../../../utils/exportFob';
 import {
   num, schemeCodeOf, claimsRodtep, isRodtepItem, isRosctlItem, itemFobInr, rodtepAmount, rosctlRowsOf, rodtepRowOf, rodtepRateOf,
-  rodtepQtyOf, itemUnitPmv, itemTotalPmv, claimSum,
+  rodtepQtyOf, filedUnitPmv, filedTotalPmv, claimSum,
 } from '../Schemes/schemeUtils';
 import { districtsOf } from '../ExportItemTabParts/districtCodes';
 
@@ -108,10 +108,10 @@ export const docTypeTextOf = (docMaster) => (docType) => {
   return entry ? `${code} ${entry.description}` : code;
 };
 
-// total PMV = per-unit PMV x qty when the item has no total
+// total PMV as the SB files it (per-unit PMV x qty; an item without PMV files its FOB)
 export function checklistTotals(exportData, items) {
   const sumOf = (valueOf) => (items || []).reduce((sum, item) => sum + valueOf(item), 0).toFixed(2);
-  const pmv = sumOf(itemTotalPmv);
+  const pmv = sumOf(filedTotalPmv);
   const taxable = sumOf((item) => parseFloat(item.taxableValue) || 0);
   const igst = sumOf((item) => parseFloat(item.igstAmt) || 0);
   return {
@@ -183,7 +183,7 @@ export function buildChecklist({ exportData, items, dbkItems, rodteps, rosctlMas
       fobFc: exchangeRate && fob ? fixed2(fob / exchangeRate) : '', fobInr: fob ? fixed2(fob) : '', currency: invoice.currency || '',
       scheme: code ? schemeText(code) : '', reward: rewardFlag(item),
       rodtep: claimsRodtep(item) ? 'Y' : 'N', rosctl: isRosctlItem(item) ? 'Y' : 'N',
-      unitPmv: itemUnitPmv(item) ? fixed2(itemUnitPmv(item)) : '', totalPmv: itemTotalPmv(item) ? fixed2(itemTotalPmv(item)) : '',
+      unitPmv: filedUnitPmv(item) ? fixed2(filedUnitPmv(item)) : '', totalPmv: filedTotalPmv(item) ? fixed2(filedTotalPmv(item)) : '',
       igstRate: taxable > 0 && igstAmount > 0 ? (Math.round(igstAmount / taxable * 100000) / 1000).toFixed(3) : '',
       hawb: item.hawb || item.hawbNo || '', totalPkg: item.totalPkgs || item.totalPackage || '0', accessory: item.accessory || item.accessoryStatus || '',
       mfgType: item.mfgType || '', mfgCode: item.mfgCode || '', mfgAddr: joinFilled([item.mfgAddress1, item.mfgAddress2, item.mfgCity, item.mfgState, item.mfgPin], ', '),

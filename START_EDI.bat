@@ -4,7 +4,7 @@ REM  EDI Automation (backend :5001, UI :5173) - without HRMS
 REM  Note: nothing else may use ports 5001 / 5173 at the same time.
 REM ============================================================
 cd /d "%~dp0node-backend"
-start "EDI Backend :5001" cmd /k "set PORT=5001&& node server.js"
+start "EDI Backend :5001" cmd /k "set PORT=5001&& node src/server.js"
 
 cd /d "%~dp0frontend"
 start "EDI UI :5173" cmd /k "npm run dev"
