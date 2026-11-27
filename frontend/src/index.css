@@ -839,7 +839,7 @@ div.job-strip-wrap ~ * button { white-space: nowrap; }
   overflow: hidden;
 }
 
-/* Header (Topbar + Navbar combined) */
+/* Header */
 .global-header {
   background: linear-gradient(135deg, var(--primary-color-start, #0284c7), var(--primary-color-end, #075985));
   border-bottom: none;

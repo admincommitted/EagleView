@@ -232,3 +232,6 @@ export default function InvoiceTermsSection({ ctx }) {
     </>
   );
 }
+
+// these wrap a box the floating Field label can sit in
+CurrencyInput.floatsLabel = true;

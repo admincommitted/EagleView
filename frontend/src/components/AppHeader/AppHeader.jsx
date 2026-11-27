@@ -36,9 +36,9 @@ export default function AppHeader({ ref }) {
         </div>
       </div>
 
-      <div className="tw:hidden tw:items-center tw:gap-2 tw:bg-black/10 tw:pr-4 tw:shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] tw:md:flex">
+      <div className="tw:hidden tw:items-center tw:gap-2 tw:bg-black/10 tw:pr-2 tw:xl:pr-4 tw:shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] tw:md:flex">
         <DesktopNav menu={menu} isEntryActive={isEntryActive} className="tw:min-w-0 tw:flex-1" />
-        <PageSearch menu={menu} className="tw:w-44 tw:flex-none tw:lg:w-56" />
+        <PageSearch menu={menu} className="tw:w-40 tw:flex-none tw:xl:w-48 tw:2xl:w-56" />
       </div>
       <NewsTicker />
       <CommandSearch open={isAccountsSearchOpen} onClose={() => setIsAccountsSearchOpen(false)} />

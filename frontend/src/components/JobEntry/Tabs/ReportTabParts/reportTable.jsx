@@ -40,10 +40,12 @@ export function ReportFootnote({ className, children }) {
   return <div className={cn('tw:mt-[6px] tw:text-[8pt] tw:text-[#475569]', className)}>{children}</div>;
 }
 
-// letters take the size of the page; pass a tw:text-[..] class for a fixed size
+// letters take the size of the page; pass a tw:text-[..] class for a fixed size. A report keeps its paper layout on a
+// phone too (no card view): ReportPage scrolls it sideways instead.
 export function ReportTable({ className, containerClassName, ...props }) {
   return (
     <Table
+      mobileCards={false}
       containerClassName={cn('tw:overflow-visible', containerClassName)}
       className={cn('tw:text-[length:inherit] tw:text-black', className)}
       {...props}

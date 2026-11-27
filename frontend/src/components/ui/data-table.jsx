@@ -10,6 +10,7 @@ const keyOf = (row, index, rowKey) => (typeof rowKey === "function" ? rowKey(row
  * columns: [{ key, header, title, align, width, className, cell: (row, index) => content }]
  * selection: { keys, onToggle(key), onToggleAll() } adds a tick column.
  * rowClassName(row) colours a row (status); onRowContextMenu(row, event) for a right-click menu.
+ * On a phone the rows show as cards; mobileCards={false} keeps the grid.
  */
 function DataTable({
   columns,
@@ -24,13 +25,14 @@ function DataTable({
   selection,
   emptyText = "No rows",
   stickyHeader = true,
+  mobileCards,
   className,
   containerClassName,
 }) {
   const allTicked = rows.length > 0 && selection?.keys.length === rows.length
 
   return (
-    <Table className={className} containerClassName={containerClassName}>
+    <Table className={className} containerClassName={containerClassName} mobileCards={mobileCards}>
       <TableHeader sticky={stickyHeader}>
         <TableRow className="tw:hover:bg-transparent tw:even:bg-transparent">
           {selection && (

@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "edi-automation-backend",
-      "script": "./server.js",
+      "script": "./src/server.js",
       "cwd": "D:/Commited/EDI_AUTOMATION/EagleView/node-backend",
       "instances": 1,
       "autorestart": true,

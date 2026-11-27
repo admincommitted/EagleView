@@ -42,12 +42,13 @@ function SearchSelect({
           role="combobox"
           aria-expanded={open}
           data-required={required ? "true" : undefined}
+          data-filled={selected || value ? "true" : undefined}
           className={cn(
             "tw:flex tw:h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1.5 tw:py-0 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:shadow-soft tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/20 tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
             className
           )}
         >
-          <span className={cn("tw:truncate", !selected && !value && "tw:italic tw:text-muted-foreground/60")}>
+          <span data-float-placeholder={!selected && !value ? "" : undefined} className={cn("tw:truncate", !selected && !value && "tw:italic tw:text-muted-foreground/60")}>
             {selected ? selected.label : value || placeholder}
           </span>
           <span className="tw:flex tw:shrink-0 tw:items-center tw:gap-0.5 tw:text-muted-foreground">

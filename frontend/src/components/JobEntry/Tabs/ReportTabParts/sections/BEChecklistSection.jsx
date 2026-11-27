@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Calculator, CheckSquare, Code, Download, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui';
-import { downloadBlob } from '@/lib/download';
 import { downloadReportPdf } from '../downloadReportPdf';
 
 const VIEWS = [
@@ -16,8 +15,8 @@ const pdfFileName = (reportView, reportType, jobNo) => {
   return `${report}_${jobNo || 'DRAFT'}`.replace(/[^\w.-]+/g, '_');
 };
 
-export default function BEChecklistSection({ ctx }) {
-  const { allItems, esanchitDocs, handleExportExcel, jobData, reportView, setReportView, reportType, landscape, watermark, onPrint } = ctx;
+export default function BEChecklistSection({ ctx, onDownloadBeFile }) {
+  const { handleExportExcel, jobData, reportView, setReportView, reportType, landscape, watermark, onPrint } = ctx;
   const [pdfBusy, setPdfBusy] = useState(false);
   const isJsonView = reportView === 'json';
 
@@ -43,12 +42,6 @@ export default function BEChecklistSection({ ctx }) {
     }
   };
 
-  const exportJson = () => {
-    const data = { jobData, items: allItems, esanchitDocs };
-    downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `BE_${jobData?.jobNo || 'draft'}.json`);
-    toast.success('JSON downloaded!');
-  };
-
   return (
     <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-border tw:bg-card tw:px-2 tw:py-[0.35rem]">
       <div className="tw:flex tw:flex-wrap tw:gap-2">
@@ -68,7 +61,7 @@ export default function BEChecklistSection({ ctx }) {
         <Button variant="default" onClick={handleExportExcel}>
           <Download /> Export to Excel
         </Button>
-        <Button onClick={exportJson}>
+        <Button onClick={onDownloadBeFile} title="Download the CACHI01 file for ICEGATE (same file as ACTIONS > Download BE File)">
           <Code /> Export JSON
         </Button>
       </div>

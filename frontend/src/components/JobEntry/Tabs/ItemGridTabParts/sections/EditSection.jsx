@@ -48,7 +48,7 @@ const itemColumns = ({ isExBond, invoices, copyItemRow }) => [
   { key: 'ritc', header: 'RITC' },
   { key: 'qty', header: 'Qty', align: 'right' },
   ...(isExBond ? [
-    { key: 'whBalance', header: 'WH Bal', align: 'right', className: 'tw:text-muted-foreground', title: 'Quantity of this item still in the warehouse when the WH BE was linked (WH BE quantity less what earlier ex-bonds cleared)', cell: (item) => numberOrNull(item._whBalanceQty) ?? '' },
+    { key: 'whBalance', header: 'WH Bal', align: 'right', title: 'Quantity of this item still in the warehouse when the WH BE was linked (WH BE quantity less what earlier ex-bonds cleared)', cell: (item) => <span className="tw:text-muted-foreground">{numberOrNull(item._whBalanceQty) ?? ''}</span> },
     { key: 'whLeft', header: 'Left', align: 'right', title: 'WH balance less the quantity of this ex-bond', cell: (item) => { const left = warehouseLeft(item); return <span className={leftClass(left)}>{left ?? ''}</span>; } },
   ] : []),
   { key: 'unit', header: 'Unit', cell: (item) => item.unit || item.uqc },

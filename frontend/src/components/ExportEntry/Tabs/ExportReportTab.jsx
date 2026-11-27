@@ -35,7 +35,7 @@ const REPORT_VIEWS = {
   shipment: ({ exportData, containers }) => <ShipmentReport d={exportData} containers={containers} />,
   annexure: ({ exportData, items, dbkItems }) => <AnnexureReport d={exportData} items={items} dbkItems={dbkItems} />,
   contannex: ({ exportData, containers }) => <ContainerAnnexureReport d={exportData} containers={containers} />,
-  swinfo: ({ exportData, items }) => <SwInfoReport d={exportData} items={items} />,
+  swinfo: ({ exportData, singleWindow }) => <SwInfoReport d={exportData} singleWindow={singleWindow} />,
   docs: ({ exportData, items }) => <SupportingDocsReport d={exportData} items={items} />,
 };
 

@@ -1,0 +1,1392 @@
+[
+  {
+    "url": "/api/accounting-masters/all",
+    "file": "accountingMasters",
+    "route": "/api/accounting-masters/all"
+  },
+  {
+    "url": "/api/accounting-masters/cost-centre-report",
+    "file": "accountingMasters",
+    "route": "/api/accounting-masters/cost-centre-report"
+  },
+  {
+    "url": "/api/accounting-masters/currencies",
+    "file": "accountingMasters",
+    "route": "/api/accounting-masters/currencies"
+  },
+  {
+    "url": "/api/accounting-masters/tds-natures",
+    "file": "accountingMasters",
+    "route": "/api/accounting-masters/tds-natures"
+  },
+  {
+    "url": "/api/accounts-hub/approvals",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/approvals"
+  },
+  {
+    "url": "/api/accounts-hub/brs",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/brs"
+  },
+  {
+    "url": "/api/accounts-hub/cheque-books",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/cheque-books"
+  },
+  {
+    "url": "/api/accounts-hub/cheque-books/1/leaves",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/cheque-books/:id/leaves"
+  },
+  {
+    "url": "/api/accounts-hub/company-head",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/company-head"
+  },
+  {
+    "url": "/api/accounts-hub/dashboard",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/dashboard"
+  },
+  {
+    "url": "/api/accounts-hub/fin-statement",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/fin-statement"
+  },
+  {
+    "url": "/api/accounts-hub/groups-tree",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/groups-tree"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/1",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/:id"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/1/contact",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/:id/contact"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/bulk-dockets",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/bulk-dockets"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/by-no",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/by-no"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/by-voucher/1",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/by-voucher/:vid"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/charges",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/charges"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/einv-settings",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/einv-settings"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/einvoice",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/einvoice"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/exists",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/exists"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/expenses",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/expenses"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/job",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/job"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/jobs",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/jobs"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/meta",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/meta"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/next-no",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/next-no"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/parties",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/parties"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/party-account",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/party-account"
+  },
+  {
+    "url": "/api/accounts-hub/gst-invoice/provisional",
+    "file": "accountsGstInvoice",
+    "route": "/api/accounts-hub/gst-invoice/provisional"
+  },
+  {
+    "url": "/api/accounts-hub/held-bills",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/held-bills"
+  },
+  {
+    "url": "/api/accounts-hub/ib",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ib"
+  },
+  {
+    "url": "/api/accounts-hub/ib/balances",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ib/balances"
+  },
+  {
+    "url": "/api/accounts-hub/ib/branches",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ib/branches"
+  },
+  {
+    "url": "/api/accounts-hub/jobs",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/jobs"
+  },
+  {
+    "url": "/api/accounts-hub/ledger-balance/1",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ledger-balance/:id"
+  },
+  {
+    "url": "/api/accounts-hub/ledger-report",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ledger-report"
+  },
+  {
+    "url": "/api/accounts-hub/ledgers",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ledgers"
+  },
+  {
+    "url": "/api/accounts-hub/ledgers-in",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ledgers-in"
+  },
+  {
+    "url": "/api/accounts-hub/ledgers/1",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/ledgers/:id"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/costcentres",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/costcentres"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/groups",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/groups"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/ledgers",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/ledgers"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/sac",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/sac"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/tdsnatures",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/tdsnatures"
+  },
+  {
+    "url": "/api/accounts-hub/lookups/years",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/lookups/years"
+  },
+  {
+    "url": "/api/accounts-hub/masters",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/masters"
+  },
+  {
+    "url": "/api/accounts-hub/masters/import",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/masters/:kind"
+  },
+  {
+    "url": "/api/accounts-hub/masters/import/meta",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/masters/:kind/meta"
+  },
+  {
+    "url": "/api/accounts-hub/months",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/months"
+  },
+  {
+    "url": "/api/accounts-hub/purchase-info/1",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/purchase-info/:id"
+  },
+  {
+    "url": "/api/accounts-hub/search",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/search"
+  },
+  {
+    "url": "/api/accounts-hub/summary",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/summary"
+  },
+  {
+    "url": "/api/accounts-hub/tds-payable",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/tds-payable"
+  },
+  {
+    "url": "/api/accounts-hub/tds-payable/detail",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/tds-payable/detail"
+  },
+  {
+    "url": "/api/accounts-hub/tds-schedule",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/tds-schedule"
+  },
+  {
+    "url": "/api/accounts-hub/vendor-bills",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/vendor-bills"
+  },
+  {
+    "url": "/api/accounts-hub/voucher-types",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/voucher-types"
+  },
+  {
+    "url": "/api/accounts-hub/vouchers",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/vouchers"
+  },
+  {
+    "url": "/api/accounts-hub/vouchers/1",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/vouchers/:id"
+  },
+  {
+    "url": "/api/accounts-hub/vouchers/1/audit",
+    "file": "accountsHub",
+    "route": "/api/accounts-hub/vouchers/:id/audit"
+  },
+  {
+    "url": "/api/accounts/tree",
+    "file": "accounts",
+    "route": "/api/accounts/tree"
+  },
+  {
+    "url": "/api/assets",
+    "file": "assets",
+    "route": "/api/assets"
+  },
+  {
+    "url": "/api/assets/alerts/expiring",
+    "file": "assets",
+    "route": "/api/assets/alerts/expiring"
+  },
+  {
+    "url": "/api/auth/profile",
+    "file": "auth",
+    "route": "/api/auth/profile"
+  },
+  {
+    "url": "/api/auth/settings",
+    "file": "auth",
+    "route": "/api/auth/settings"
+  },
+  {
+    "url": "/api/awb/1/xfhl",
+    "file": "awb",
+    "route": "/api/awb/:id/xfhl"
+  },
+  {
+    "url": "/api/awb/1/xfhl-preview",
+    "file": "awb",
+    "route": "/api/awb/:id/xfhl-preview"
+  },
+  {
+    "url": "/api/awb/1/xfwb",
+    "file": "awb",
+    "route": "/api/awb/:id/xfwb"
+  },
+  {
+    "url": "/api/awb/1/xfwb-preview",
+    "file": "awb",
+    "route": "/api/awb/:id/xfwb-preview"
+  },
+  {
+    "url": "/api/awb/doc-data/AI/1",
+    "file": "awb",
+    "route": "/api/awb/doc-data/:type/:id"
+  },
+  {
+    "url": "/api/awb/docs/1",
+    "file": "awb",
+    "route": "/api/awb/docs/:tempId"
+  },
+  {
+    "url": "/api/awb/hawb",
+    "file": "awb",
+    "route": "/api/awb/hawb"
+  },
+  {
+    "url": "/api/awb/insights",
+    "file": "awb",
+    "route": "/api/awb/insights"
+  },
+  {
+    "url": "/api/awb/list",
+    "file": "awb",
+    "route": "/api/awb/list"
+  },
+  {
+    "url": "/api/awb/notify-settings",
+    "file": "awb",
+    "route": "/api/awb/notify-settings"
+  },
+  {
+    "url": "/api/awb/sftp-status",
+    "file": "awb",
+    "route": "/api/awb/sftp-status"
+  },
+  {
+    "url": "/api/awb/templates/AI",
+    "file": "awb",
+    "route": "/api/awb/templates/:type"
+  },
+  {
+    "url": "/api/awb/tracking",
+    "file": "awb",
+    "route": "/api/awb/tracking"
+  },
+  {
+    "url": "/api/be-amendments",
+    "file": "beAmendments",
+    "route": "/api/be-amendments"
+  },
+  {
+    "url": "/api/be-amendments/1",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/:id"
+  },
+  {
+    "url": "/api/be-amendments/1/changes",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/:id/changes"
+  },
+  {
+    "url": "/api/be-amendments/1/file",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/:id/file"
+  },
+  {
+    "url": "/api/be-amendments/by-job/1",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/by-job/:jobId"
+  },
+  {
+    "url": "/api/be-amendments/codes",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/codes"
+  },
+  {
+    "url": "/api/be-amendments/settings",
+    "file": "beAmendments",
+    "route": "/api/be-amendments/settings"
+  },
+  {
+    "url": "/api/branch-scope/me",
+    "file": "server.js",
+    "route": "/api/branch-scope/me"
+  },
+  {
+    "url": "/api/budgets",
+    "file": "budgets",
+    "route": "/api/budgets"
+  },
+  {
+    "url": "/api/budgets/targets",
+    "file": "budgets",
+    "route": "/api/budgets/targets"
+  },
+  {
+    "url": "/api/contracts",
+    "file": "contracts",
+    "route": "/api/contracts"
+  },
+  {
+    "url": "/api/contracts/1",
+    "file": "contracts",
+    "route": "/api/contracts/:id"
+  },
+  {
+    "url": "/api/contracts/gst-charges",
+    "file": "contracts",
+    "route": "/api/contracts/gst-charges"
+  },
+  {
+    "url": "/api/credit-control/ageing",
+    "file": "creditControl",
+    "route": "/api/credit-control/ageing"
+  },
+  {
+    "url": "/api/credit-control/party/1",
+    "file": "creditControl",
+    "route": "/api/credit-control/party/:ledgerId"
+  },
+  {
+    "url": "/api/dashboard/live-tracking",
+    "file": "importDashboard",
+    "route": "/api/dashboard/live-tracking"
+  },
+  {
+    "url": "/api/document-series",
+    "file": "documentSeries",
+    "route": "/api/document-series"
+  },
+  {
+    "url": "/api/dsr-templates",
+    "file": "dsrTemplates",
+    "route": "/api/dsr-templates"
+  },
+  {
+    "url": "/api/export-dashboard/live-tracking",
+    "file": "exportDashboard",
+    "route": "/api/export-dashboard/live-tracking"
+  },
+  {
+    "url": "/api/export-jobs",
+    "file": "exportJobs",
+    "route": "/api/export-jobs"
+  },
+  {
+    "url": "/api/export-jobs/1",
+    "file": "exportJobs",
+    "route": "/api/export-jobs/:id"
+  },
+  {
+    "url": "/api/export-jobs/1/logs",
+    "file": "exportJobs",
+    "route": "/api/export-jobs/:id/logs"
+  },
+  {
+    "url": "/api/export-jobs/next-sequence",
+    "file": "exportJobs",
+    "route": "/api/export-jobs/next-sequence"
+  },
+  {
+    "url": "/api/field-tracking/agents",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/agents"
+  },
+  {
+    "url": "/api/field-tracking/agents/1",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/agents/:id"
+  },
+  {
+    "url": "/api/field-tracking/device/settings",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/device/settings"
+  },
+  {
+    "url": "/api/field-tracking/health",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/health"
+  },
+  {
+    "url": "/api/field-tracking/history/1",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/history/:agentId"
+  },
+  {
+    "url": "/api/field-tracking/public-url",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/public-url"
+  },
+  {
+    "url": "/api/field-tracking/report/1",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/report/:agentId"
+  },
+  {
+    "url": "/api/field-tracking/report/summary",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/report/summary"
+  },
+  {
+    "url": "/api/field-tracking/stats",
+    "file": "fieldTracking",
+    "route": "/api/field-tracking/stats"
+  },
+  {
+    "url": "/api/fleet/lr",
+    "file": "fleet",
+    "route": "/api/fleet/lr"
+  },
+  {
+    "url": "/api/fleet/lr/next-no",
+    "file": "fleet",
+    "route": "/api/fleet/lr/next-no"
+  },
+  {
+    "url": "/api/fleet/masters",
+    "file": "fleet",
+    "route": "/api/fleet/masters"
+  },
+  {
+    "url": "/api/freight/dashboard",
+    "file": "freight",
+    "route": "/api/freight/dashboard"
+  },
+  {
+    "url": "/api/icaffe-parties",
+    "file": "icaffeParties",
+    "route": "/api/icaffe-parties"
+  },
+  {
+    "url": "/api/icaffe-parties/1",
+    "file": "icaffeParties",
+    "route": "/api/icaffe-parties/:id"
+  },
+  {
+    "url": "/api/icaffe-parties/stats",
+    "file": "icaffeParties",
+    "route": "/api/icaffe-parties/stats"
+  },
+  {
+    "url": "/api/icegate-profiles",
+    "file": "icegate-profile",
+    "route": "/api/icegate-profiles"
+  },
+  {
+    "url": "/api/import-jobs",
+    "file": "importJobs",
+    "route": "/api/import-jobs"
+  },
+  {
+    "url": "/api/import-jobs/1",
+    "file": "importJobs",
+    "route": "/api/import-jobs/:id"
+  },
+  {
+    "url": "/api/import-jobs/1/filed-json",
+    "file": "importJobs",
+    "route": "/api/import-jobs/:id/filed-json"
+  },
+  {
+    "url": "/api/import-jobs/1/logs",
+    "file": "importJobs",
+    "route": "/api/import-jobs/:id/logs"
+  },
+  {
+    "url": "/api/import-jobs/by-be",
+    "file": "importJobs",
+    "route": "/api/import-jobs/by-be"
+  },
+  {
+    "url": "/api/import-jobs/item-history",
+    "file": "importJobs",
+    "route": "/api/import-jobs/item-history"
+  },
+  {
+    "url": "/api/import-jobs/pin-suggest",
+    "file": "importJobs",
+    "route": "/api/import-jobs/pin-suggest"
+  },
+  {
+    "url": "/api/import-jobs/sample/import",
+    "file": "importJobs",
+    "route": "/api/import-jobs/sample/:kind"
+  },
+  {
+    "url": "/api/import-jobs/search",
+    "file": "importJobs",
+    "route": "/api/import-jobs/search"
+  },
+  {
+    "url": "/api/inventory/all",
+    "file": "inventory",
+    "route": "/api/inventory/all"
+  },
+  {
+    "url": "/api/invoices",
+    "file": "invoices",
+    "route": "/api/invoices"
+  },
+  {
+    "url": "/api/locations",
+    "file": "locationMaster",
+    "route": "/api/locations"
+  },
+  {
+    "url": "/api/locations/airports",
+    "file": "locationMaster",
+    "route": "/api/locations/airports"
+  },
+  {
+    "url": "/api/locations/cities",
+    "file": "locationMaster",
+    "route": "/api/locations/cities"
+  },
+  {
+    "url": "/api/locations/foreign-ports",
+    "file": "locationMaster",
+    "route": "/api/locations/foreign-ports"
+  },
+  {
+    "url": "/api/locations/lite",
+    "file": "locationMaster",
+    "route": "/api/locations/lite"
+  },
+  {
+    "url": "/api/locations/states",
+    "file": "locationMaster",
+    "route": "/api/locations/states"
+  },
+  {
+    "url": "/api/locations/stats",
+    "file": "locationMaster",
+    "route": "/api/locations/stats"
+  },
+  {
+    "url": "/api/masters/aeomasters",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/agents",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/airlines",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/airports",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/bonds",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/cha-master",
+    "file": "masters",
+    "route": "/api/masters/cha-master"
+  },
+  {
+    "url": "/api/masters/charges",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/company-branches",
+    "file": "masters",
+    "route": "/api/masters/company-branches"
+  },
+  {
+    "url": "/api/masters/consignees",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/countries",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/currencies",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/currencies/cbic-status",
+    "file": "masters",
+    "route": "/api/masters/currencies/cbic-status"
+  },
+  {
+    "url": "/api/masters/currencies/history",
+    "file": "masters",
+    "route": "/api/masters/currencies/history"
+  },
+  {
+    "url": "/api/masters/currencies/in-force",
+    "file": "masters",
+    "route": "/api/masters/currencies/in-force"
+  },
+  {
+    "url": "/api/masters/drawbacks",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/dutynotifs/1/details",
+    "file": "masters",
+    "route": "/api/masters/dutynotifs/:id/details"
+  },
+  {
+    "url": "/api/masters/dutynotifs/all",
+    "file": "masters",
+    "route": "/api/masters/dutynotifs/all"
+  },
+  {
+    "url": "/api/masters/esanchits",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/exportpolicies",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/financial-years",
+    "file": "masters",
+    "route": "/api/masters/financial-years"
+  },
+  {
+    "url": "/api/masters/iataagents",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/itemtemplates",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/job-sequences",
+    "file": "masters",
+    "route": "/api/masters/job-sequences"
+  },
+  {
+    "url": "/api/masters/job-sequences/status",
+    "file": "masters",
+    "route": "/api/masters/job-sequences/status"
+  },
+  {
+    "url": "/api/masters/licenses",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/live-news",
+    "file": "masters",
+    "route": "/api/masters/live-news"
+  },
+  {
+    "url": "/api/masters/no-such-master",
+    "file": "server.js",
+    "route": "/api/masters/no-such-master"
+  },
+  {
+    "url": "/api/masters/parties",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/parties/find",
+    "file": "masters",
+    "route": "/api/masters/parties/find"
+  },
+  {
+    "url": "/api/masters/parties/search",
+    "file": "masters",
+    "route": "/api/masters/parties/search"
+  },
+  {
+    "url": "/api/masters/party/1/kyc",
+    "file": "masters",
+    "route": "/api/masters/party/:id/kyc"
+  },
+  {
+    "url": "/api/masters/ports",
+    "file": "portMaster",
+    "route": "/api/masters/ports"
+  },
+  {
+    "url": "/api/masters/rodteps",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/rosctls",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/rspabatements",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/schemecodes",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/shippers",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/shippinglines",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/specialhandlingcodes",
+    "file": "masters",
+    "route": "/api/masters/specialhandlingcodes"
+  },
+  {
+    "url": "/api/masters/sph-master",
+    "file": "masters",
+    "route": "/api/masters/sph-master"
+  },
+  {
+    "url": "/api/masters/states",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/subagents",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/tariffdutycomponents",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/tariffheaders/all",
+    "file": "masters",
+    "route": "/api/masters/tariffheaders/all"
+  },
+  {
+    "url": "/api/masters/transporters",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/uqcs",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/vessels",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/masters/warehouses",
+    "file": "masters",
+    "route": "/api/masters/:category"
+  },
+  {
+    "url": "/api/no-such-endpoint",
+    "file": "server.js",
+    "route": "/api/no-such-endpoint"
+  },
+  {
+    "url": "/api/notifications",
+    "file": "notifications",
+    "route": "/api/notifications"
+  },
+  {
+    "url": "/api/number-series",
+    "file": "numberSeries",
+    "route": "/api/number-series"
+  },
+  {
+    "url": "/api/number-series/peek",
+    "file": "numberSeries",
+    "route": "/api/number-series/peek"
+  },
+  {
+    "url": "/api/penalty-rules",
+    "file": "penaltyRules",
+    "route": "/api/penalty-rules"
+  },
+  {
+    "url": "/api/po",
+    "file": "poRoutes",
+    "route": "/api/po"
+  },
+  {
+    "url": "/api/po/1",
+    "file": "poRoutes",
+    "route": "/api/po/:id"
+  },
+  {
+    "url": "/api/po/dashboard/category-wise-expenses",
+    "file": "poRoutes",
+    "route": "/api/po/dashboard/category-wise-expenses"
+  },
+  {
+    "url": "/api/po/dashboard/month-wise-expenses",
+    "file": "poRoutes",
+    "route": "/api/po/dashboard/month-wise-expenses"
+  },
+  {
+    "url": "/api/po/item-history/search",
+    "file": "poRoutes",
+    "route": "/api/po/item-history/search"
+  },
+  {
+    "url": "/api/po/vendors",
+    "file": "poRoutes",
+    "route": "/api/po/vendors"
+  },
+  {
+    "url": "/api/reports/awb-agents",
+    "file": "reports",
+    "route": "/api/reports/awb-agents"
+  },
+  {
+    "url": "/api/reports/collection",
+    "file": "reports",
+    "route": "/api/reports/collection"
+  },
+  {
+    "url": "/api/reports/csr",
+    "file": "reports",
+    "route": "/api/reports/csr"
+  },
+  {
+    "url": "/api/reports/csr-periods",
+    "file": "reports",
+    "route": "/api/reports/csr-periods"
+  },
+  {
+    "url": "/api/reports/expenses",
+    "file": "reports",
+    "route": "/api/reports/expenses"
+  },
+  {
+    "url": "/api/reports/export-data",
+    "file": "reports",
+    "route": "/api/reports/export-data"
+  },
+  {
+    "url": "/api/reports/forwarder-transactions",
+    "file": "reports",
+    "route": "/api/reports/forwarder-transactions"
+  },
+  {
+    "url": "/api/reports/mis",
+    "file": "reports",
+    "route": "/api/reports/mis"
+  },
+  {
+    "url": "/api/reports/tonnage",
+    "file": "reports",
+    "route": "/api/reports/tonnage"
+  },
+  {
+    "url": "/api/reports/unbilled-jobs",
+    "file": "reports",
+    "route": "/api/reports/unbilled-jobs"
+  },
+  {
+    "url": "/api/sales-hub/customers",
+    "file": "salesHub",
+    "route": "/api/sales-hub/customers"
+  },
+  {
+    "url": "/api/sales-hub/customers/1",
+    "file": "salesHub",
+    "route": "/api/sales-hub/customers/:id"
+  },
+  {
+    "url": "/api/sales-hub/dashboard",
+    "file": "salesHub",
+    "route": "/api/sales-hub/dashboard"
+  },
+  {
+    "url": "/api/sales-hub/deal-meta",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/deal-meta"
+  },
+  {
+    "url": "/api/sales-hub/deals/summary",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/deals/summary"
+  },
+  {
+    "url": "/api/sales-hub/enquiries",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/enquiries"
+  },
+  {
+    "url": "/api/sales-hub/enquiries/1",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/enquiries/:eid"
+  },
+  {
+    "url": "/api/sales-hub/kam-of-ledger/1",
+    "file": "salesHub",
+    "route": "/api/sales-hub/kam-of-ledger/:id"
+  },
+  {
+    "url": "/api/sales-hub/ledgers",
+    "file": "salesHub",
+    "route": "/api/sales-hub/ledgers"
+  },
+  {
+    "url": "/api/sales-hub/meta",
+    "file": "salesHub",
+    "route": "/api/sales-hub/meta"
+  },
+  {
+    "url": "/api/sales-hub/persons",
+    "file": "salesHub",
+    "route": "/api/sales-hub/persons"
+  },
+  {
+    "url": "/api/sales-hub/persons/unmatched-names",
+    "file": "salesHub",
+    "route": "/api/sales-hub/persons/unmatched-names"
+  },
+  {
+    "url": "/api/sales-hub/quotes",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/quotes"
+  },
+  {
+    "url": "/api/sales-hub/quotes-to-copy",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/quotes-to-copy"
+  },
+  {
+    "url": "/api/sales-hub/quotes/1",
+    "file": "salesDeals",
+    "route": "/api/sales-hub/quotes/:qid"
+  },
+  {
+    "url": "/api/sales-hub/users",
+    "file": "salesHub",
+    "route": "/api/sales-hub/users"
+  },
+  {
+    "url": "/api/sales/leads",
+    "file": "sales",
+    "route": "/api/sales/leads"
+  },
+  {
+    "url": "/api/sales/leads/next-no",
+    "file": "sales",
+    "route": "/api/sales/leads/next-no"
+  },
+  {
+    "url": "/api/sales/quotes",
+    "file": "sales",
+    "route": "/api/sales/quotes"
+  },
+  {
+    "url": "/api/sales/quotes/next-no",
+    "file": "sales",
+    "route": "/api/sales/quotes/next-no"
+  },
+  {
+    "url": "/api/sales/rates",
+    "file": "sales",
+    "route": "/api/sales/rates"
+  },
+  {
+    "url": "/api/search/awb-query",
+    "file": "search",
+    "route": "/api/search/awb-query"
+  },
+  {
+    "url": "/api/search/global-search",
+    "file": "search",
+    "route": "/api/search/global-search"
+  },
+  {
+    "url": "/api/settings",
+    "file": "settings",
+    "route": "/api/settings"
+  },
+  {
+    "url": "/api/settings/company",
+    "file": "settings",
+    "route": "/api/settings/company"
+  },
+  {
+    "url": "/api/settings/company/default-logo",
+    "file": "settings",
+    "route": "/api/settings/company/default-logo"
+  },
+  {
+    "url": "/api/settings/email",
+    "file": "settings",
+    "route": "/api/settings/email"
+  },
+  {
+    "url": "/api/settings/security-check",
+    "file": "settings",
+    "route": "/api/settings/security-check"
+  },
+  {
+    "url": "/api/settings/sftp-status",
+    "file": "settings",
+    "route": "/api/settings/sftp-status"
+  },
+  {
+    "url": "/api/shipments",
+    "file": "shipments",
+    "route": "/api/shipments"
+  },
+  {
+    "url": "/api/shipments/1",
+    "file": "shipments",
+    "route": "/api/shipments/:id"
+  },
+  {
+    "url": "/api/shipments/1/files",
+    "file": "shipments",
+    "route": "/api/shipments/:id/files"
+  },
+  {
+    "url": "/api/shipments/1/mail",
+    "file": "shipments",
+    "route": "/api/shipments/:id/mail"
+  },
+  {
+    "url": "/api/shipments/by-job",
+    "file": "shipments",
+    "route": "/api/shipments/by-job"
+  },
+  {
+    "url": "/api/shipments/by-no",
+    "file": "shipments",
+    "route": "/api/shipments/by-no"
+  },
+  {
+    "url": "/api/shipments/due",
+    "file": "shipments",
+    "route": "/api/shipments/due"
+  },
+  {
+    "url": "/api/shipments/meta",
+    "file": "shipments",
+    "route": "/api/shipments/meta"
+  },
+  {
+    "url": "/api/shipments/next-no",
+    "file": "shipments",
+    "route": "/api/shipments/next-no"
+  },
+  {
+    "url": "/api/status-master",
+    "file": "statusMaster",
+    "route": "/api/status-master"
+  },
+  {
+    "url": "/api/stock/hawb/list",
+    "file": "stock",
+    "route": "/api/stock/hawb/list"
+  },
+  {
+    "url": "/api/stock/list",
+    "file": "stock",
+    "route": "/api/stock/list"
+  },
+  {
+    "url": "/api/tact/carrier-rules",
+    "file": "tact",
+    "route": "/api/tact/carrier-rules"
+  },
+  {
+    "url": "/api/tact/country-rules",
+    "file": "tact",
+    "route": "/api/tact/country-rules"
+  },
+  {
+    "url": "/api/tact/dgr",
+    "file": "tact",
+    "route": "/api/tact/dgr"
+  },
+  {
+    "url": "/api/tact/equipment",
+    "file": "tact",
+    "route": "/api/tact/equipment"
+  },
+  {
+    "url": "/api/tact/exchange-rates",
+    "file": "tact",
+    "route": "/api/tact/exchange-rates"
+  },
+  {
+    "url": "/api/tact/proportional-rates",
+    "file": "tact",
+    "route": "/api/tact/proportional-rates"
+  },
+  {
+    "url": "/api/tact/quote",
+    "file": "tact",
+    "route": "/api/tact/quote"
+  },
+  {
+    "url": "/api/tact/rates",
+    "file": "tact",
+    "route": "/api/tact/rates"
+  },
+  {
+    "url": "/api/tact/shc-conflicts",
+    "file": "tact",
+    "route": "/api/tact/shc-conflicts"
+  },
+  {
+    "url": "/api/tact/surcharges",
+    "file": "tact",
+    "route": "/api/tact/surcharges"
+  },
+  {
+    "url": "/api/tariff/dutylists",
+    "file": "dutyLists",
+    "route": "/api/tariff/dutylists"
+  },
+  {
+    "url": "/api/tariff/dutylists/import",
+    "file": "dutyLists",
+    "route": "/api/tariff/dutylists/:kind"
+  },
+  {
+    "url": "/api/users",
+    "file": "userManagement",
+    "route": "/api/users"
+  },
+  {
+    "url": "/api/users/modules",
+    "file": "userManagement",
+    "route": "/api/users/modules"
+  },
+  {
+    "url": "/api/users/my-permissions",
+    "file": "userManagement",
+    "route": "/api/users/my-permissions"
+  },
+  {
+    "url": "/api/vouchers",
+    "file": "vouchers",
+    "route": "/api/vouchers"
+  },
+  {
+    "url": "/api/vouchers/brs/1",
+    "file": "vouchers",
+    "route": "/api/vouchers/brs/:id"
+  },
+  {
+    "url": "/api/vouchers/cash-flow",
+    "file": "vouchers",
+    "route": "/api/vouchers/cash-flow"
+  },
+  {
+    "url": "/api/vouchers/daybook?startDate=2026-11-01&endDate=2026-11-25",
+    "file": "vouchers",
+    "route": "/api/vouchers/daybook"
+  },
+  {
+    "url": "/api/vouchers/documents",
+    "file": "vouchers",
+    "route": "/api/vouchers/documents"
+  },
+  {
+    "url": "/api/vouchers/gst-returns",
+    "file": "vouchers",
+    "route": "/api/vouchers/gst-returns"
+  },
+  {
+    "url": "/api/vouchers/ledger-statement/1",
+    "file": "vouchers",
+    "route": "/api/vouchers/ledger-statement/:id"
+  },
+  {
+    "url": "/api/vouchers/ledgers-by-group",
+    "file": "vouchers",
+    "route": "/api/vouchers/ledgers-by-group"
+  },
+  {
+    "url": "/api/vouchers/next-number/1",
+    "file": "vouchers",
+    "route": "/api/vouchers/next-number/:typeId"
+  },
+  {
+    "url": "/api/vouchers/outstanding",
+    "file": "vouchers",
+    "route": "/api/vouchers/outstanding"
+  },
+  {
+    "url": "/api/vouchers/pending-approvals",
+    "file": "vouchers",
+    "route": "/api/vouchers/pending-approvals"
+  },
+  {
+    "url": "/api/vouchers/pending-bills",
+    "file": "vouchers",
+    "route": "/api/vouchers/pending-bills"
+  },
+  {
+    "url": "/api/warehouse-be/balances/1",
+    "file": "warehouse-be",
+    "route": "/api/warehouse-be/balances/:whJobId"
+  },
+  {
+    "url": "/api/warehouse-be/by-id/1",
+    "file": "warehouse-be",
+    "route": "/api/warehouse-be/by-id/:id"
+  },
+  {
+    "url": "/api/warehouse-be/ex-bonds/1",
+    "file": "warehouse-be",
+    "route": "/api/warehouse-be/ex-bonds/:whJobId"
+  },
+  {
+    "url": "/api/warehouse-be/list",
+    "file": "warehouse-be",
+    "route": "/api/warehouse-be/list"
+  }
+]

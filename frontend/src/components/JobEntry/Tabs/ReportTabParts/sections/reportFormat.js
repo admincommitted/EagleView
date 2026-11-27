@@ -57,3 +57,16 @@ export const parseJsonObject = (value) => {
   }
   return parsed && typeof parsed === 'object' ? parsed : {};
 };
+
+// the duty lines only some jobs have (useReportTab totals), shown when not zero; the grand total always holds them
+export const occasionalDutyLines = (totals) => [
+  ['Anti-Dumping Duty', totals.totalADD],
+  ['Other Duties (AIDC etc.)', totals.totalOtherDuty],
+  ['Compensation Cess', totals.totalCompCess],
+  ['Less: Duty Foregone', totals.totalForegone ? -totals.totalForegone : 0],
+].filter(([, value]) => Math.abs(value || 0) >= 0.005);
+
+// itemLabels: "1/1 (85177990)" of the items with no IGST rate (useReportTab itemsWithoutIgst)
+export const missingIgstNote = (itemLabels) => (itemLabels?.length
+  ? `IGST rate not entered for item ${itemLabels.join(', ')} - the duty here leaves IGST out (the Checklist estimates it from the Tariff master). Enter the rate in 4. Items > IGST.`
+  : '');

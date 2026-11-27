@@ -1,8 +1,9 @@
-import { ReportBody, ReportCell, ReportFieldTable, ReportHeadCell, ReportRow, ReportSectionGrid, ReportTable, ReportTableHeader } from '../reportTable';
+import { ReportBody, ReportCell, ReportFieldTable, ReportHeadCell, ReportNote, ReportRow, ReportSectionGrid, ReportTable, ReportTableHeader } from '../reportTable';
+import { itemInvoiceSr, missingIgstNote, occasionalDutyLines } from './reportFormat';
 
 const ITEM_COLUMNS = [
   ['Sr No', (item) => item.itemSrNo || item.itemNo],
-  ['Inv Sr', (item) => item.invoiceSrNo],
+  ['Inv Sr', itemInvoiceSr],
   ['Description', (item) => item.desc || item.productDescription],
   ['HS Code', (item) => item.ritc || item.hsCode],
   ['CTH', (item) => item.cth],
@@ -10,7 +11,7 @@ const ITEM_COLUMNS = [
   ['Qty', (item) => item.qty || item.quantity],
   ['UQC', (item) => item.unit || item.uqc],
   ['Unit Price', (item) => item.price || item.unitPrice],
-  ['Ass. Value', (item) => item.value || item.assessableValue],
+  ['Item Value (FC)', (item) => item.value || item.assessableValue],
   ['Product Code', (item) => item.productCode],
 ];
 
@@ -127,7 +128,9 @@ export default function Part3Section({ ctx }) {
     ['Total Adl CVD', ctx.totalAdlCVD],
     ['Total Health Cess', ctx.totalHealthCess],
     ['Total SAPTA', ctx.totalSAPTA],
+    ...occasionalDutyLines(ctx).map(([label, amount]) => [`Total ${label}`, amount]),
   ].map(([label, amount]) => [label, fmt(amount)]);
+  const igstNote = missingIgstNote(ctx.itemsWithoutIgst);
 
   return (
     <>
@@ -145,6 +148,7 @@ export default function Part3Section({ ctx }) {
         ))}
       </ReportSectionGrid>
 
+      {igstNote && <ReportNote className="tw:mt-[8px]">{igstNote}</ReportNote>}
       <ReportFieldTable title="9. Duty Summary" fields={dutyTotals}>
         <ReportRow>
           <ReportCell look="ruled"className="tw:w-[35%] tw:bg-[#1e3a5f] tw:p-[8px] tw:text-[12px] tw:font-bold tw:text-white">GRAND TOTAL DUTY</ReportCell>

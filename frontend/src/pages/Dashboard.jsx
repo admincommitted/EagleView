@@ -104,11 +104,11 @@ export default function Dashboard() {
   const shownJobs = recentJobs.filter((job) => matchesSearch(job, jobFilter));
 
   return (
-    <div className="tw:flex tw:min-h-full tw:flex-col tw:gap-6 tw:rounded-xl tw:bg-page tw:p-2 tw:md:gap-8">
+    <div className="tw:flex tw:min-h-full tw:flex-col tw:gap-4 tw:rounded-xl tw:bg-page tw:p-2 tw:2xl:gap-6">
       <div className="tw:flex tw:flex-col tw:gap-3 tw:md:flex-row tw:md:items-center tw:md:justify-between">
         <div>
-          <h1 className="tw:m-0 tw:text-[1.75rem] tw:font-extrabold tw:tracking-tight tw:text-foreground">Dashboard</h1>
-          <p className="tw:m-0 tw:mt-1 tw:text-[13px] tw:text-muted-foreground">Welcome back. Here is the operational overview.</p>
+          <h1 className="tw:m-0 tw:text-[1.35rem] tw:leading-tight tw:font-extrabold tw:tracking-tight tw:text-foreground tw:2xl:text-[1.6rem]">Dashboard</h1>
+          <p className="tw:m-0 tw:mt-0.5 tw:text-[12px] tw:text-muted-foreground">Welcome back. Here is the operational overview.</p>
         </div>
         <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
           <Input
@@ -124,7 +124,7 @@ export default function Dashboard() {
       </div>
 
       {summary && (
-        <div className="tw:grid tw:grid-cols-1 tw:gap-4 tw:sm:grid-cols-2 tw:xl:grid-cols-4 tw:xl:gap-6">
+        <div className="tw:grid tw:grid-cols-1 tw:gap-3 tw:sm:grid-cols-2 tw:lg:grid-cols-4 tw:2xl:gap-5">
           {STAT_TILES.map((tile) => (
             <MetricCard key={tile.label} label={tile.label} value={tile.value(summary)} icon={tile.icon} tone={tile.tone}>
               <Badge variant={tile.trendUp ? 'success' : 'danger'}>
@@ -137,8 +137,8 @@ export default function Dashboard() {
 
       <ExpiringWarranties assets={expiringAssets} />
 
-      <Card className="tw:p-2 tw:md:p-4">
-        <CardHeader className="tw:flex-wrap tw:border-b tw:border-border tw:pb-3">
+      <Card className="tw:p-2 tw:md:p-3 tw:2xl:p-4">
+        <CardHeader className="tw:flex-wrap tw:border-b tw:border-border tw:pb-2">
           <CardTitle className="tw:text-sm tw:text-foreground">Live ICEGATE Pipeline / Job Tracking</CardTitle>
           <Button variant="secondary" onClick={() => exportJobsExcel(shownJobs)}>Export Excel</Button>
         </CardHeader>

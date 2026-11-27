@@ -41,10 +41,17 @@ export default function ChargesSection({ ctx }) {
   const includedTitle = `Terms ${terms} already include this charge`;
   const miscRowCount = rowCountOf(form.miscChargeRows);
 
-  const numberBox = (name, included, placeholder, title) => (
-    <NumberInput name={name} disabled={included} placeholder={included ? '-' : placeholder} title={included ? includedTitle : title}
-      value={included ? '' : (form[name] ?? '')} onValueChange={setField(name)} />
-  );
+  // a charge the terms already include is locked empty; one that still holds an amount (typed before the terms were
+  // changed and kept) stays open and red, so it can be cleared - ICES refuses the invoice while it has a value
+  const numberBox = (name, included, placeholder, title) => {
+    const leftOver = included && String(form[name] ?? '').trim() !== '';
+    const locked = included && !leftOver;
+    return (
+      <NumberInput name={name} disabled={locked} aria-invalid={leftOver || undefined} placeholder={locked ? '-' : placeholder}
+        title={leftOver ? `${includedTitle} - clear this amount` : locked ? includedTitle : title}
+        value={locked ? '' : (form[name] ?? '')} onValueChange={setField(name)} />
+    );
+  };
   const currencyBox = (name, included) => (
     <ComboInput name={name} upper maxLength={3} disabled={included} placeholder={included ? '-' : (invoiceCurrency || 'CUR')}
       title={included ? includedTitle : `Currency of the amount (blank = invoice currency ${invoiceCurrency})`}

@@ -3,7 +3,7 @@ import { endSession, getToken, redirectToLogin } from './session';
 
 export const API_BASE_URL = '/api';
 
-// Branch and financial year picked in the top bar (GlobalContext keeps them on window.__acctx).
+// Branch and financial year picked in the top bar (store/workspaceStore keeps them on window.__acctx).
 export const branchHeaders = () => {
   const { branch, fyId } = window.__acctx || {};
   return {
