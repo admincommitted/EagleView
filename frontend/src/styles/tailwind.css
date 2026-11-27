@@ -11,8 +11,8 @@
 @import "tailwindcss/utilities.css" layer(utilities) important;
 @import "tw-animate-css";
 
-/* the app's dark theme is set on <html data-theme="dark"> (ThemeContext); dark backgrounds also come in through the
-   theme variables themselves, so most components need no dark: classes */
+/* dark: classes apply under <html data-theme="dark">; dark backgrounds also come in through the theme variables
+   themselves (Settings > App settings), so most components need no dark: classes */
 @custom-variant dark (&:is([data-theme="dark"] *));
 
 :root {
@@ -126,6 +126,150 @@
 @layer utilities {
   [data-slot][data-state="closed"][class*="animate-out"] {
     animation-fill-mode: forwards !important;
+  }
+}
+
+/* Floating labels (components/ui/field.jsx, FLOATING_LABELS): the label rests inside the box like a placeholder and
+   moves up onto its top border when the box has focus or a value. "Filled" is read from the box itself, so it also
+   works for the uncontrolled boxes of the entry screens: a typed box by :placeholder-shown, a select by Radix's
+   data-placeholder, the search / multi selects by data-filled. */
+@layer utilities {
+  /* the colour inside the box, which the floated label's lower half takes so the border line is hidden behind it */
+  .float-field { --float-label-fill: var(--background); }
+  .float-field:has(> input:first-child:read-only:not([type="hidden"]), > :first-child input:read-only:not([type="hidden"])) {
+    --float-label-fill: var(--secondary);
+  }
+
+  /* a box with its label on the border is 4px taller than the plain 22px box, so the value has room under the label */
+  .float-field :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), [data-slot="select-trigger"]) {
+    height: 26px !important;
+  }
+  .float-field button[role="combobox"] { min-height: 26px !important; }
+
+  .float-field > .float-label {
+    position: absolute !important;
+    left: 7px;
+    top: 50%;
+    z-index: 1;
+    max-width: calc(100% - 22px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 16px !important;
+    color: var(--muted-foreground) !important;
+    background: transparent;
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: top 0.16s ease-out, font-size 0.16s ease-out, color 0.16s ease-out, background-color 0.16s;
+  }
+  .float-field-icon > .float-label { left: 22px; }
+  .float-field-area > .float-label { top: 10px; }
+  .float-field > .float-label[data-required="true"] { color: var(--required) !important; }
+
+  .float-field:focus-within > .float-label,
+  .float-field:has(> input:first-child:not([type="hidden"]):not(:placeholder-shown)) > .float-label,
+  .float-field:has(> :first-child :is(input:not([type="hidden"]), textarea):not(:placeholder-shown)) > .float-label,
+  .float-field:has(> textarea:first-child:not(:placeholder-shown)) > .float-label,
+  .float-field:has(> [data-slot="select-trigger"]:first-child:not([data-placeholder])) > .float-label,
+  .float-field:has(> [data-filled="true"]:first-child) > .float-label {
+    /* 2px above the border middle: the letters sit on the line and keep clear of the value typed in the box */
+    top: -2px;
+    left: 5px;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    line-height: 13px !important;
+    font-style: normal !important;
+    /* the lower half covers the box border (from 1px above the middle, so at 125% / 150% display scale the rounded
+       border line is still under it), the upper half shows the panel behind */
+    background: linear-gradient(to bottom, transparent calc(50% - 1px), var(--float-label-fill) calc(50% - 1px));
+  }
+  .float-field:focus-within > .float-label { color: var(--primary) !important; }
+
+  /* while the label rests inside, the box's own placeholder ("CODE", "DD-MM-YYYY", "SELECT") is hidden; it shows on focus */
+  .float-field:not(:focus-within) :is(input, textarea)::placeholder { color: transparent !important; }
+  .float-field:not(:focus-within) [data-slot="select-trigger"][data-placeholder] [data-slot="select-value"],
+  .float-field:not(:focus-within) [data-float-placeholder] { color: transparent !important; }
+}
+
+/* Tables on a phone (components/ui/table.jsx): every row is a card, every cell a line with the column name on the left
+   (data-label, put in from the header) and the value on the right, a thin line between the lines. Cells hidden with
+   tw:hidden stay hidden; a cell spanning columns (a "No rows" line, a group heading) runs across the card. */
+@layer utilities {
+  @media screen and (max-width: 767.98px) {
+    [data-slot="table"][data-cards] { display: block !important; border: 0 !important; }
+    [data-slot="table"][data-cards] > thead { display: none !important; }
+    [data-slot="table"][data-cards] > tbody,
+    [data-slot="table"][data-cards] > tfoot {
+      display: flex !important;
+      flex-direction: column;
+      gap: 6px;
+      padding: 1px;
+      background: transparent !important;
+    }
+    [data-slot="table"][data-cards] > tfoot { margin-top: 8px; }
+    [data-slot="table"][data-cards] > * > tr:not([class~="tw:hidden"]) {
+      display: flex !important;
+      flex-wrap: wrap;
+      overflow: hidden;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+    }
+    :where([data-slot="table"][data-cards] > * > tr) { background-color: var(--background); }
+    [data-slot="table"][data-cards] > * > tr[data-state="selected"] {
+      border-color: var(--primary) !important;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    [data-slot="table"][data-cards] > * > tr > td:not([class~="tw:hidden"]) {
+      display: flex !important;
+      flex: 1 1 100%;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      min-height: 22px;
+      height: auto !important;
+      padding: 2px 8px !important;
+      line-height: 15px;
+      border: 0 !important;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent) !important;
+      text-align: right !important;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      position: static !important;
+    }
+    [data-slot="table"][data-cards] > * > tr > td:last-child { border-bottom: 0 !important; }
+    [data-slot="table"][data-cards] > * > tr > td[data-empty] { display: none !important; }
+    [data-slot="table"][data-cards] > * > tr > td[data-label]:not([data-label=""])::before {
+      content: attr(data-label);
+      flex: 0 0 auto;
+      max-width: 45%;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 13px;
+      text-align: left;
+      color: var(--muted-foreground);
+    }
+    [data-slot="table"][data-cards] > * > tr > td[data-label=""] { justify-content: flex-end; }
+    [data-slot="table"][data-cards] > * > tr > td[data-wide] { justify-content: center; text-align: center !important; }
+    [data-slot="table"][data-cards] > * > tr > td > * { min-width: 0; }
+
+    /* the button cells (Edit, Delete, tick ...) sit side by side on one tinted line; the last of them fills the line */
+    [data-slot="table"][data-cards] > * > tr > td[data-action]:not([class~="tw:hidden"]) {
+      flex: 0 0 auto;
+      justify-content: flex-start;
+      gap: 2px;
+      min-height: 24px;
+      padding: 1px 4px !important;
+      background: var(--muted);
+    }
+    [data-slot="table"][data-cards] > * > tr > td[data-action][data-label]:not([data-label=""])::before { display: none; }
+    [data-slot="table"][data-cards] > * > tr > td[data-action]:is(:last-child, :has(+ td:not([data-action]))) { flex-grow: 1; }
   }
 }
 

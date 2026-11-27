@@ -20,6 +20,9 @@ function FilingControl({ field, value, onChange, id }) {
   return <Input id={id} name={field.name} maxLength={field.maxLength} placeholder={field.placeholder} value={value} onChange={onChange} />;
 }
 
+// renders a DateInput / NumberInput / Input, so its Field label can float inside it
+FilingControl.floatsLabel = true;
+
 export default function BeFilingSection({ ctx }) {
   const { jobData, handleChange } = ctx;
   const status = String(jobData.icegateStatus || '').toLowerCase();

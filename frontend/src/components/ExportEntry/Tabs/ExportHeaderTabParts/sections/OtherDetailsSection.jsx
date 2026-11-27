@@ -22,13 +22,15 @@ const OTHER_FIELDS = [
   { name: 'cessAmt', label: 'Cess Amount', placeholder: 'CESS AMT' },
   { name: 'shipmentType', special: 'shipmentType' },
   { name: 'docketOwner', label: 'Docket Owner', placeholder: 'DOCKET OWNER' },
-  { name: 'dbkRs', label: 'DBK Rs.', placeholder: 'DBK RS' },
-  { name: 'fobRs', label: 'FOB Rs.', placeholder: 'FOB RS' },
+  { name: 'dbkRs', label: 'DBK Rs.', placeholder: 'DBK RS', fromItems: 'the drawback rows' },
+  { name: 'fobRs', label: 'FOB Rs.', placeholder: 'FOB RS', fromItems: 'the item FOB values' },
   { name: 'ifscCd', label: 'IFSC Code', placeholder: 'IFSC CD' },
 ];
 
 export default function OtherDetailsSection({ ctx }) {
-  const { exportData, setExportData, setField, handleChange, hasDrawback } = ctx;
+  const { exportData, setExportData, setField, handleChange, hasDrawback, totalsFromItems } = ctx;
+  // once the job has items these totals are worked out from them, so a typed amount would only be replaced
+  const totalProps = (fromItems) => (fromItems && totalsFromItems ? { readOnly: true, title: `Total of ${fromItems} (Items tab)` } : {});
   const changePan = (event) => {
     const pan = event.target.value.toUpperCase();
     setExportData((prev) => ({ ...prev, autoField_12: pan, panNo: pan }));
@@ -53,9 +55,9 @@ export default function OtherDetailsSection({ ctx }) {
 
   return (
     <Section title="Other Details" bodyClassName={FIVE_COLUMNS}>
-      {OTHER_FIELDS.map(({ special, ...field }) => (
+      {OTHER_FIELDS.map(({ special, fromItems, ...field }) => (
         <Fragment key={field.name}>
-          {special ? specialFields[special] : <TextField {...field} labelWidth={LABEL_WIDTH} exportData={exportData} onChange={handleChange} />}
+          {special ? specialFields[special] : <TextField {...field} {...totalProps(fromItems)} labelWidth={LABEL_WIDTH} exportData={exportData} onChange={handleChange} />}
         </Fragment>
       ))}
     </Section>

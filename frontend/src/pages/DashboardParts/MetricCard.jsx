@@ -14,7 +14,7 @@ const TONES = {
 export function MetricCard({ label, value, icon: Icon, tone = 'blue', tint, valueClassName, children, className }) {
   const colors = TONES[tone];
   return (
-    <Card className={cn('tw:gap-2 tw:border-b-4 tw:p-4 tw:shadow-sm', colors.edge, tint && colors.tint, className)}>
+    <Card className={cn('tw:gap-1.5 tw:border-b-4 tw:px-4 tw:py-3 tw:shadow-sm tw:2xl:gap-2 tw:2xl:p-4', colors.edge, tint && colors.tint, className)}>
       <div className="tw:flex tw:items-start tw:justify-between tw:gap-2">
         <span className="tw:pt-1 tw:text-[11px] tw:font-bold tw:tracking-wide tw:text-muted-foreground tw:uppercase">{label}</span>
         {Icon && (

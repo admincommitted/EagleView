@@ -19,16 +19,54 @@ const safeFileName = (text) => String(text).replace(/[^\w.-]+/g, '_');
 const amount = (value) => parseFloat(value || 0);
 const sumOf = (items, valueOf) => items.reduce((total, item) => total + valueOf(item), 0);
 
-function igstAmount(item) {
-  const stored = parseFloat(item.igst || item.igstAmount || 0);
-  if (stored || !item.igstData) return stored;
+const parseObject = (value) => {
+  if (value && typeof value === 'object') return value;
   try {
-    const igst = typeof item.igstData === 'string' ? JSON.parse(item.igstData) : item.igstData;
-    return parseFloat(igst?.amount || 0);
+    return JSON.parse(value || '{}') || {};
   } catch {
-    return 0;
+    return {};
   }
+};
+const isFilled = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+
+function storedIgstAmount(item) {
+  const stored = parseFloat(item.igst || item.igstAmount || 0);
+  return stored || parseFloat(parseObject(item.igstData).amount || 0);
 }
+
+// the duty of an item as 4. Items, the other reports and the Excel file work it out; an item whose invoice currency has
+// no exchange rate keeps the amounts saved on it
+function itemDuty(item, job) {
+  const duty = computeItemDuty(item, job.invoices || [], job);
+  if (duty.rateFound) return duty;
+  const bcd = amount(item.bcdAmount || item.basicCustomsDuty);
+  const sws = amount(item.swsAmount);
+  const igst = storedIgstAmount(item);
+  const cvd = amount(item.cvdAmount);
+  const adlCvd = amount(item.adlCvdAmount);
+  const health = amount(item.healthCessAmount);
+  const sapta = amount(item.saptaAmount);
+  return {
+    av: parseFloat(item.assessableValueInr || 0) || 0,
+    bcd, sws, igst, cvd, adlCvd, health, sapta, add: 0, other: 0, compCess: 0, foregone: 0,
+    total: bcd + sws + igst + cvd + adlCvd + health + sapta,
+  };
+}
+
+// items with no IGST rate, amount or exemption: their duty leaves IGST out
+const itemsWithoutIgst = (allItems) => allItems
+  .filter((item) => {
+    const igst = parseObject(item.igstData);
+    return !isFilled(igst.rate) && !isFilled(igst.amount) && !isFilled(igst.exmpNotnNo) && !storedIgstAmount(item);
+  })
+  .map((item) => `${item.invSrNo || 1}/${item.itemSrNo || item.itemNo || '?'} (${item.ritc || item.cth || 'no RITC'})`);
+
+// the text of a cell, a line break read as a space (invoice no<br>date is not one word)
+const cellText = (cell) => {
+  const copy = cell.cloneNode(true);
+  copy.querySelectorAll('br').forEach((lineBreak) => lineBreak.replaceWith(' '));
+  return copy.textContent;
+};
 
 // Amounts like "1,234.50" become numbers; codes (CTH, IEC, AWB) stay text so leading zeros are kept.
 const cellValue = (text) => {
@@ -50,7 +88,7 @@ function reportSheetRows(el, title, jobNo) {
       let column = 0;
       tableRow.querySelectorAll('th, td').forEach((cell) => {
         const span = parseInt(cell.getAttribute('colspan'), 10) || 1;
-        row[column] = cellValue(cell.textContent);
+        row[column] = cellValue(cellText(cell));
         if (span > 1) merges.push({ s: { r: rows.length, c: column }, e: { r: rows.length, c: column + span - 1 } });
         column += span;
       });
@@ -60,25 +98,27 @@ function reportSheetRows(el, title, jobNo) {
   return { rows, merges };
 }
 
+// the Duty Summary and the Detailed Checklist totals: the same estimate as 4. Items and the other reports
 function dutyTotals(allItems, jobData) {
   const job = jobData || {};
-  // assessable value in INR: item value x exchange rate + freight / insurance share
-  const totalAssessableValue = sumOf(allItems, (item) => {
-    const duty = computeItemDuty(item, job.invoices || [], job);
-    return duty.rateFound ? duty.av : parseFloat(item.assessableValueInr || 0) || 0;
-  });
-  const totals = {
-    totalAssessableValue,
-    totalBCD: sumOf(allItems, (item) => amount(item.bcdAmount || item.basicCustomsDuty)),
-    totalSWS: sumOf(allItems, (item) => amount(item.swsAmount)),
-    totalIGST: sumOf(allItems, igstAmount),
-    totalCVD: sumOf(allItems, (item) => amount(item.cvdAmount)),
-    totalAdlCVD: sumOf(allItems, (item) => amount(item.adlCvdAmount)),
-    totalHealthCess: sumOf(allItems, (item) => amount(item.healthCessAmount)),
-    totalSAPTA: sumOf(allItems, (item) => amount(item.saptaAmount)),
+  const duties = allItems.map((item) => itemDuty(item, job));
+  const total = (pick) => sumOf(duties, (duty) => pick(duty) || 0);
+  return {
+    totalAssessableValue: total((duty) => duty.av),
+    totalBCD: total((duty) => duty.bcd),
+    totalSWS: total((duty) => duty.sws),
+    totalIGST: total((duty) => duty.igst),
+    totalCVD: total((duty) => duty.cvd),
+    totalAdlCVD: total((duty) => duty.adlCvd),
+    totalHealthCess: total((duty) => duty.health),
+    totalSAPTA: total((duty) => duty.sapta),
+    totalADD: total((duty) => duty.add),
+    totalOtherDuty: total((duty) => duty.other),
+    totalCompCess: total((duty) => duty.compCess),
+    totalForegone: total((duty) => duty.foregone),
+    grandTotal: total((duty) => duty.total),
+    itemsWithoutIgst: itemsWithoutIgst(allItems),
   };
-  const grandTotal = totals.totalBCD + totals.totalSWS + totals.totalIGST + totals.totalCVD + totals.totalAdlCVD + totals.totalHealthCess + totals.totalSAPTA;
-  return { ...totals, grandTotal };
 }
 
 const fmt = (number) => Number(number).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

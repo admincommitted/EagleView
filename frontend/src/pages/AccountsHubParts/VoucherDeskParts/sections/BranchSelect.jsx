@@ -12,3 +12,6 @@ export function BranchSelect({ value, onChange, list, required, exclude, disable
       placeholder={required ? 'Choose the branch' : 'Select'} />
   );
 }
+
+// these wrap a box the floating Field label can sit in
+BranchSelect.floatsLabel = true;

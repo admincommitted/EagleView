@@ -38,3 +38,4 @@ export {
 } from './dropdown-menu'
 export { PasswordInput } from './password-input'
 export { Slider } from './slider'
+export { HtmlPreview } from './html-preview'

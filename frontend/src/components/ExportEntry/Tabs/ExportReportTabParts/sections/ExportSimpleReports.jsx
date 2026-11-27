@@ -2,7 +2,7 @@
 // report reads the job on screen (header, invoices, items, scheme rows); nothing is fetched except masters passed in.
 import { asList } from '../../../../../utils/asList';
 import { rateText } from '../../../../../utils/cbicExchange';
-import { claimsRodtep, num, itemFobInr, rodtepAmount, dbkAmount, CAP_NEEDS_QTY, rodtepRowOf, rodtepRateOf, rodtepQtyOf, itemTotalPmv } from '../../Schemes/schemeUtils';
+import { claimsRodtep, num, itemFobInr, rodtepAmount, dbkAmount, CAP_NEEDS_QTY, rodtepRowOf, rodtepRateOf, rodtepQtyOf, filedTotalPmv } from '../../Schemes/schemeUtils';
 import { cellSpecOf } from '../../../../JobEntry/Tabs/ReportTabParts/sections/reportFormat';
 import {
   ReportBody, ReportCell, ReportFootnote, ReportHeadCell, ReportLabelCell, ReportPage, ReportRow, ReportTable, ReportTableHeader, ReportTitle,
@@ -320,26 +320,27 @@ export function ShipmentReport({ d, containers }) {
   );
 }
 
-export function SwInfoReport({ d, items }) {
-  const infos = (items || []).flatMap((item, index) => asList(item.swInfos).map((row) => ({ item, index, row })));
-  const statements = (items || []).flatMap((item, index) => asList(item.swStatements).map((row) => ({ item, index, row })));
+// singleWindow: the SW rows of the Shipping Bill as filed (checklistData singleWindowRows - from the CACHE01 the server
+// builds, so the statements and info the builder adds itself, e.g. RoDTEP RD001, are in it)
+export function SwInfoReport({ d, singleWindow }) {
+  const infos = singleWindow?.infos || [];
+  const statements = singleWindow?.statements || [];
   return (
     <ReportSheet title="Single Window Information & Statements" d={d}>
       <BlockTitle>SW Info</BlockTitle>
       <ExportGrid
         className="tw:mb-[8px]"
         headings={['Inv/Item', 'Type', 'Qualifier', 'Code', 'Text', 'Measure', 'UQC']}
-        rows={infos.map(({ item, index, row }) => [
-          itemTag(item, index), row.swInfoField1 || row.type, row.swInfoField2 || row.qual, row.swInfoField3 || row.code, row.swInfoField4 || row.text || '',
-          right(row.swInfoField5 || row.msr || ''), row.swInfoField6 || row.uqc || '',
+        rows={infos.map((row) => [
+          row.invItemNo, row.type || '', row.qualifier || '', row.code || '', row.text || '', right(row.measurement ?? ''), row.unit || '',
         ])}
         emptyText="No SW info row"
       />
       <BlockTitle>SW Statements</BlockTitle>
       <ExportGrid
-        headings={['Inv/Item', 'Type', 'Code', 'Text']}
-        rows={statements.map(({ item, index, row }) => [
-          itemTag(item, index), row.statementType || row.stmtType || row.type || '', row.statementCode || row.stmtCode || row.code || '', row.statementText || row.text || '',
+        headings={['Inv/Item', 'For', 'Type', 'Code', 'Text']}
+        rows={statements.map((row) => [
+          row.invItemNo, row.statementFor || '', row.statementType || '', row.statementCode || '', row.statementText || '',
         ])}
         emptyText="No SW statement"
       />
@@ -386,7 +387,7 @@ export function AnnexureReport({ d, items, dbkItems }) {
   const groups = invoices.map((invoice, invoiceIndex) => {
     const rows = itemsOfInvoice(items, invoiceIndex);
     const totals = rows.reduce((sum, { item, index }) => ({
-      fc: sum.fc + num(item.totalFc || item.total), fob: sum.fob + itemFobInr(item), pmv: sum.pmv + itemTotalPmv(item), dbk: sum.dbk + dbkOf(item, index),
+      fc: sum.fc + num(item.totalFc || item.total), fob: sum.fob + itemFobInr(item), pmv: sum.pmv + filedTotalPmv(item), dbk: sum.dbk + dbkOf(item, index),
     }), { fc: 0, fob: 0, pmv: 0, dbk: 0 });
     return { invoice, invoiceIndex, rows, totals };
   });
@@ -411,7 +412,7 @@ export function AnnexureReport({ d, items, dbkItems }) {
             rowClassName="tw:break-inside-avoid"
             rows={rows.map(({ item, index }) => [
               ...itemGridCells(item, index),
-              right(formatAmount(itemFobInr(item))), right(itemTotalPmv(item) ? formatAmount(itemTotalPmv(item)) : '-'), dbkCell(item, index),
+              right(formatAmount(itemFobInr(item))), right(filedTotalPmv(item) ? formatAmount(filedTotalPmv(item)) : '-'), dbkCell(item, index),
               claimsRodtep(item) ? 'Y' : 'N', igstFlag(item), String(item.endUse || '').split(/[\s|]/)[0],
             ])}
             emptyText="No item in this invoice"

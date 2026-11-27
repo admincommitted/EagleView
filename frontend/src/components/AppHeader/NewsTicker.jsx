@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Megaphone, X } from 'lucide-react';
-import { useGlobalContext } from '@/GlobalContext';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import {
   NOTIFICATIONS_REFRESH_MS, announceNotificationsChanged, isInAppLink, notificationsApi, onNotificationsChangedElsewhere,
 } from '@/services/notificationsApi';
@@ -31,7 +31,7 @@ const scrollSeconds = (alerts) => {
 };
 
 export default function NewsTicker() {
-  const { socketInstance } = useGlobalContext();
+  const socketInstance = useWorkspaceStore((state) => state.socket);
   const [alerts, setAlerts] = useState([]);
 
   const refresh = useCallback(async () => {

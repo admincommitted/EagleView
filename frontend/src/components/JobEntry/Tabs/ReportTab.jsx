@@ -1,4 +1,6 @@
 import useReportTab from './ReportTabParts/useReportTab';
+import { ReportNote } from './ReportTabParts/reportTable';
+import { missingIgstNote } from './ReportTabParts/sections/reportFormat';
 import BEChecklistSection from './ReportTabParts/sections/BEChecklistSection';
 import BillOfEntrySection from './ReportTabParts/sections/BillOfEntrySection';
 import Part3Section from './ReportTabParts/sections/Part3Section';
@@ -7,6 +9,9 @@ import ImportChecklistEAnnex from './ReportTabParts/sections/ImportChecklistEAnn
 import GetReportPanel from './ReportTabParts/sections/GetReportPanel';
 import { AdcSheetReport, StampDutySheetReport } from './ReportTabParts/sections/SheetReports';
 import { ChaChecklistReport, DutySheetReport, AnnexureReport, SupportingDocsReport, InvoiceWiseChecklistReport, ClassificationReport, ExemptionReport, InvoiceParticularsReport, IgmDetailsReport, ContainerReport, BondReport } from './ReportTabParts/sections/SimpleReports';
+
+// reports that add up the duty of the items (the Checklist takes a missing rate from the Tariff master itself)
+const DUTY_REPORTS = ['chachecklist', 'invoicewise', 'dutysheet'];
 
 const REPORT_VIEWS = {
   fields: (ctx) => <><BillOfEntrySection ctx={ctx} /><Part3Section ctx={ctx} /></>,
@@ -28,15 +33,17 @@ const REPORT_VIEWS = {
 
 // The report shown is printed from #report-print-area in its own frame (printReport), so the screen panels around
 // it (.no-print) stay out of the print.
-export default function ReportTab() {
+// onDownloadBeFile: the CACHI01 file of the job, made as ACTIONS > Download BE File makes it (asks the ICEGATE ID)
+export default function ReportTab({ onDownloadBeFile }) {
   const ctx = useReportTab();
   const { reportView, reportType, refreshKey } = ctx;
   const renderReport = REPORT_VIEWS[reportType];
+  const igstNote = DUTY_REPORTS.includes(reportType) ? missingIgstNote(ctx.itemsWithoutIgst) : '';
 
   return (
     <div className="tw:flex tw:h-full tw:flex-col tw:gap-4">
       <div className="glass-panel no-print tw:flex tw:flex-1 tw:flex-col tw:overflow-hidden">
-        <BEChecklistSection ctx={ctx} />
+        <BEChecklistSection ctx={ctx} onDownloadBeFile={onDownloadBeFile} />
         <div className="tw:flex-1 tw:overflow-y-auto tw:bg-page tw:p-2 tw:md:p-4">
           {reportView === 'checklist' && (
             <div className="tw:flex tw:flex-col tw:gap-3 tw:lg:flex-row tw:lg:flex-wrap tw:lg:items-start">
@@ -44,6 +51,7 @@ export default function ReportTab() {
                 <GetReportPanel ctx={ctx} />
               </div>
               <div className="tw:w-full tw:min-w-0 tw:overflow-x-auto tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-3 tw:text-black tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] tw:md:p-5 tw:lg:w-auto tw:lg:flex-[1_1_600px]">
+                {igstNote && <ReportNote>{igstNote}</ReportNote>}
                 <div id="report-print-area" key={`${reportType}:${refreshKey}`}>
                   {renderReport?.(ctx)}
                 </div>

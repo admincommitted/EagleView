@@ -30,7 +30,7 @@ export const fmtDate = (date) => {
 };
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
-// The financial year picked in the top bar (GlobalContext keeps it on window.__acctx).
+// The financial year picked in the top bar (store/workspaceStore keeps it on window.__acctx).
 const topBarYear = () => {
   const { fyStart: start, fyEnd: end } = window.__acctx || {};
   return start && end ? [String(start).slice(0, 10), String(end).slice(0, 10)] : null;

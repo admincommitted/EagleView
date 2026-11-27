@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui';
 import { jobEntryApi } from '../../../jobEntryApi';
-import { ReportBody, ReportCell, ReportRow, ReportTable } from '../reportTable';
+import { ReportBody, ReportCell, ReportNote, ReportRow, ReportTable } from '../reportTable';
+import { missingIgstNote, occasionalDutyLines } from './reportFormat';
 
 const LINE_CELL = 'tw:border-0 tw:border-b tw:px-[8px] tw:py-[12px]';
 const TOTAL_CELL = 'tw:border-0 tw:px-[8px] tw:py-[12px] tw:text-[14px] tw:font-bold tw:text-[#065f46]';
@@ -26,10 +27,13 @@ function EstimatedDuty({ ctx }) {
     ['Adl CVD', ctx.totalAdlCVD],
     ['Health Cess', ctx.totalHealthCess],
     ['SAPTA', ctx.totalSAPTA],
+    ...occasionalDutyLines(ctx),
   ];
+  const igstNote = missingIgstNote(ctx.itemsWithoutIgst);
   return (
     <div className="tw:mx-auto tw:max-w-[600px] tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-8 tw:text-black tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
       <h2 className="tw:m-0 tw:mb-6 tw:text-center">Estimated Duty Calculation</h2>
+      {igstNote && <ReportNote>{igstNote}</ReportNote>}
       <ReportTable className="tw:text-[13px]">
         <ReportBody>
           {lines.map(([label, amount, amountClassName]) => <DutyLine key={label} label={label} amount={fmt(amount)} amountClassName={amountClassName} />)}

@@ -258,7 +258,7 @@ function JobEntryScreen() {
           {activeTab === 'header' && <JobHeaderTab transportMode={transportMode} setTransportMode={setTransportMode} beType={beType} setBeType={setBeType} onSave={saveJob} />}
           {activeTab === 'invoices' && <InvoiceGridTab onSave={autoSave} />}
           {activeTab === 'items' && <ItemGridTab transportMode={transportMode} onSave={autoSave} onValidate={icegate.validateJob} />}
-          {activeTab === 'reports' && <ReportTab />}
+          {activeTab === 'reports' && <ReportTab onDownloadBeFile={() => beFiles.askIcegateId('json')} />}
         </div>
       </div>
 

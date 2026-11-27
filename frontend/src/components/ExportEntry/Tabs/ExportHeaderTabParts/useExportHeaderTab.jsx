@@ -56,6 +56,7 @@ export default function useExportHeaderTab() {
   }, [exportData.stateOriginCode, states, setExportData]);
 
   const hasDrawback = (items || []).some(isDbkItem) || (dbkItems || []).some((row) => row.dbkNo);
+  const totalsFromItems = (items || []).length > 0;
 
   // Save = a new job (or Ctrl+S); Modify = the changes of a job already saved
   const saveNewJob = () => {
@@ -82,7 +83,7 @@ export default function useExportHeaderTab() {
   };
 
   return {
-    exportData, setExportData, shipmentMode, handleChange, setField, hasDrawback,
+    exportData, setExportData, shipmentMode, handleChange, setField, hasDrawback, totalsFromItems,
     saveNewJob, saveChanges, clearHeader,
     ...masters, ...cityEntry, ...exporterEntry, ...windows,
   };

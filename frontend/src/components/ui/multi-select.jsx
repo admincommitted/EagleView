@@ -40,13 +40,14 @@ function MultiSelect({
           role="combobox"
           aria-expanded={open}
           data-required={required ? "true" : undefined}
+          data-filled={value?.length ? "true" : undefined}
           className={cn(
             "tw:flex tw:min-h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1 tw:py-0.5 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:shadow-soft tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/20 tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
             className
           )}
         >
           <span className="tw:flex tw:min-w-0 tw:flex-wrap tw:items-center tw:gap-1">
-            {!value?.length && <span className="tw:px-0.5 tw:italic tw:text-muted-foreground/60">{placeholder}</span>}
+            {!value?.length && <span data-float-placeholder="" className="tw:px-0.5 tw:italic tw:text-muted-foreground/60">{placeholder}</span>}
             {value?.length > maxChips ? (
               <span className="tw:rounded-sm tw:bg-secondary tw:px-1.5 tw:text-[11px] tw:font-semibold tw:text-secondary-foreground">{value.length} picked</span>
             ) : (
