@@ -1,0 +1,8 @@
+[
+  {
+    "url": "/api/settings/security-check",
+    "problem": "same shape, different data",
+    "before": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5002\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}",
+    "after": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5003\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}"
+  }
+]

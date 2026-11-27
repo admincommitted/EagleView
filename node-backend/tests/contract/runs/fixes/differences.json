@@ -1,0 +1,32 @@
+[
+  {
+    "url": "/api/auth/profile",
+    "problem": "shape changed",
+    "before": "{\"address\":null,\"companyName\":null,\"createdAt\":\"2026-09-13T14:12:45.220Z\",\"email\":\"admin@committedcargo.com\",\"firstName\":\"gyanender\",\"id\":3,\"jobTitle\":\"manager\",\"lastName\":\"dev\",\"limitMax\":\"\",\"limitMin\":\"\",\"phone\":\"9899554422\",\"reportingTo1\":\"rajeev sharma\",\"reportingTo2\":\"\",\"role\":\"admin\",\"updatedAt\":\"2026-09-13T14:12:45.220Z\",\"userId\":1}",
+    "after": "{\"address\":null,\"companyName\":null,\"createdAt\":\"2026-09-13T14:12:45.220Z\",\"email\":\"admin@committedcargo.com\",\"firstName\":\"gyanender\",\"id\":3,\"jobTitle\":\"manager\",\"lastName\":null,\"limitMax\":\"\",\"limitMin\":\"\",\"phone\":\"9899554422\",\"reportingTo1\":\"rajeev sharma\",\"reportingTo2\":\"\",\"role\":\"admin\",\"updatedAt\":\"2026-11-26T09:09:24.574Z\",\"userId\":1}"
+  },
+  {
+    "url": "/api/sales-hub/users",
+    "problem": "same shape, different data",
+    "before": "{\"data\":[{\"branch\":\"DEL\",\"contactNumber\":\"9899554422\",\"department\":\"it & admin\",\"designation\":\"manager\",\"email\":\"admin@committedcargo.com\",\"fullName\":\"gyanender dev\",\"id\":1,\"username\":\"admin\"}],\"success\":true}",
+    "after": "{\"data\":[{\"branch\":\"DEL\",\"contactNumber\":\"9899554422\",\"department\":\"it & admin\",\"designation\":\"manager\",\"email\":\"admin@committedcargo.com\",\"fullName\":\"gyanender\",\"id\":1,\"username\":\"admin\"}],\"success\":true}"
+  },
+  {
+    "url": "/api/settings",
+    "problem": "same shape, different data",
+    "before": "{\"CBIC_WATCH_LAST\":\"{\\\"at\\\":\\\"2026-11-26T06:29:54.803Z\\\",\\\"by\\\":\\\"Auto\\\",\\\"ok\\\":true,\\\"first\\\":false,\\\"seeded\\\":[],\\\"newest\\\":\\\"49/2026 (25-Nov-2026)\\\",\\\"sent\\\":[],\\\"failed\\\":[],\\\"errors\\\":[]}\",\"CBIC_WATCH_ON\":\"1\",\"CBIC_WATCH_SEEN\":\"[\\\"1010827\\\",\\\"1010826\\\",\\\"1010825\\\",\\\"1010823\\\",\\\"1003359\\\",\\\"1003356\\\",\\\"1003347\\\",\\\"1003346\\\",\\\"1003345\\\",\\\"1003344\\\",\\\"1003343\\\",\\\"1003342\\\",\\\"1003341\\\",\\\"1003340\\\",\\\"1003339\\\",\\\"1003338\\\",\\\"1003337\\\",\\\"1003336\\\",\\\"1003334\\\",\\\"1003333\\\",\\\"1003332\\\",\\\"1003331\\\",\\\"1003330\\\",\\\"1003328\\\",\\\"1003327\\\",\\\"1003326\\\",\\\"1003325\\\",\\\"1003324\\\",\\\"1003323\\\",\\\"1003322\\\",\\\"1003",
+    "after": "{\"CBIC_WATCH_LAST\":\"{\\\"at\\\":\\\"2026-11-26T09:05:21.152Z\\\",\\\"by\\\":\\\"Auto\\\",\\\"ok\\\":true,\\\"first\\\":false,\\\"seeded\\\":[],\\\"newest\\\":\\\"49/2026 (25-Nov-2026)\\\",\\\"sent\\\":[],\\\"failed\\\":[],\\\"errors\\\":[]}\",\"CBIC_WATCH_ON\":\"1\",\"CBIC_WATCH_SEEN\":\"[\\\"1010827\\\",\\\"1010826\\\",\\\"1010825\\\",\\\"1010823\\\",\\\"1003359\\\",\\\"1003356\\\",\\\"1003347\\\",\\\"1003346\\\",\\\"1003345\\\",\\\"1003344\\\",\\\"1003343\\\",\\\"1003342\\\",\\\"1003341\\\",\\\"1003340\\\",\\\"1003339\\\",\\\"1003338\\\",\\\"1003337\\\",\\\"1003336\\\",\\\"1003334\\\",\\\"1003333\\\",\\\"1003332\\\",\\\"1003331\\\",\\\"1003330\\\",\\\"1003328\\\",\\\"1003327\\\",\\\"1003326\\\",\\\"1003325\\\",\\\"1003324\\\",\\\"1003323\\\",\\\"1003322\\\",\\\"1003"
+  },
+  {
+    "url": "/api/settings/security-check",
+    "problem": "same shape, different data",
+    "before": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5002\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}",
+    "after": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5003\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}"
+  },
+  {
+    "url": "/api/users",
+    "problem": "same shape, different data",
+    "before": "[{\"allowStatusUpdates\":true,\"branch\":\"DEL\",\"contactNumber\":\"9899554422\",\"createdAt\":\"2026-08-24T07:34:05.532Z\",\"department\":\"it & admin\",\"designation\":\"manager\",\"email\":\"admin@committedcargo.com\",\"fullName\":\"gyanender dev\",\"id\":1,\"limitMax\":\"\",\"limitMin\":\"\",\"permissions\":[],\"reportingTo1\":\"rajeev sharma\",\"reportingTo2\":\"\",\"role\":\"admin\",\"sessionTimeout\":30,\"status\":\"active\",\"updatedAt\":\"2026-09-11T01:45:37.589Z\",\"username\":\"admin\"}]",
+    "after": "[{\"allowStatusUpdates\":true,\"branch\":\"DEL\",\"contactNumber\":\"9899554422\",\"createdAt\":\"2026-08-24T07:34:05.532Z\",\"department\":\"it & admin\",\"designation\":\"manager\",\"email\":\"admin@committedcargo.com\",\"fullName\":\"gyanender\",\"id\":1,\"limitMax\":\"\",\"limitMin\":\"\",\"permissions\":[],\"reportingTo1\":\"rajeev sharma\",\"reportingTo2\":\"\",\"role\":\"admin\",\"sessionTimeout\":30,\"status\":\"active\",\"updatedAt\":\"2026-11-26T09:09:24.580Z\",\"username\":\"admin\"}]"
+  }
+]

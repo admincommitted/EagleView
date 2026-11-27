@@ -1,0 +1,20 @@
+[
+  {
+    "url": "/api/masters/live-news",
+    "problem": "status 200 -> 500",
+    "before": "{\"data\":[{\"link\":\"https://www.aircargonews.net/editorial/2026/11/hyderabad-airport-upgrades-uld-storage-system/\",\"pubDate\":\"Wed, 25 Nov 2026 16:05:01 +0000\",\"title\":\"Hyderabad Airport upgrades ULD storage system\"},{\"link\":\"https://www.aircargonews.net/freighter-conversions-mro/2026/11/reports-iai-to-convert-boeing-777-300s-for-eva-air/\",\"pubDate\":\"Wed, 25 Nov 2026 14:48:53 +0000\",\"title\":\"Reports: IAI to convert Boeing 777-300s for EVA Air\"},{\"link\":\"https://www.aircargonews.net/airlines/2026/11/condor-continues-cargo-investment-with-time-critical-service/\",\"pubDate\":\"Wed, 25 Nov 2026 13:13:59",
+    "after": "{\"error\":\"fetch failed\",\"success\":false}"
+  },
+  {
+    "url": "/api/settings",
+    "problem": "same shape, different data",
+    "before": "{\"CBIC_WATCH_LAST\":\"{\\\"at\\\":\\\"2026-11-26T06:29:54.803Z\\\",\\\"by\\\":\\\"Auto\\\",\\\"ok\\\":true,\\\"first\\\":false,\\\"seeded\\\":[],\\\"newest\\\":\\\"49/2026 (25-Nov-2026)\\\",\\\"sent\\\":[],\\\"failed\\\":[],\\\"errors\\\":[]}\",\"CBIC_WATCH_ON\":\"1\",\"CBIC_WATCH_SEEN\":\"[\\\"1010827\\\",\\\"1010826\\\",\\\"1010825\\\",\\\"1010823\\\",\\\"1003359\\\",\\\"1003356\\\",\\\"1003347\\\",\\\"1003346\\\",\\\"1003345\\\",\\\"1003344\\\",\\\"1003343\\\",\\\"1003342\\\",\\\"1003341\\\",\\\"1003340\\\",\\\"1003339\\\",\\\"1003338\\\",\\\"1003337\\\",\\\"1003336\\\",\\\"1003334\\\",\\\"1003333\\\",\\\"1003332\\\",\\\"1003331\\\",\\\"1003330\\\",\\\"1003328\\\",\\\"1003327\\\",\\\"1003326\\\",\\\"1003325\\\",\\\"1003324\\\",\\\"1003323\\\",\\\"1003322\\\",\\\"1003",
+    "after": "{\"CBIC_WATCH_LAST\":\"{\\\"at\\\":\\\"2026-11-26T08:47:25.396Z\\\",\\\"by\\\":\\\"Auto\\\",\\\"ok\\\":true,\\\"first\\\":false,\\\"seeded\\\":[],\\\"newest\\\":\\\"49/2026 (25-Nov-2026)\\\",\\\"sent\\\":[\\\"ICEGATE Dear User,We are facing a temporary issue while si\\\"],\\\"failed\\\":[],\\\"errors\\\":[]}\",\"CBIC_WATCH_ON\":\"1\",\"CBIC_WATCH_SEEN\":\"[\\\"1010827\\\",\\\"1010826\\\",\\\"1010825\\\",\\\"1010823\\\",\\\"1003359\\\",\\\"1003356\\\",\\\"1003347\\\",\\\"1003346\\\",\\\"1003345\\\",\\\"1003344\\\",\\\"1003343\\\",\\\"1003342\\\",\\\"1003341\\\",\\\"1003340\\\",\\\"1003339\\\",\\\"1003338\\\",\\\"1003337\\\",\\\"1003336\\\",\\\"1003334\\\",\\\"1003333\\\",\\\"1003332\\\",\\\"1003331\\\",\\\"1003330\\\",\\\"1003328\\\",\\\"1003327\\\",\\\"10"
+  },
+  {
+    "url": "/api/settings/security-check",
+    "problem": "same shape, different data",
+    "before": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5002\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}",
+    "after": "{\"data\":{\"https\":false,\"ip\":\"::1\",\"linkBase\":\"http://localhost:5003\",\"office\":true,\"trustProxy\":\"loopback\"},\"success\":true}"
+  }
+]
