@@ -17,7 +17,6 @@ const ONE_DAY_SECONDS = 86400;
 const SIGNATURE_LENGTH = 32;
 // links sent before links had an expiry are taken until this date
 export const LEGACY_LINKS_VALID_UNTIL = Date.parse('2026-12-01T00:00:00+05:30');
-const FALLBACK_DIRECTOR_EMAIL = 'hr1@committedgroup.com';
 const FRONTEND_DEV_PORT = 5173;
 const DEFAULT_BACKEND_PORT = 5001;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -70,14 +69,17 @@ export async function directorPhone() {
   return purchaseWhatsappNumber();
 }
 
-/** The director's e-mail: App Setting PO_DIRECTOR_EMAIL (one or more), else DIRECTOR_EMAIL in .env, else the old address. */
+/**
+ * The director's e-mail: App Setting PO_DIRECTOR_EMAIL (one or more), else DIRECTOR_EMAIL in .env.
+ * '' when neither has a valid address: then no approval e-mail goes out (there is no built-in address).
+ */
 export async function directorEmail() {
   const setting = await appSetting('PO_DIRECTOR_EMAIL');
-  const addresses = String(setting || process.env.DIRECTOR_EMAIL || FALLBACK_DIRECTOR_EMAIL)
+  return String(setting || process.env.DIRECTOR_EMAIL || '')
     .split(/[,;]/)
     .map((address) => address.trim())
-    .filter((address) => EMAIL_RE.test(address));
-  return addresses.length ? addresses.join(', ') : FALLBACK_DIRECTOR_EMAIL;
+    .filter((address) => EMAIL_RE.test(address))
+    .join(', ');
 }
 
 /** This PC's network address when the request came to localhost, so the links work on other devices. */
