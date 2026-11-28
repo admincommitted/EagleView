@@ -50,7 +50,7 @@ export default function ReportTab({ onDownloadBeFile }) {
               <div className="tw:h-[420px] tw:w-full tw:lg:sticky tw:lg:top-0 tw:lg:h-[calc(100vh-230px)] tw:lg:min-h-[420px] tw:lg:w-auto tw:lg:max-w-full tw:lg:flex-[0_0_330px]">
                 <GetReportPanel ctx={ctx} />
               </div>
-              <div className="tw:w-full tw:min-w-0 tw:overflow-x-auto tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-3 tw:text-black tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] tw:md:p-5 tw:lg:w-auto tw:lg:flex-[1_1_600px]">
+              <div className="tw:w-full tw:min-w-0 tw:overflow-x-auto tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-3 tw:text-black tw:md:p-5 tw:lg:w-auto tw:lg:flex-[1_1_600px]">
                 {igstNote && <ReportNote>{igstNote}</ReportNote>}
                 <div id="report-print-area" key={`${reportType}:${refreshKey}`}>
                   {renderReport?.(ctx)}

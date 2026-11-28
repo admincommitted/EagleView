@@ -38,6 +38,7 @@
   --destructive-foreground: #ffffff;
   --success: #15803d;
   --warning: #b45309;
+  --info: #3b82f6;
 
   --border: var(--lg-line, #9cc9e4);              /* section lines, popup borders */
   --input: color-mix(in srgb, var(--theme) 22%, #b3bfcc);          /* box borders: light, the hover / focus colour shows the box */
@@ -73,6 +74,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-hover: var(--input-hover);
@@ -115,9 +117,23 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 1px rgb(15 23 42 / 0.04);
-  --shadow-lift: 0 4px 10px -2px rgb(15 23 42 / 0.16);
-  --shadow-popup: 0 24px 48px -12px rgb(15 23 42 / 0.35), 0 0 0 1px rgb(15 23 42 / 0.04);
+  /* a toast slides in from the right edge of the screen and goes back out to it */
+  --animate-toast-in: toast-in 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  --animate-toast-out: toast-out 0.3s ease-in both;
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(calc(100% + 24px)); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes toast-out {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(calc(100% + 24px)); }
+  }
+
+  --shadow-soft: none;
+  --shadow-lift: none;
+  --shadow-popup: none;
 }
 
 /* A popup, dropdown, select list or drawer that closes stays at the last (invisible) frame of its exit animation until
@@ -216,7 +232,7 @@
       overflow: hidden;
       border: 1px solid var(--border) !important;
       border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-soft);
+      box-shadow: none;
     }
     :where([data-slot="table"][data-cards] > * > tr) { background-color: var(--background); }
     [data-slot="table"][data-cards] > * > tr[data-state="selected"] {
@@ -283,7 +299,7 @@
 .react-datepicker {
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
-  box-shadow: var(--shadow-popup);
+  box-shadow: none;
   overflow: hidden;
   font-family: inherit !important;
 }

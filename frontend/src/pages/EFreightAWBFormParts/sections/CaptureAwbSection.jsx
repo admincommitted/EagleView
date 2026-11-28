@@ -36,7 +36,7 @@ export default function CaptureAwbSection({ ctx }) {
 
   return (
     <>
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3 tw:border-b tw:border-border tw:bg-linear-to-r tw:from-card tw:to-page tw:px-4 tw:py-4 tw:shadow-xs tw:md:px-6">
+      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3 tw:border-b tw:border-border tw:bg-linear-to-r tw:from-card tw:to-page tw:px-4 tw:py-4 tw:md:px-6">
         <h2 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-xl tw:font-bold tw:text-foreground"><Plane className="tw:size-6 tw:text-primary" /> Capture AWB</h2>
         <div className="tw:flex tw:gap-2.5">
           <Button size="lg" onClick={printAwb}>Print</Button>

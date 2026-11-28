@@ -143,7 +143,7 @@ function DocForm({ doc, setDoc, canClose, onClose, onSave, defaultIcegateId }) {
   };
 
   return (
-    <div className="tw:mt-2 tw:flex tw:flex-[1.5] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-primary/30 tw:bg-card tw:shadow-md">
+    <div className="tw:mt-2 tw:flex tw:flex-[1.5] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-primary/30 tw:bg-card">
       <div className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-border tw:px-5 tw:py-3">
         <div className="tw:flex tw:items-center tw:gap-2.5">
           <span className="tw:rounded-lg tw:bg-muted tw:p-1.5 tw:text-muted-foreground"><LinkIcon className="tw:size-4" /></span>

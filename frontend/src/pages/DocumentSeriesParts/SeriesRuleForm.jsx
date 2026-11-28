@@ -58,7 +58,7 @@ export default function SeriesRuleForm({ rule, onChange, docTypes, branches, dep
           </div>
 
           <div className="tw:flex tw:min-w-0 tw:flex-col tw:justify-center tw:gap-5 tw:lg:flex-1">
-            <div className="tw:relative tw:overflow-hidden tw:rounded-xl tw:bg-primary tw:p-6 tw:text-primary-foreground tw:shadow-lg">
+            <div className="tw:relative tw:overflow-hidden tw:rounded-xl tw:bg-primary tw:p-6 tw:text-primary-foreground">
               <Eye className="tw:absolute tw:-top-5 tw:-right-5 tw:size-[120px] tw:opacity-10" />
               <div className="tw:mb-2 tw:text-xs tw:tracking-widest tw:uppercase tw:opacity-70">Live Series Preview</div>
               <div className="tw:text-2xl tw:font-extrabold tw:tracking-widest tw:break-all">{previewNumber(rule, rule.nextNumber)}</div>

@@ -16,7 +16,7 @@ export function Panel({ icon: Icon, title, actions, className, bodyClassName, ch
   );
   return (
     <Section title={heading} actions={actions} bodyClassName={cn('tw:gap-3 tw:pt-2', bodyClassName)}
-      className={cn('tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-3 tw:shadow-sm tw:md:p-4', className)}>
+      className={cn('tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-3 tw:md:p-4', className)}>
       {children}
     </Section>
   );

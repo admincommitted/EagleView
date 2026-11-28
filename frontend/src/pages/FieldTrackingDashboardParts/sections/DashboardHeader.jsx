@@ -57,7 +57,7 @@ export default function DashboardHeader({ agents, loading, onRefresh, onOpenWind
   return (
     <div className="tw:mb-3 tw:flex tw:shrink-0 tw:flex-col tw:gap-3 tw:lg:flex-row tw:lg:items-center tw:lg:justify-between">
       <div className="tw:flex tw:items-center tw:gap-3">
-        <div className="tw:rounded-lg tw:bg-primary tw:p-2 tw:text-primary-foreground tw:shadow-md">
+        <div className="tw:rounded-lg tw:bg-primary tw:p-2 tw:text-primary-foreground">
           <Crosshair className="tw:size-5" />
         </div>
         <div className="tw:mr-4 tw:min-w-0">
@@ -75,7 +75,7 @@ export default function DashboardHeader({ agents, loading, onRefresh, onOpenWind
 
       <div className="tw:flex tw:flex-1 tw:gap-2 tw:overflow-x-auto tw:lg:justify-center">
         {KPIS.map(({ label, icon: Icon, iconClass, count }) => (
-          <div key={label} className="tw:flex tw:shrink-0 tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-background tw:px-2.5 tw:py-1 tw:shadow-xs">
+          <div key={label} className="tw:flex tw:shrink-0 tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-background tw:px-2.5 tw:py-1">
             <Icon className={cn('tw:size-3', iconClass)} />
             <span className="tw:text-[10px] tw:font-bold tw:text-muted-foreground tw:uppercase">{label}</span>
             <span className="tw:text-[13px] tw:font-extrabold tw:text-foreground">{loading ? '…' : count(agents)}</span>

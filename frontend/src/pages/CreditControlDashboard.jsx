@@ -51,7 +51,7 @@ const RISK_COLORS = { High: 'tw:text-destructive', Medium: 'tw:text-warning' };
 
 function ClientHeader({ client, party, loading, onSendStatement }) {
   return (
-    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-xs tw:md:flex-row tw:md:items-center tw:md:justify-between">
+    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:md:flex-row tw:md:items-center tw:md:justify-between">
       <div className="tw:min-w-0">
         <h3 className="tw:m-0 tw:text-xl tw:text-foreground">{client.name}{loading ? ' ...' : ''}</h3>
         <div className="tw:mt-2 tw:flex tw:flex-wrap tw:gap-x-4 tw:gap-y-1 tw:text-[13px] tw:text-muted-foreground">
@@ -73,7 +73,7 @@ function ClientDetail({ credit, activeTab, onTabChange }) {
   return (
     <>
       <ClientHeader client={client} party={detail.party} loading={credit.detailLoading} onSendStatement={credit.sendStatement} />
-      <Tabs value={activeTab} onValueChange={onTabChange} className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:shadow-xs">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card">
         <TabsList variant="line" className="tw:w-full tw:justify-start tw:overflow-x-auto tw:rounded-t-lg tw:border-b tw:border-border tw:bg-page tw:px-2">
           {DETAIL_TABS.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className="tw:h-11 tw:px-4 tw:text-[13px] tw:font-semibold">
@@ -154,7 +154,7 @@ export default function CreditControlDashboard() {
           {credit.selectedClient && credit.detail ? (
             <ClientDetail credit={credit} activeTab={activeTab} onTabChange={setActiveTab} />
           ) : (
-            <div className="tw:flex tw:min-h-[200px] tw:flex-col tw:items-center tw:justify-center tw:gap-3 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:text-muted-foreground tw:shadow-xs">
+            <div className="tw:flex tw:min-h-[200px] tw:flex-col tw:items-center tw:justify-center tw:gap-3 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:text-muted-foreground">
               <AlertTriangle className="tw:size-12 tw:opacity-50" />
               <div className="tw:text-base tw:font-semibold">Select a client from the left to view credit details</div>
             </div>

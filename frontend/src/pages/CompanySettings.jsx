@@ -319,7 +319,7 @@ export default function CompanySettings() {
   const panel = PANELS[activeTab];
   const PanelIcon = panel.icon;
   const busy = saving || loading;
-  const card = 'tw:mb-6 tw:rounded-lg tw:border tw:border-slate-200 tw:bg-card tw:shadow-sm';
+  const card = 'tw:mb-6 tw:rounded-lg tw:border tw:border-slate-200 tw:bg-card';
 
   return (
     <div className="tw:mx-auto tw:max-w-[1200px] tw:p-3 tw:font-['Segoe_UI'] tw:md:p-6">

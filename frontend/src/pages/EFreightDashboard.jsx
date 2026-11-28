@@ -18,7 +18,7 @@ function WorkspaceLink({ link, onOpen }) {
     <Button
       onClick={onOpen}
       style={{ '--link-colour': link.colour }}
-      className="tw:h-auto tw:min-w-[130px] tw:flex-1 tw:justify-start tw:gap-2 tw:rounded-lg tw:border-input tw:bg-linear-to-b tw:from-white tw:to-page tw:px-3 tw:py-2 tw:shadow-xs tw:transition-all tw:hover:border-(--link-colour) tw:hover:shadow-md tw:sm:flex-none"
+      className="tw:h-auto tw:min-w-[130px] tw:flex-1 tw:justify-start tw:gap-2 tw:rounded-lg tw:border-input tw:bg-linear-to-b tw:from-white tw:to-page tw:px-3 tw:py-2 tw:transition-all tw:hover:border-(--link-colour) tw:sm:flex-none"
     >
       <Icon className="tw:size-[18px] tw:text-(--link-colour)" />
       <span className="tw:flex tw:flex-col tw:items-start">

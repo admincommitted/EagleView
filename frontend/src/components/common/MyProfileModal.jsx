@@ -30,7 +30,7 @@ const SAVED_MESSAGE_MS = 1500;
 
 function ProfileSection({ icon: Icon, title, children }) {
   return (
-    <div className="tw:rounded-lg tw:border tw:border-border tw:bg-card tw:px-4 tw:py-3 tw:shadow-xs">
+    <div className="tw:rounded-lg tw:border tw:border-border tw:bg-card tw:px-4 tw:py-3">
       <h3 className="tw:m-0 tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-entry tw:font-extrabold tw:tracking-wider tw:text-head tw:uppercase">
         <Icon className="tw:size-3.5" /> {title}
       </h3>

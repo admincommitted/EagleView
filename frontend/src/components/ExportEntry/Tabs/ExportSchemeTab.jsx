@@ -19,7 +19,7 @@ const RESET_NOTES = {
 function NoSchemes() {
   return (
     <div className="tw:flex tw:h-full tw:items-center tw:justify-center tw:bg-background tw:p-4">
-      <div className="tw:max-w-xl tw:rounded tw:border tw:border-border tw:bg-page tw:px-8 tw:py-3 tw:text-center tw:text-[13px] tw:font-semibold tw:text-warning tw:shadow-sm">
+      <div className="tw:max-w-xl tw:rounded tw:border tw:border-border tw:bg-page tw:px-8 tw:py-3 tw:text-center tw:text-[13px] tw:font-semibold tw:text-warning">
         No scheme details in this job.
         <div className="tw:mt-1 tw:text-entry tw:font-normal tw:text-muted-foreground">
           Dbk shows for scheme code 19 / 60, RoSCTL for 60, License for licence schemes (e.g. 03), RoDTEP / AR4 when set on the item, MOOWR when MOOWR = Yes on the SB Header.

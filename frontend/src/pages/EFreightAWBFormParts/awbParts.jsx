@@ -5,7 +5,7 @@ import { Button, ComboInput, DateInput, Field, Input, SelectBox, Sheet, SheetCon
 
 export function AwbCard({ icon: Icon, title, actions, className, children }) {
   return (
-    <section className={cn('tw:relative tw:mb-6 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-sm tw:transition-[translate,box-shadow] tw:duration-200 tw:hover:-translate-y-0.5 tw:hover:shadow-lg tw:md:p-6', className)}>
+    <section className={cn('tw:relative tw:mb-6 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:transition-[translate,box-shadow] tw:duration-200 tw:hover:-translate-y-0.5 tw:md:p-6', className)}>
       {title && (
         <div className="tw:-mx-2 tw:-mt-2 tw:mb-5 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:rounded-md tw:border tw:border-primary/15 tw:bg-primary/5 tw:px-4 tw:py-3 tw:text-sm tw:font-bold tw:text-primary tw:uppercase">
           <div className="tw:flex tw:items-center tw:gap-2">{Icon && <Icon className="tw:size-[18px]" />}{title}</div>

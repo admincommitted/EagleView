@@ -6,7 +6,7 @@ const HelpViewer = ({ isOpen, onClose, topic }) => {
   if (!isOpen) return null;
 
   return (
-    <aside className="tw:fixed tw:top-[60px] tw:right-0 tw:z-[999999] tw:flex tw:h-[calc(100vh-60px)] tw:w-full tw:flex-col tw:border-l-4 tw:border-double tw:border-head tw:bg-background tw:font-serif tw:normal-case tw:shadow-[-10px_0_25px_rgba(0,0,0,0.15)] tw:md:w-[420px]">
+    <aside className="tw:fixed tw:top-[60px] tw:right-0 tw:z-[999999] tw:flex tw:h-[calc(100vh-60px)] tw:w-full tw:flex-col tw:border-l-4 tw:border-double tw:border-head tw:bg-background tw:font-serif tw:normal-case tw:md:w-[420px]">
       <div className="tw:mx-5 tw:flex tw:items-start tw:justify-between tw:border-b-2 tw:border-head tw:px-6 tw:pt-6 tw:pb-4">
         <div className="tw:flex tw:items-center tw:gap-3">
           <BookOpen className="tw:size-7 tw:text-head" />

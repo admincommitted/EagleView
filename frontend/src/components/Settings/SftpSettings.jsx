@@ -27,7 +27,7 @@ const textFile = (text) => new Blob([text], { type: 'text/plain' });
 
 function StepCard({ title, intro, children }) {
   return (
-    <div className="tw:mb-6 tw:rounded-lg tw:bg-card tw:p-4 tw:shadow-sm tw:md:p-6">
+    <div className="tw:mb-6 tw:rounded-lg tw:bg-card tw:p-4 tw:md:p-6">
       <h2 className="tw:mt-0 tw:mb-1 tw:text-lg tw:font-semibold tw:text-slate-800">{title}</h2>
       <p className="tw:mt-0 tw:mb-4 tw:text-[13.5px] tw:text-slate-500">{intro}</p>
       {children}

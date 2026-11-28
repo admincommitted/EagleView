@@ -57,7 +57,7 @@ function TestRow({ label, busy, onTest, result }) {
 function ProfileCard({ profile, testing, onTest, onEdit, onDelete }) {
   return (
     <div className={cn(
-      'tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:bg-card tw:p-4 tw:shadow-sm tw:md:flex-row tw:md:items-center tw:md:justify-between',
+      'tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:bg-card tw:p-4 tw:md:flex-row tw:md:items-center tw:md:justify-between',
       profile.isDefault ? 'tw:border-2 tw:border-indigo-300' : 'tw:border tw:border-border'
     )}>
       <div className="tw:min-w-0">

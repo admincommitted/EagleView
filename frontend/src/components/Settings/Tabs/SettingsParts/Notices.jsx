@@ -27,7 +27,7 @@ export function CornerToast({ notice }) {
   if (!notice) return null;
   return createPortal(
     <StatusBanner tone={notice.type === 'error' ? 'error' : 'success'}
-      className="tw:fixed tw:top-20 tw:right-4 tw:z-[100000] tw:max-w-[calc(100vw-2rem)] tw:px-4 tw:py-3 tw:shadow-md tw:md:max-w-[520px]">
+      className="tw:fixed tw:top-20 tw:right-4 tw:z-[100000] tw:max-w-[calc(100vw-2rem)] tw:px-4 tw:py-3 tw:md:max-w-[520px]">
       {notice.msg}
     </StatusBanner>,
     document.body,

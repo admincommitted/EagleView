@@ -33,7 +33,7 @@ function WhatsappPreview({ template }) {
         <span className="tw:flex tw:size-7 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:bg-success">
           <MessageCircle className="tw:size-3.5 tw:text-white" />
         </span>
-        <div className="tw:max-w-[85%] tw:rounded-r-lg tw:rounded-bl-lg tw:bg-white tw:px-3.5 tw:py-2.5 tw:shadow-sm">
+        <div className="tw:max-w-[85%] tw:rounded-r-lg tw:rounded-bl-lg tw:bg-white tw:px-3.5 tw:py-2.5">
           <div className="tw:text-[13px] tw:leading-relaxed tw:break-words tw:whitespace-pre-wrap tw:text-neutral-900" dangerouslySetInnerHTML={{ __html: previewHtml(template) }} />
           <div className="tw:mt-1 tw:text-right tw:text-[10px] tw:text-slate-400">{sentAt}</div>
         </div>

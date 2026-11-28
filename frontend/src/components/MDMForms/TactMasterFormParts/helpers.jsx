@@ -76,7 +76,7 @@ const labelPageHtml = (item) => `
   <div style="border: 2px dashed #94a3b8; padding: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box;">
     <h1 style="font-size: 64px; font-weight: 900; color: #000; margin: 0 0 10px 0; text-align: center;">${escapeHtml(item.unNumber)}</h1>
     <h2 style="font-size: 32px; font-weight: bold; color: #334155; margin: 0 0 60px 0; text-align: center; text-transform: uppercase;">${escapeHtml(item.properShippingName)}</h2>
-    <svg width="400" height="400" viewBox="0 0 100 100" style="filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3)); display: block;">
+    <svg width="400" height="400" viewBox="0 0 100 100" style="display: block;">
       ${dgrLabelMarkup(item.classDivision, item.unNumber, item.properShippingName)}
     </svg>
     <p style="font-size: 24px; font-weight: bold; margin-top: 60px; color: #000;">CLASS: ${escapeHtml(item.classDivision)}</p>

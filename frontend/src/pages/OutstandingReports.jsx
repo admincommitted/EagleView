@@ -184,7 +184,7 @@ export default function OutstandingReports() {
         ))}
       </div>
 
-      <div className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:shadow-sm">
+      <div className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card">
         <div className="tw:flex tw:flex-col tw:gap-2 tw:rounded-t-lg tw:border-b tw:border-border tw:bg-page tw:px-5 tw:py-4 tw:md:flex-row tw:md:items-center tw:md:justify-between">
           <h3 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-[15px] tw:text-foreground">
             <FileText className={cn('tw:size-[18px]', type.text)} /> Bill-wise Outstanding Details

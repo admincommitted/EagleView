@@ -57,7 +57,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "tw:fixed tw:top-[50%] tw:left-[50%] tw:z-[3000] tw:flex tw:max-h-[calc(100vh-2rem)] tw:w-full tw:max-w-[calc(100%-2rem)] tw:translate-x-[-50%] tw:translate-y-[-50%] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-background tw:text-entry tw:text-foreground tw:normal-case tw:shadow-popup tw:duration-200 tw:outline-none tw:data-[state=closed]:animate-out tw:data-[state=closed]:fade-out-0 tw:data-[state=closed]:zoom-out-95 tw:data-[state=open]:animate-in tw:data-[state=open]:fade-in-0 tw:data-[state=open]:zoom-in-95 tw:data-[state=open]:slide-in-from-bottom-2 tw:sm:max-w-lg",
+          "tw:fixed tw:top-[50%] tw:left-[50%] tw:z-[3000] tw:flex tw:max-h-[calc(100vh-2rem)] tw:w-full tw:max-w-[calc(100%-2rem)] tw:translate-x-[-50%] tw:translate-y-[-50%] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-background tw:text-entry tw:text-foreground tw:normal-case tw:duration-200 tw:outline-none tw:data-[state=closed]:animate-out tw:data-[state=closed]:fade-out-0 tw:data-[state=closed]:zoom-out-95 tw:data-[state=open]:animate-in tw:data-[state=open]:fade-in-0 tw:data-[state=open]:zoom-in-95 tw:data-[state=open]:slide-in-from-bottom-2 tw:sm:max-w-lg",
           className
         )}
         {...props}
@@ -67,7 +67,7 @@ function DialogContent({
           <DialogPrimitive.Close
             data-slot="dialog-close"
             className={cn(
-              "tw:absolute tw:top-2.5 tw:right-2.5 tw:inline-flex tw:size-7 tw:cursor-pointer tw:items-center tw:justify-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0 tw:text-muted-foreground tw:opacity-80 tw:shadow-none tw:filter-none tw:transition-all tw:duration-150 tw:hover:rotate-90 tw:hover:bg-accent tw:hover:opacity-100 tw:active:scale-90 tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40 tw:focus:outline-hidden tw:[&_svg]:pointer-events-none tw:[&_svg]:shrink-0 tw:[&_svg:not([class*=size-])]:size-4",
+              "tw:absolute tw:top-2.5 tw:right-2.5 tw:inline-flex tw:size-7 tw:cursor-pointer tw:items-center tw:justify-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0 tw:text-muted-foreground tw:opacity-80 tw:filter-none tw:transition-all tw:duration-150 tw:hover:rotate-90 tw:hover:bg-accent tw:hover:opacity-100 tw:active:scale-90 tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40 tw:focus:outline-hidden tw:[&_svg]:pointer-events-none tw:[&_svg]:shrink-0 tw:[&_svg:not([class*=size-])]:size-4",
               closeButtonClassName
             )}
           >

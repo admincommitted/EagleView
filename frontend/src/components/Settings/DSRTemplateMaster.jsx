@@ -7,7 +7,7 @@ import DatabaseFieldSelectorSection from './DSRTemplateMasterParts/sections/Data
 
 function TemplateList({ templates, activeId, onSelect, onAdd }) {
   return (
-    <div className="tw:flex tw:w-full tw:shrink-0 tw:flex-col tw:gap-4 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-sm tw:lg:w-[250px]">
+    <div className="tw:flex tw:w-full tw:shrink-0 tw:flex-col tw:gap-4 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:lg:w-[250px]">
       <div className="tw:flex tw:items-center tw:justify-between">
         <h3 className="tw:m-0 tw:text-sm tw:text-slate-800">Templates</h3>
         <Button variant="default" size="icon" title="New template" onClick={onAdd}><Plus className="tw:size-4" /></Button>

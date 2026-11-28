@@ -75,7 +75,7 @@ export default function NewsTicker() {
   return (
     <div role="region" aria-label="Live alerts"
       className="tw:flex tw:h-[30px] tw:items-center tw:gap-2 tw:border-b tw:border-[#334155] tw:bg-[linear-gradient(90deg,#1e293b_0%,#0f172a_100%)] tw:px-2 tw:text-entry tw:font-semibold tw:text-[#f8fafc] tw:md:px-4">
-      <div className="tw:z-10 tw:flex tw:shrink-0 tw:items-center tw:gap-1.5 tw:text-[#facc15] tw:shadow-[10px_0_10px_-5px_rgba(30,41,59,0.9)]">
+      <div className="tw:z-10 tw:flex tw:shrink-0 tw:items-center tw:gap-1.5 tw:text-[#facc15]">
         <Megaphone className="tw:size-3.5 tw:animate-pulse" />
         <span className="tw:hidden tw:sm:inline">Live alerts{alerts.length > 1 ? ` (${alerts.length})` : ''}:</span>
       </div>

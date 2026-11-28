@@ -41,7 +41,7 @@ export function ProfileMenu() {
         <DropdownMenuTrigger asChild>
           <Button variant="header" aria-label="Account menu"
             className="tw:group tw:h-8 tw:gap-2 tw:rounded-full tw:border-white/20 tw:bg-white/10 tw:py-0.5 tw:pr-1 tw:pl-1 tw:md:pr-3">
-            <span className="tw:flex tw:size-[26px] tw:items-center tw:justify-center tw:rounded-full tw:bg-[linear-gradient(135deg,#00f2fe_0%,#4facfe_100%)] tw:shadow-[0_0_10px_rgba(79,172,254,0.6)]">
+            <span className="tw:flex tw:size-[26px] tw:items-center tw:justify-center tw:rounded-full tw:bg-[linear-gradient(135deg,#00f2fe_0%,#4facfe_100%)]">
               <User className="tw:size-3.5" strokeWidth={2.5} />
             </span>
             <span className="tw:hidden tw:flex-col tw:items-start tw:gap-0.5 tw:leading-none tw:md:flex">

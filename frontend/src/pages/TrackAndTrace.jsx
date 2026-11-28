@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import lookUpAwb from './FreightOpsParts/lookUpAwb';
 import TrackingResult from './FreightOpsParts/TrackingResult';
 
-const CARD = 'tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-6 tw:shadow-sm';
+const CARD = 'tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-6';
 
 export default function TrackAndTrace() {
   const [searchQuery, setSearchQuery] = useState('');

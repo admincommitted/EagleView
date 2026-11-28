@@ -34,7 +34,7 @@ const SLIDE_UP_CARGO = 'tw:animate-[aircraftSlideUpCargo_10s_ease-in-out_infinit
 const SCANNER_BEAM = 'tw:pointer-events-none tw:animate-[aircraftScanHolo_6s_cubic-bezier(0.4,0,0.2,1)_infinite]';
 
 const DECK_LABEL = { fill: '#38bdf8', fontSize: '8', fontFamily: 'monospace', opacity: '0.9' };
-const DOOR_LABEL = { fill: '#94a3b8', fontWeight: 'bold', textAnchor: 'middle', stroke: 'none', className: 'tw:text-shadow-none' };
+const DOOR_LABEL = { fill: '#94a3b8', fontWeight: 'bold', textAnchor: 'middle', stroke: 'none', className: '' };
 const PASSENGER_WINDOW_X = Array.from({ length: 15 }, (_, index) => 340 + index * 14);
 const MAIN_GEAR_WHEEL_X = [415, 430, 445, 460];
 const WING_CANOES = [
@@ -386,7 +386,7 @@ const AircraftBlueprintViewer = ({ aircraft, tilt = 0 }) => {
   const isLower = deck.includes('lower');
 
   return (
-    <div className="tw:relative tw:h-[380px] tw:w-full tw:overflow-hidden tw:rounded-lg tw:border tw:border-slate-300 tw:bg-white tw:font-[Inter,Segoe_UI,Roboto,Helvetica,Arial,sans-serif] tw:shadow-[inset_0_0_100px_rgba(226,232,240,0.5)]">
+    <div className="tw:relative tw:h-[380px] tw:w-full tw:overflow-hidden tw:rounded-lg tw:border tw:border-slate-300 tw:bg-white tw:font-[Inter,Segoe_UI,Roboto,Helvetica,Arial,sans-serif]">
       <style>{BLUEPRINT_KEYFRAMES}</style>
       <svg width="100%" height="100%" className="tw:absolute tw:top-0 tw:left-0 tw:filter-none">
         <BlueprintDefs />

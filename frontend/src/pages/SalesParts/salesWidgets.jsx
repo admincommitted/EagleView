@@ -109,11 +109,11 @@ export function KpiCard({ label, value, icon, tone = 'blue', tint, alert, compac
       onClick={onClick}
       onKeyDown={(event) => onClick && (event.key === 'Enter' || event.key === ' ') && onClick()}
       className={cn(
-        'tw:gap-0.5 tw:rounded-xl tw:border-b-4 tw:shadow-sm tw:outline-none',
+        'tw:gap-0.5 tw:rounded-xl tw:border-b-4 tw:outline-none',
         compact ? 'tw:px-3 tw:py-2.5' : 'tw:px-4 tw:py-3.5',
         colors.edge,
         tint && colors.tint,
-        onClick && 'tw:cursor-pointer tw:transition tw:hover:-translate-y-0.5 tw:hover:shadow-md tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40 tw:motion-reduce:transition-none tw:motion-reduce:hover:translate-y-0'
+        onClick && 'tw:cursor-pointer tw:transition tw:hover:-translate-y-0.5 tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40 tw:motion-reduce:transition-none tw:motion-reduce:hover:translate-y-0'
       )}
     >
       <div className="tw:flex tw:items-start tw:gap-2">
@@ -129,7 +129,7 @@ export function KpiCard({ label, value, icon, tone = 'blue', tint, alert, compac
 /** A panel with a coloured icon in its heading. */
 export function Panel({ title, icon, tone = 'blue', actions, flush, className, children }) {
   return (
-    <Card className={cn('tw:overflow-hidden tw:rounded-xl tw:shadow-sm', className)}>
+    <Card className={cn('tw:overflow-hidden tw:rounded-xl', className)}>
       <CardHeader className="tw:flex-wrap tw:justify-start tw:gap-2.5 tw:border-b tw:border-border tw:px-3.5 tw:py-2.5">
         {icon && <IconBadge icon={icon} tone={tone} compact />}
         <CardTitle className="tw:text-[13px] tw:font-extrabold tw:text-foreground">{title}</CardTitle>

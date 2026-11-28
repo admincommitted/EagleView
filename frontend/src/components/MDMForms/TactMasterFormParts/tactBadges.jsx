@@ -4,7 +4,7 @@ import { dgrLabelMarkup } from './helpers';
 export function DgrLabel({ classCode, unNumber = '', properName = '', size = 32 }) {
   if (!classCode) return null;
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" className="tw:m-1 tw:drop-shadow-[1px_1px_2px_rgba(0,0,0,0.3)]"
+    <svg width={size} height={size} viewBox="0 0 100 100" className="tw:m-1"
       dangerouslySetInnerHTML={{ __html: dgrLabelMarkup(classCode, unNumber, properName) }} />
   );
 }
@@ -35,7 +35,7 @@ export function MakerBadge({ make }) {
   if (!make || make === 'N/A') return <span className="tw:text-slate-400">N/A</span>;
   return (
     <div className="tw:flex tw:items-center tw:gap-2" style={{ '--brand': BRAND_COLORS[make] || DEFAULT_BRAND_COLOR }}>
-      <div className="tw:flex tw:size-5 tw:items-center tw:justify-center tw:rounded tw:bg-(--brand) tw:shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+      <div className="tw:flex tw:size-5 tw:items-center tw:justify-center tw:rounded tw:bg-(--brand)">
         <Plane size={12} className="tw:rotate-45 tw:text-white" />
       </div>
       <span className="tw:text-sm tw:font-bold tw:text-(color:--brand)">{make.toUpperCase()}</span>

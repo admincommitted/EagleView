@@ -7,7 +7,7 @@ const isManualField = (column) => column.field.startsWith('custom_');
 
 function ColumnRow({ column, index, isLast, onMoveColumn, onUpdateColumn, onRemoveColumn }) {
   return (
-    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-md tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-2 tw:shadow-xs tw:md:flex-row tw:md:items-center">
+    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-md tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-2 tw:md:flex-row tw:md:items-center">
       <div className="tw:flex tw:gap-0.5 tw:md:flex-col">
         <Button variant="ghost" size="icon" title="Move up" disabled={index === 0} onClick={() => onMoveColumn(index, -1)}><ArrowUp className="tw:size-4" /></Button>
         <Button variant="ghost" size="icon" title="Move down" disabled={isLast} onClick={() => onMoveColumn(index, 1)}><ArrowDown className="tw:size-4" /></Button>

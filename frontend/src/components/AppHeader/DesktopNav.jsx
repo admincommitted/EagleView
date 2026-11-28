@@ -12,11 +12,11 @@ const COLUMN_GRID = {
 };
 
 const navItemClass = (isActive) => cn(
-  'tw:group/nav tw:relative tw:h-7 tw:shrink-0 tw:gap-1 tw:rounded-full tw:px-2 tw:xl:px-2.5 tw:text-[11px] tw:font-semibold tw:tracking-[0.3px] tw:no-underline tw:[text-shadow:0_1px_2px_rgba(0,0,0,0.25)] tw:hover:bg-white/15 tw:[&_svg:not([class*=size-])]:size-4',
+  'tw:group/nav tw:relative tw:h-7 tw:shrink-0 tw:gap-1 tw:rounded-full tw:px-2 tw:xl:px-2.5 tw:text-[11px] tw:font-semibold tw:tracking-[0.3px] tw:no-underline tw:hover:bg-white/15 tw:[&_svg:not([class*=size-])]:size-4',
   'tw:[&>svg:first-child]:transition-transform tw:hover:[&>svg:first-child]:scale-110',
   // below xl the words alone fit the menu on one line; the icons come back on a wider window
   'tw:max-xl:[&>svg:first-child]:hidden',
-  isActive && 'tw:bg-white/25 tw:font-bold tw:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.25)] tw:hover:bg-white/25',
+  isActive && 'tw:bg-white/25 tw:font-bold tw:hover:bg-white/25',
 );
 
 function NavDropdown({ entry, isActive }) {
@@ -43,7 +43,7 @@ function NavDropdown({ entry, isActive }) {
         onOpenAutoFocus={(event) => event.preventDefault()}
         {...hoverProps}
         className={cn(
-          'tw:grid tw:w-auto tw:max-w-[calc(100vw-1rem)] tw:max-h-(--radix-popover-content-available-height) tw:gap-x-3 tw:gap-y-4 tw:divide-x tw:divide-border/60 tw:overflow-y-auto tw:rounded-xl tw:p-3 tw:shadow-popup',
+          'tw:grid tw:w-auto tw:max-w-[calc(100vw-1rem)] tw:max-h-(--radix-popover-content-available-height) tw:gap-x-3 tw:gap-y-4 tw:divide-x tw:divide-border/60 tw:overflow-y-auto tw:rounded-xl tw:p-3',
           'tw:border-t-[3px] tw:border-t-primary',
           COLUMN_GRID[entry.columns.length],
         )}

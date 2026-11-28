@@ -7,7 +7,7 @@ import { authApi } from './authApi';
 
 const REMEMBERED_USER_KEY = 'rememberedUserId';
 
-const LOGIN_BOX = 'tw:h-auto tw:rounded-xl tw:border-border tw:bg-background tw:py-4 tw:text-base tw:shadow-xs tw:focus-visible:border-ring tw:focus-visible:ring-4 tw:focus-visible:ring-ring/15';
+const LOGIN_BOX = 'tw:h-auto tw:rounded-xl tw:border-border tw:bg-background tw:py-4 tw:text-base tw:focus-visible:border-ring';
 const FIELD_LABEL = 'tw:ml-1 tw:text-xs tw:font-bold tw:text-muted-foreground tw:uppercase';
 
 // the server's JSON answer of a failed request, or null when the server could not be reached
@@ -56,10 +56,10 @@ function Branding() {
       <div className="tw:relative tw:z-10 tw:max-w-[600px]">
         <div className="tw:flex tw:min-h-[220px] tw:flex-col tw:justify-center">
           <h2 className="tw:mb-6 tw:text-[3.5rem] tw:leading-[1.1] tw:font-extrabold tw:tracking-[-1px] tw:text-white">
-            <span className="tw:text-shadow-lg">EagleView</span> <br />
+            <span>EagleView</span> <br />
             <span className="tw:inline-block tw:bg-linear-to-r tw:from-slate-50 tw:to-sky-400 tw:bg-clip-text tw:text-transparent">Customs Clearance.</span>
           </h2>
-          <p className="tw:mb-8 tw:min-h-20 tw:text-[1.15rem] tw:leading-[1.7] tw:font-normal tw:text-slate-200 tw:text-shadow-md">
+          <p className="tw:mb-8 tw:min-h-20 tw:text-[1.15rem] tw:leading-[1.7] tw:font-normal tw:text-slate-200">
             File Shipping Bills and Bills of Entry directly to ICEGATE. Experience lightning-fast assessments, automated duty calculations, and zero-delay cargo clearances.
           </p>
         </div>
@@ -239,7 +239,7 @@ export default function Login() {
               variant="default"
               size="lg"
               disabled={loading}
-              className="tw:h-auto tw:w-full tw:rounded-xl tw:border-0 tw:bg-linear-to-r tw:from-ring tw:to-primary tw:py-4 tw:text-base tw:font-bold tw:tracking-wider tw:uppercase tw:shadow-lg tw:transition-all tw:duration-300 tw:hover:-translate-y-0.5 tw:hover:shadow-xl"
+              className="tw:h-auto tw:w-full tw:rounded-xl tw:border-0 tw:bg-linear-to-r tw:from-ring tw:to-primary tw:py-4 tw:text-base tw:font-bold tw:tracking-wider tw:uppercase tw:transition-all tw:duration-300 tw:hover:-translate-y-0.5"
             >
               {loading ? <span className="tw:text-sm">AUTHENTICATING...</span> : <><span>{otp ? 'Verify code' : 'Sign In'}</span><span>&rarr;</span></>}
             </Button>

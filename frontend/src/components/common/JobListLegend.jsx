@@ -2,7 +2,7 @@ import { Ban, CheckCircle, Lock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 
-const CHIP = 'tw:inline-flex tw:h-6 tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-background tw:px-2.5 tw:text-[11px] tw:font-semibold tw:text-foreground tw:shadow-none tw:transition-colors tw:hover:bg-accent';
+const CHIP = 'tw:inline-flex tw:h-6 tw:items-center tw:gap-1.5 tw:rounded-full tw:border tw:border-border tw:bg-background tw:px-2.5 tw:text-[11px] tw:font-semibold tw:text-foreground tw:transition-colors tw:hover:bg-accent';
 
 /**
  * The strip under a job list: every chip shows the row colour / icon it stands for and how many listed jobs have it;

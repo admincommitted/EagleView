@@ -20,7 +20,7 @@ export default function ItemActionsBar({ ctx }) {
     { label: 'Validate Job', icon: CheckCircle, variant: 'warning', onClick: validateJob },
   ];
   return (
-    <ActionButtonRow buttons={buttons} className="tw:sticky tw:bottom-0 tw:z-50 tw:border-t tw:border-border tw:bg-page tw:shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+    <ActionButtonRow buttons={buttons} className="tw:sticky tw:bottom-0 tw:z-50 tw:border-t tw:border-border tw:bg-page">
       <span className={cn('tw:mr-1 tw:text-[11px] tw:font-bold', editing ? 'tw:text-warning' : 'tw:text-success')}>
         {editing ? `Editing item ${formData.itemSr || ''} - Save / Modify keep the changes (Add Item for a new one)` : 'New item - Save adds it'}
       </span>

@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Edit2, FileText, Folder, FolderOpen, Receipt
 import { cn } from '@/lib/utils';
 import { Button, DataTable } from '@/components/ui';
 
-const PANEL = 'tw:rounded-xl tw:border tw:border-border tw:bg-card tw:shadow-xs';
+const PANEL = 'tw:rounded-xl tw:border tw:border-border tw:bg-card';
 const TREE_PANEL = cn(PANEL, 'tw:min-h-[400px] tw:p-5');
 const CARD_GRID = 'tw:grid tw:grid-cols-1 tw:gap-5 tw:sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))]';
 // on a mouse screen the edit / delete buttons show when the row is pointed at; always shown on touch screens

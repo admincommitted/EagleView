@@ -15,7 +15,7 @@ function AgentFact({ label, icon: Icon, iconClass, value }) {
 
 export default function SelectedAgentPanel({ agent, isReplaying, onHistory, onReplay, onAssignTask, onMarkDone, onSiren }) {
   return (
-    <div className="tw:relative tw:z-[100] tw:border-t tw:border-border tw:bg-background tw:px-3 tw:py-2 tw:shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+    <div className="tw:relative tw:z-[100] tw:border-t tw:border-border tw:bg-background tw:px-3 tw:py-2">
       <div className="tw:mb-2 tw:flex tw:flex-col tw:gap-2 tw:md:flex-row tw:md:items-center tw:md:justify-between">
         <div className="tw:min-w-0">
           <div className="tw:mb-0.5 tw:flex tw:flex-wrap tw:items-center tw:gap-2">

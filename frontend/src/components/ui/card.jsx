@@ -4,7 +4,7 @@ function Card({ className, ...props }) {
   return (
     <div
       data-slot="card"
-      className={cn("tw:flex tw:min-w-0 tw:flex-col tw:rounded-lg tw:border tw:border-border tw:bg-card tw:text-entry tw:text-card-foreground tw:shadow-xs", className)}
+      className={cn("tw:flex tw:min-w-0 tw:flex-col tw:rounded-lg tw:border tw:border-border tw:bg-card tw:text-entry tw:text-card-foreground", className)}
       {...props}
     />
   )

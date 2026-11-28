@@ -5,7 +5,7 @@ import { money, rupees } from './money';
 
 function Panel({ title, icon, titleClassName, className, contentClassName, children }) {
   return (
-    <Card className={cn('tw:shadow-sm', className)}>
+    <Card className={className}>
       <CardHeader className="tw:justify-start tw:px-5 tw:pt-5 tw:pb-3">
         <CardTitle icon={icon} className={cn('tw:text-base tw:text-foreground tw:[&_svg]:size-5', titleClassName)}>{title}</CardTitle>
       </CardHeader>
@@ -96,7 +96,7 @@ export function LossJobsPanel({ jobs, unlinked }) {
     },
   ];
   return (
-    <Card className="tw:border-l-4 tw:border-l-destructive tw:shadow-sm">
+    <Card className="tw:border-l-4 tw:border-l-destructive">
       <CardHeader className="tw:flex-wrap tw:justify-start tw:px-5 tw:pt-5 tw:pb-3">
         <CardTitle icon={<AlertOctagon />} className="tw:text-base tw:text-destructive tw:[&_svg]:size-5">Revenue Leakage & Cost Overrun Alerts</CardTitle>
         <Badge variant="danger" className="tw:ml-auto tw:text-[12px]">2 Alerts Require Attention</Badge>

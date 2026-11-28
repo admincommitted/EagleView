@@ -84,7 +84,7 @@ export default function ExportReportTab() {
               </div>
               <div className={cn(
                 'tw:w-full tw:min-w-0 tw:overflow-x-auto tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-3 tw:text-black',
-                'tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] tw:md:p-5 tw:lg:w-auto tw:lg:flex-[1_1_600px]',
+                'tw:md:p-5 tw:lg:w-auto tw:lg:flex-[1_1_600px]',
               )}>
                 <div id="report-print-area" key={`${reportType}:${refreshKey}`}>
                   {renderReport?.(ctx)}

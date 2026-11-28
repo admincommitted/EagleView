@@ -18,7 +18,7 @@ export default function AppHeader({ ref }) {
 
   return (
     <header ref={ref} className="global-header tw:relative">
-      <div className="tw:relative tw:z-50 tw:flex tw:h-10 tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-white/10 tw:px-2 tw:shadow-[0_2px_10px_rgba(0,0,0,0.1)] tw:md:gap-4 tw:md:px-6">
+      <div className="tw:relative tw:z-50 tw:flex tw:h-10 tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-white/10 tw:px-2 tw:md:gap-4 tw:md:px-6">
         <div className="tw:flex tw:min-w-0 tw:items-center tw:gap-1">
           <MobileNav menu={menu} isEntryActive={isEntryActive} className="tw:md:hidden">
             <BranchYearSwitcher className="tw:self-start tw:bg-primary tw:sm:hidden" />
@@ -36,7 +36,7 @@ export default function AppHeader({ ref }) {
         </div>
       </div>
 
-      <div className="tw:hidden tw:items-center tw:gap-2 tw:bg-black/10 tw:pr-2 tw:xl:pr-4 tw:shadow-[inset_0_1px_0_rgb(255_255_255/0.08)] tw:md:flex">
+      <div className="tw:hidden tw:items-center tw:gap-2 tw:bg-black/10 tw:pr-2 tw:xl:pr-4 tw:md:flex">
         <DesktopNav menu={menu} isEntryActive={isEntryActive} className="tw:min-w-0 tw:flex-1" />
         <PageSearch menu={menu} className="tw:w-40 tw:flex-none tw:xl:w-48 tw:2xl:w-56" />
       </div>

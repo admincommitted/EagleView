@@ -382,7 +382,7 @@ function EdiCheckWindow({ container, result, title, onClose, onGo, goLabel }) {
       <DialogPortal container={container}>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="tw:fixed tw:top-1/2 tw:left-1/2 tw:z-[3000] tw:flex tw:max-h-[86vh] tw:w-[620px] tw:max-w-[calc(100%-32px)] tw:-translate-x-1/2 tw:-translate-y-1/2 tw:flex-col tw:rounded-md tw:bg-background tw:text-foreground tw:normal-case tw:shadow-2xl tw:outline-none"
+          className="tw:fixed tw:top-1/2 tw:left-1/2 tw:z-[3000] tw:flex tw:max-h-[86vh] tw:w-[620px] tw:max-w-[calc(100%-32px)] tw:-translate-x-1/2 tw:-translate-y-1/2 tw:flex-col tw:rounded-md tw:bg-background tw:text-foreground tw:normal-case tw:outline-none"
         >
           <div className={cn('tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:border-b tw:border-border tw:px-3.5 tw:py-2.5', headerClass)}>
             <DialogTitle className="tw:text-[13px] tw:font-bold tw:text-current">{title}</DialogTitle>

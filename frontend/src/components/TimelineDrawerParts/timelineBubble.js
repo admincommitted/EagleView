@@ -9,7 +9,7 @@ const faded = (colour, percent) => `color-mix(in srgb, ${colour} ${percent}%, tr
 
 const BUBBLE_LOOKS = {
   LEFT_BORDER: ({ fill, ink, isMe, accent }) => ({
-    className: 'tw:border tw:border-l-4 tw:border-[color:var(--bubble-edge)] tw:border-l-[color:var(--bubble-line)] tw:shadow-xs',
+    className: 'tw:border tw:border-l-4 tw:border-[color:var(--bubble-edge)] tw:border-l-[color:var(--bubble-line)]',
     fill: fill || (isMe ? SOFT_PRIMARY : CARD),
     ink: ink || FOREGROUND,
     line: ink || accent,
@@ -17,7 +17,7 @@ const BUBBLE_LOOKS = {
   }),
   SOLID: ({ fill, ink }) => ({ className: '', fill: fill || PRIMARY, ink: ink || ON_PRIMARY, onColour: true }),
   OUTLINE: ({ fill, ink }) => ({ className: 'tw:bg-transparent tw:border-2 tw:border-[color:var(--bubble-line)]', ink: ink || FOREGROUND, line: fill || PRIMARY }),
-  GLOW: ({ fill, ink }) => ({ className: 'tw:shadow-[0_0_10px_var(--bubble-line)]', fill: fill || 'black', ink: ink || 'white', line: ink || PRIMARY, onColour: true }),
+  GLOW: ({ fill, ink }) => ({ className: '', fill: fill || 'black', ink: ink || 'white', line: ink || PRIMARY, onColour: true }),
   DASHED: ({ fill, ink }) => ({ className: 'tw:bg-transparent tw:border-2 tw:border-dashed tw:border-[color:var(--bubble-line)]', ink: ink || FOREGROUND, line: fill || PRIMARY }),
   GRADIENT: ({ fill, ink }) => ({
     className: 'tw:bg-[image:linear-gradient(135deg,var(--bubble-fill),color-mix(in_srgb,var(--bubble-fill)_50%,transparent))]',
@@ -26,7 +26,7 @@ const BUBBLE_LOOKS = {
     onColour: true,
   }),
   BOTTOM_BORDER: ({ fill, ink }) => ({ className: 'tw:border-b-4 tw:border-b-[color:var(--bubble-line)]', fill: CARD, ink: ink || FOREGROUND, line: fill || PRIMARY }),
-  SOFT_SHADOW: ({ fill, ink }) => ({ className: 'tw:border-l-4 tw:border-l-[color:var(--bubble-line)] tw:shadow-lg', fill: CARD, ink: ink || FOREGROUND, line: fill || PRIMARY }),
+  SOFT_SHADOW: ({ fill, ink }) => ({ className: 'tw:border-l-4 tw:border-l-[color:var(--bubble-line)]', fill: CARD, ink: ink || FOREGROUND, line: fill || PRIMARY }),
   PILL: ({ fill, ink }) => ({
     className: 'tw:rounded-[30px] tw:border tw:border-[color:var(--bubble-edge)]',
     fill: fill || SOFT_PRIMARY,
@@ -34,15 +34,15 @@ const BUBBLE_LOOKS = {
     edge: faded(ink || PRIMARY, 19),
   }),
   GLASSMORPHISM: ({ fill, ink }) => ({
-    className: 'tw:bg-[color:color-mix(in_srgb,var(--bubble-fill)_50%,transparent)] tw:backdrop-blur-md tw:border tw:border-[color:color-mix(in_srgb,var(--bubble-fill)_25%,transparent)] tw:shadow-[0_4px_30px_rgba(0,0,0,0.1)]',
+    className: 'tw:bg-[color:color-mix(in_srgb,var(--bubble-fill)_50%,transparent)] tw:backdrop-blur-md tw:border tw:border-[color:color-mix(in_srgb,var(--bubble-fill)_25%,transparent)]',
     fill: fill || 'white',
     ink: ink || FOREGROUND,
   }),
-  MATERIAL_ACCENT: ({ fill, ink }) => ({ className: 'tw:rounded tw:border-l-[6px] tw:border-l-[color:var(--bubble-line)] tw:shadow-sm', fill: 'var(--muted)', ink: ink || FOREGROUND, line: fill || PRIMARY }),
-  NEUMORPHISM: ({ ink }) => ({ className: 'tw:rounded-xl tw:shadow-[5px_5px_10px_rgba(0,0,0,0.12),-5px_-5px_10px_rgba(255,255,255,0.9)]', fill: 'var(--muted)', ink: ink || FOREGROUND }),
-  FOLDED_RIBBON: ({ fill, ink }) => ({ className: 'tw:rounded-l-none tw:rounded-r-lg tw:shadow-[-4px_4px_0_rgba(0,0,0,0.1)]', fill: fill || PRIMARY, ink: ink || ON_PRIMARY, onColour: true }),
+  MATERIAL_ACCENT: ({ fill, ink }) => ({ className: 'tw:rounded tw:border-l-[6px] tw:border-l-[color:var(--bubble-line)]', fill: 'var(--muted)', ink: ink || FOREGROUND, line: fill || PRIMARY }),
+  NEUMORPHISM: ({ ink }) => ({ className: 'tw:rounded-xl', fill: 'var(--muted)', ink: ink || FOREGROUND }),
+  FOLDED_RIBBON: ({ fill, ink }) => ({ className: 'tw:rounded-l-none tw:rounded-r-lg', fill: fill || PRIMARY, ink: ink || ON_PRIMARY, onColour: true }),
   HOLLOW_NEON: ({ ink }) => ({
-    className: 'tw:border tw:border-[color:var(--bubble-line)] tw:shadow-[inset_0_0_8px_color-mix(in_srgb,var(--bubble-line)_25%,transparent),0_0_8px_color-mix(in_srgb,var(--bubble-line)_25%,transparent)]',
+    className: 'tw:border tw:border-[color:var(--bubble-line)]',
     fill: 'black',
     ink: ink || PRIMARY,
     line: ink || PRIMARY,

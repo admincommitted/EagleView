@@ -21,7 +21,7 @@ const RECENT_COLUMNS = [
 
 function Card({ title, icon: Icon, children }) {
   return (
-    <div className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card tw:shadow-xs">
+    <div className="tw:min-w-0 tw:rounded-lg tw:border tw:border-border tw:bg-card">
       <div className="tw:flex tw:items-center tw:gap-2 tw:rounded-t-lg tw:border-b tw:border-border tw:bg-page tw:px-5 tw:py-4">
         {Icon && <Icon className="tw:size-[18px] tw:text-primary" />}
         <h3 className="tw:m-0 tw:text-[15px] tw:text-foreground">{title}</h3>

@@ -8,7 +8,7 @@ const PADDING = { none: 'tw:p-0', normal: 'tw:p-3', roomy: 'tw:p-4' };
 
 export function DashCard({ title, icon: Icon, right, children, padding = 'normal', className, id }) {
   return (
-    <Card id={id} className={cn('tw:shadow-sm', className)}>
+    <Card id={id} className={className}>
       {title && (
         <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:border-b tw:border-border tw:px-3 tw:py-2">
           {Icon && <Icon className="tw:size-3.25 tw:text-head" />}
@@ -32,7 +32,7 @@ const PLAIN_KPI = { border: 'tw:border-t-border', text: TONE.text };
 export function Kpi({ label, value, sub, tone, icon: Icon, onClick }) {
   const colors = KPI_TONE[tone] || PLAIN_KPI;
   return (
-    <Card onClick={onClick} className={cn('tw:border-t-3 tw:px-3 tw:py-2.5 tw:shadow-sm', colors.border, onClick && 'tw:cursor-pointer tw:hover:bg-page')}>
+    <Card onClick={onClick} className={cn('tw:border-t-3 tw:px-3 tw:py-2.5', colors.border, onClick && 'tw:cursor-pointer tw:hover:bg-page')}>
       <div className="tw:flex tw:items-center tw:gap-1.5 tw:text-[10.5px] tw:font-extrabold tw:tracking-wide tw:text-muted-foreground tw:uppercase">
         {Icon && <Icon className={cn('tw:size-3', colors.text)} />}{label}
       </div>

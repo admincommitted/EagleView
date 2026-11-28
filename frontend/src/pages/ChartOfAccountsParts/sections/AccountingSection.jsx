@@ -7,7 +7,7 @@ import { CHART_TABS } from '../chartTabs';
 export default function AccountingSection({ chart }) {
   const { activeTab, changeTab } = chart;
   return (
-    <div className="tw:z-10 tw:flex tw:flex-col tw:border-b tw:border-border tw:bg-card tw:shadow-xs tw:lg:w-[260px] tw:lg:shrink-0 tw:lg:border-r tw:lg:border-b-0">
+    <div className="tw:z-10 tw:flex tw:flex-col tw:border-b tw:border-border tw:bg-card tw:lg:w-[260px] tw:lg:shrink-0 tw:lg:border-r tw:lg:border-b-0">
       <div className="tw:flex tw:items-center tw:gap-2.5 tw:px-5 tw:pt-4 tw:pb-3 tw:lg:pt-6 tw:lg:pb-4">
         <div className="tw:rounded-lg tw:bg-primary/10 tw:p-2"><Layers className="tw:size-5 tw:text-primary" /></div>
         <div>

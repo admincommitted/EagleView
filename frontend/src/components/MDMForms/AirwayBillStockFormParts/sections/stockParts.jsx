@@ -21,7 +21,7 @@ export function InlineLabel({ children, className }) {
 
 export function StockPanel({ title, children }) {
   return (
-    <div className="tw:flex tw:flex-col tw:overflow-hidden tw:rounded-md tw:border tw:border-border tw:bg-card tw:shadow-sm">
+    <div className="tw:flex tw:flex-col tw:overflow-hidden tw:rounded-md tw:border tw:border-border tw:bg-card">
       <div className="tw:border-b tw:border-l-[6px] tw:border-border tw:border-l-primary tw:bg-primary/10 tw:px-4 tw:py-1.5 tw:text-entry tw:font-bold tw:uppercase">{title}</div>
       <div className="tw:flex tw:flex-col tw:gap-2 tw:px-4 tw:py-3">{children}</div>
     </div>

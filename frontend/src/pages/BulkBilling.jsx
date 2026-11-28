@@ -33,7 +33,7 @@ const chargesTotal = (job) => Object.values(job.charges).reduce((sum, charge) =>
 const GST_RATE_PERCENT = 18;
 
 function InvoiceSheet({ children, className }) {
-  return <div className={cn('tw:min-w-0 tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-lg tw:md:p-8', className)}>{children}</div>;
+  return <div className={cn('tw:min-w-0 tw:border tw:border-border tw:bg-card tw:p-4 tw:md:p-8', className)}>{children}</div>;
 }
 
 export default function BulkBilling() {

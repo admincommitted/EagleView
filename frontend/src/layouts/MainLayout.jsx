@@ -33,7 +33,7 @@ function BackButton() {
   const goBack = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate(DASHBOARD_PATH));
   return (
     <Button size="icon" title="Back to the previous screen (Alt + Left arrow)" aria-label="Back" onClick={goBack}
-      className="tw:fixed tw:bottom-[30px] tw:left-1 tw:z-[900] tw:rounded-full tw:bg-background tw:text-foreground tw:opacity-60 tw:shadow-[0_1px_3px_rgba(15,23,42,0.18)] tw:hover:opacity-100">
+      className="tw:fixed tw:bottom-[30px] tw:left-1 tw:z-[900] tw:rounded-full tw:bg-background tw:text-foreground tw:opacity-60 tw:hover:opacity-100">
       <ArrowLeft />
     </Button>
   );

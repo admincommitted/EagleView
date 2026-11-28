@@ -61,7 +61,7 @@ export default function ResetPassword() {
 
   return (
     <div className="tw:flex tw:min-h-screen tw:items-center tw:justify-center tw:bg-linear-135 tw:from-slate-900 tw:to-primary tw:p-4">
-      <form onSubmit={submit} className="tw:w-full tw:max-w-[400px] tw:rounded-[14px] tw:bg-background tw:p-8 tw:shadow-2xl">
+      <form onSubmit={submit} className="tw:w-full tw:max-w-[400px] tw:rounded-[14px] tw:bg-background tw:p-8">
         <div className="tw:mb-1.5 tw:flex tw:items-center tw:gap-2.5">
           <ShieldCheck className="tw:size-[22px] tw:text-primary" />
           <h2 className="tw:m-0 tw:text-xl tw:text-foreground">Set a new password</h2>

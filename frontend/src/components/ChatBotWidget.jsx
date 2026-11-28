@@ -42,7 +42,7 @@ function RobotAvatar({ className }) {
         alt="Robot Eyes"
         className={cn(
           picture,
-          'tw:z-[2] tw:origin-[center_45%] tw:animate-[chatbot-blink_5s_infinite] tw:brightness-[1.8] tw:drop-shadow-[0_0_6px_var(--color-primary)]',
+          'tw:z-[2] tw:origin-[center_45%] tw:animate-[chatbot-blink_5s_infinite] tw:brightness-[1.8]',
           'tw:[mask-image:radial-gradient(circle_at_50%_45%,black_20%,transparent_35%)]'
         )}
       />
@@ -61,8 +61,8 @@ function MessageBubble({ message, onRetry }) {
         className={cn(
           'tw:min-w-20 tw:px-3.5 tw:pt-2.5 tw:pb-1.5 tw:text-[13px] tw:leading-normal',
           fromUser
-            ? 'tw:rounded-[20px_20px_4px_20px] tw:bg-linear-135 tw:from-primary tw:to-head tw:text-white tw:shadow-md'
-            : 'tw:rounded-[20px_20px_20px_4px] tw:border tw:border-border tw:bg-background tw:text-foreground tw:shadow-sm',
+            ? 'tw:rounded-[20px_20px_4px_20px] tw:bg-linear-135 tw:from-primary tw:to-head tw:text-white'
+            : 'tw:rounded-[20px_20px_20px_4px] tw:border tw:border-border tw:bg-background tw:text-foreground',
           message.pending && 'tw:opacity-75',
           message.failed && 'tw:cursor-pointer tw:outline-2 tw:outline-destructive/40'
         )}
@@ -191,7 +191,7 @@ export default function ChatBotWidget() {
         aria-label="Open the EagleView AI assistant"
         onClick={() => setIsOpen(true)}
         className={cn(
-          'tw:group tw:fixed tw:right-[35px] tw:bottom-[35px] tw:z-[9999] tw:size-[60px] tw:rounded-full tw:border-0 tw:bg-white tw:p-0 tw:shadow-[0_10px_25px_rgba(37,99,235,0.3)] tw:transition-transform tw:duration-400 tw:hover:scale-105 tw:hover:bg-white tw:hover:shadow-[0_10px_30px_rgba(37,99,235,0.5)]',
+          'tw:group tw:fixed tw:right-[35px] tw:bottom-[35px] tw:z-[9999] tw:size-[60px] tw:rounded-full tw:border-0 tw:bg-white tw:p-0 tw:transition-transform tw:duration-400 tw:hover:scale-105 tw:hover:bg-white',
           isOpen ? 'tw:scale-0' : 'tw:scale-100'
         )}
       >
@@ -201,18 +201,18 @@ export default function ChatBotWidget() {
 
       <div
         className={cn(
-          'tw:fixed tw:inset-x-2 tw:bottom-2 tw:z-[10000] tw:flex tw:h-[min(550px,calc(100dvh-16px))] tw:flex-col tw:overflow-hidden tw:rounded-3xl tw:bg-background tw:normal-case tw:shadow-2xl tw:ring-1 tw:ring-black/5 tw:transition-all tw:duration-400',
+          'tw:fixed tw:inset-x-2 tw:bottom-2 tw:z-[10000] tw:flex tw:h-[min(550px,calc(100dvh-16px))] tw:flex-col tw:overflow-hidden tw:rounded-3xl tw:bg-background tw:normal-case tw:ring-1 tw:ring-black/5 tw:transition-all tw:duration-400',
           'tw:sm:inset-x-auto tw:sm:right-[30px] tw:sm:bottom-[30px] tw:sm:w-[380px]',
           isOpen ? 'tw:pointer-events-auto tw:translate-y-0 tw:scale-100 tw:opacity-100' : 'tw:pointer-events-none tw:translate-y-5 tw:scale-90 tw:opacity-0'
         )}
       >
         <div className="tw:flex tw:items-center tw:justify-between tw:border-b tw:border-white/10 tw:bg-linear-135 tw:from-primary tw:to-head tw:p-5 tw:text-white">
           <div className="tw:flex tw:items-center tw:gap-3.5">
-            <RobotAvatar className="tw:size-10 tw:rounded-xl tw:shadow-md" />
+            <RobotAvatar className="tw:size-10 tw:rounded-xl" />
             <div>
               <h4 className="tw:m-0 tw:text-[15px] tw:font-extrabold tw:tracking-wide tw:text-white">EAGLEVIEW AI</h4>
               <div className="tw:mt-0.5 tw:flex tw:items-center tw:gap-1.5">
-                <span className="tw:size-1.5 tw:rounded-full tw:bg-success tw:shadow-[0_0_6px_var(--color-success)]" />
+                <span className="tw:size-1.5 tw:rounded-full tw:bg-success" />
                 <span className="tw:text-[11px] tw:font-semibold tw:text-white/85">Always Online</span>
               </div>
             </div>
@@ -274,7 +274,7 @@ export default function ChatBotWidget() {
             disabled={!canSend || isTyping}
             className={cn(
               'tw:size-[46px] tw:rounded-full tw:border-0 tw:transition-all',
-              canSend ? 'tw:scale-100 tw:bg-linear-135 tw:from-primary tw:to-head tw:shadow-md' : 'tw:scale-95 tw:bg-input'
+              canSend ? 'tw:scale-100 tw:bg-linear-135 tw:from-primary tw:to-head' : 'tw:scale-95 tw:bg-input'
             )}
           >
             <Send className="tw:ml-0.5 tw:size-[18px]" />

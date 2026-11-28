@@ -7,7 +7,7 @@ input, select, textarea {
 }
 input:not([readonly]):focus, select:focus, textarea:focus {
   border-color: var(--primary-color) !important;
-  box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb, 2, 132, 199), 0.15) !important;
+  box-shadow: none !important;
   outline: none;
 }
 input[readonly] {
@@ -26,7 +26,7 @@ input[readonly] {
 }
 .awb-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: none !important;
 }
 
 /* Tables */
@@ -86,12 +86,12 @@ input[readonly] {
   background: var(--primary-color);
   color: white;
   border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
   transition: all 0.2s;
 }
 .btn-primary:hover {
   background: var(--primary-hover, var(--primary-color));
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   transform: translateY(-1px);
 }
 .btn-outline {
@@ -102,7 +102,7 @@ input[readonly] {
 }
 .btn-outline:hover {
   background: var(--bg-hover);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 /* Mandatory Fields */
@@ -110,14 +110,14 @@ input[readonly] {
   border-color: #ef4444 !important;
 }
 .mandatory-field:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+  box-shadow: none !important;
 }
 
 .mandatory-border {
   border-color: #ef4444 !important;
 }
 .mandatory-border:focus, .mandatory-border:focus-within {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+  box-shadow: none !important;
 }
 
 .error-tooltip {
@@ -129,7 +129,7 @@ input[readonly] {
   position: relative;
   display: inline-block;
   margin-top: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: none;
 }
 .error-tooltip::before {
   content: '';

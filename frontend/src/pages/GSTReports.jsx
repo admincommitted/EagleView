@@ -66,7 +66,7 @@ export default function GSTReports() {
         )}
       />
 
-      <div className="tw:overflow-hidden tw:rounded-md tw:border tw:border-input tw:bg-card tw:shadow-md">
+      <div className="tw:overflow-hidden tw:rounded-md tw:border tw:border-input tw:bg-card">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="tw:print:hidden">
           <TabsList variant="line" className="tw:w-full tw:justify-start tw:overflow-x-auto tw:border-b tw:border-border tw:bg-page">
             {RETURNS.map((item) => (

@@ -20,7 +20,7 @@ const EXTERNAL_LINK = { target: '_blank', rel: 'noopener noreferrer' };
 function SessionLogCard({ card }) {
   return (
     <a href={card.url} {...EXTERNAL_LINK}
-      className={cn('tw:flex tw:flex-col tw:gap-1.5 tw:rounded-lg tw:border tw:p-3.5 tw:no-underline tw:transition-shadow tw:hover:shadow-md', card.tone)}>
+      className={cn('tw:flex tw:flex-col tw:gap-1.5 tw:rounded-lg tw:border tw:p-3.5 tw:no-underline tw:transition-shadow', card.tone)}>
       <span className="tw:flex tw:items-center tw:justify-between tw:gap-2">
         <span className="tw:text-[11px] tw:font-extrabold tw:tracking-wide tw:uppercase">{card.label}</span>
         <span className="tw:text-[10px] tw:opacity-70">↗ Open</span>

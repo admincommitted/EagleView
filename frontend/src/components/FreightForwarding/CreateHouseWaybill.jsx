@@ -73,7 +73,7 @@ function CreateHouseWaybillScreen({ freshScreen }) {
       <PageTopSection ctx={ctx} />
       <div className="tw:flex tw:flex-1 tw:flex-col tw:gap-4 tw:pt-1 tw:pb-10">
         <HeaderSection ctx={ctx} />
-        <div className="tw:flex tw:flex-col tw:overflow-hidden tw:rounded tw:border tw:border-slate-400 tw:bg-white tw:shadow-md">
+        <div className="tw:flex tw:flex-col tw:overflow-hidden tw:rounded tw:border tw:border-slate-400 tw:bg-white">
           <PartiesSection ctx={ctx} />
           <RoutingSection ctx={ctx} />
           <HandlingOciSection ctx={ctx} />

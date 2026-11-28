@@ -124,7 +124,7 @@ export default function CommandSearch({ open, onClose, initial = '' }) {
     <Dialog open={Boolean(open)} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="tw:top-[9vh] tw:w-[640px] tw:max-w-[calc(100vw-24px)] tw:translate-y-0 tw:gap-0 tw:overflow-hidden tw:p-0 tw:shadow-2xl tw:sm:max-w-[calc(100vw-24px)]"
+        className="tw:top-[9vh] tw:w-[640px] tw:max-w-[calc(100vw-24px)] tw:translate-y-0 tw:gap-0 tw:overflow-hidden tw:p-0 tw:sm:max-w-[calc(100vw-24px)]"
       >
         <DialogTitle className="tw:sr-only">Accounts search</DialogTitle>
         <DialogDescription className="tw:sr-only">Search a screen, ledger or voucher</DialogDescription>
