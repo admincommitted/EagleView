@@ -211,7 +211,7 @@ export function InvoiceWiseChecklistReport({ jobData, items }) {
           </div>
         );
       })}
-      <div className="tw:border-t-2 tw:border-solid tw:border-black tw:pt-[4px] tw:text-right tw:font-bold">
+      <div className="tw:border-x-0 tw:border-b-0 tw:border-t tw:border-solid tw:border-black tw:pt-[4px] tw:text-right tw:font-bold">
         Grand total - Ass. Value: {formatAmount(grandAssessableValue)} &nbsp;&nbsp; Duty (estimate): {formatAmount(grandDuty)}
       </div>
     </ReportPage>
@@ -482,7 +482,7 @@ export function ChaChecklistReport({ jobData, items }) {
   const containerCount = parseJsonList(job.containers).length;
   return (
     <ReportPage>
-      <ReportTitle className="tw:mb-[8px] tw:border-b-[1.5px] tw:border-solid tw:border-black tw:pb-[4px]">CHA Checklist</ReportTitle>
+      <ReportTitle className="tw:mb-[8px] tw:border-x-0 tw:border-t-0 tw:border-b tw:border-solid tw:border-black tw:pb-[4px]">CHA Checklist</ReportTitle>
       <ReportTable className="tw:mb-[8px] tw:w-auto">
         <ReportBody>
           <ReportRow>
