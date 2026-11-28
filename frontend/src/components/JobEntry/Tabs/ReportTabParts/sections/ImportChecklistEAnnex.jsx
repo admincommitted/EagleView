@@ -57,8 +57,11 @@ const STATEMENT_TYPE = { DEC: ' - DECLARATION', UTG: ' - UNDERTAKING', REM: ' - 
 
 // header grid: label | : | value | label | : | value || label | : | value
 const HEADER_GRID = [15.5, 1.5, 12, 13.5, 1.5, 11, 15.5, 1.5, 28];
-const DASHED_ROW = 'tw:border-b tw:border-dashed tw:border-black';
-const RULED_ROW = 'tw:border-y tw:border-solid tw:border-black';
+// every line is the same thin solid black rule. There is no Tailwind reset, so the sides without a line are set to 0 -
+// otherwise border-solid draws the browser's default 3px border on them (the "box" round the headings).
+const LINE_BELOW = 'tw:border-x-0 tw:border-t-0 tw:border-b tw:border-solid tw:border-black';
+const LINE_ABOVE = 'tw:border-x-0 tw:border-b-0 tw:border-t tw:border-solid tw:border-black';
+const RULED_ROW = 'tw:border-x-0 tw:border-y tw:border-solid tw:border-black';
 
 function Cell({ align, className, ...props }) {
   return <ReportCell look="plain" align={align} className={cn(align === 'right' && 'tw:pr-[6px]', className)} {...props} />;
@@ -71,7 +74,7 @@ function HeadCell({ align, className, ...props }) {
 const EmptyCell = (props) => <ReportCell look="bare" {...props} />;
 
 function SectionTitle({ children }) {
-  return <div className="sech tw:mt-[6px] tw:border-b tw:border-solid tw:border-black tw:text-[9.5pt] tw:font-bold tw:print:break-after-avoid">{children}</div>;
+  return <div className={cn('sech tw:mt-[6px] tw:text-[9.5pt] tw:font-bold tw:print:break-after-avoid', LINE_BELOW)}>{children}</div>;
 }
 
 // label, colon and value cells; span = how many grid columns the value takes
@@ -100,11 +103,11 @@ function DutyLine({ label, notification, rate, amount }) {
   );
 }
 
-// a list block: a dashed heading row, then one row per record; cells are values or { value, className }
+// a list block: a ruled heading row, then one row per record; cells are values or { value, className }
 function ChecklistList({ widths, columns, rightAligned = [], rows, headInThead = false, rowClassName }) {
   const alignOf = (column) => (rightAligned.includes(column) ? 'right' : undefined);
   const headRow = (
-    <ReportRow className={DASHED_ROW}>
+    <ReportRow className={LINE_BELOW}>
       {columns.map((column) => <HeadCell key={column} align={alignOf(column)}>{column}</HeadCell>)}
     </ReportRow>
   );
@@ -588,7 +591,6 @@ export default function ImportChecklistEAnnex({ jobData, items, esanchitDocs, ma
       ))}
 
       {/* items: fixed 7 columns; numbers right-aligned under right-aligned headings */}
-      <div className={cn('tw:mt-[4px]', DASHED_ROW)} />
       <SectionTitle>Item Details</SectionTitle>
       <ReportTable className="tw:table-fixed">
         <ColumnWidths widths={[16, 15, 12, 9, 16, 14, 18]} />
@@ -596,7 +598,7 @@ export default function ImportChecklistEAnnex({ jobData, items, esanchitDocs, ma
           <ReportRow>
             <HeadCell>Sr. No.</HeadCell><HeadCell>RITC</HeadCell><HeadCell colSpan={4}>Description (Generic Description - Model)</HeadCell><HeadCell align="right">SVB Loading(A/D)</HeadCell>
           </ReportRow>
-          <ReportRow className="tw:border-b tw:border-solid tw:border-black">
+          <ReportRow className={LINE_BELOW}>
             <HeadCell>Qty<br />Unit</HeadCell>
             <HeadCell align="right">Unit Price<br />Ass Val (Rs.)</HeadCell>
             <HeadCell className="tw:pl-[8px]">CTH<br />CETH</HeadCell>
@@ -779,7 +781,7 @@ export default function ImportChecklistEAnnex({ jobData, items, esanchitDocs, ma
             taxDetails.commercialTaxRegistrationNo, taxDetails.commercialTaxType, taxDetails.stateCode, stateName(taxDetails.stateCode),
             Math.round(totAv + totBcd + totSws + totHealth + totAdd + totOther), Math.round(totIgst), 0,
           ]]} />
-        <div className={cn('tw:mt-[6px] tw:font-bold', DASHED_ROW)}>Total Freight / Misc / Insurance Details</div>
+        <div className={cn('tw:mt-[6px] tw:font-bold', LINE_BELOW)}>Total Freight / Misc / Insurance Details</div>
         <ReportTable className="tw:table-fixed">
           <ColumnWidths widths={[33, 34, 33]} />
           <ReportBody>
@@ -791,7 +793,7 @@ export default function ImportChecklistEAnnex({ jobData, items, esanchitDocs, ma
             </ReportRow>
           </ReportBody>
         </ReportTable>
-        <ReportTable className="tw:mt-[4px] tw:table-fixed tw:border-t tw:border-solid tw:border-black">
+        <ReportTable className={cn('tw:mt-[4px] tw:table-fixed', LINE_ABOVE)}>
           <ColumnWidths widths={[50, 32, 18]} />
           <ReportBody>
             {currencyTotals.map(([currency, value], index) => (
@@ -882,7 +884,7 @@ function InvoiceBlock({ invoice, last, miscRows, conditions, rateLine, country, 
     ...optionalRow(invoice.svbReferenceNumber || invoice.svbLoadAssessableValue || invoice.svbLoadOnDuty, 'SVB (Invoice)', svbText(invoice)),
   ];
   return (
-    <ReportTable className={cn('tw:mb-[4px] tw:table-fixed tw:print:break-inside-avoid', !last && 'tw:border-b tw:border-dashed tw:border-black')}>
+    <ReportTable className={cn('tw:mb-[4px] tw:table-fixed tw:print:break-inside-avoid', !last && LINE_BELOW)}>
       <ColumnWidths widths={[50, 50]} />
       <ReportBody>
         <ReportRow>

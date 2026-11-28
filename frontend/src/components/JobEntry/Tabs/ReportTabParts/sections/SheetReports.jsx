@@ -36,7 +36,7 @@ function Fill({ className }) {
     <span
       contentEditable
       suppressContentEditableWarning
-      className={cn('tw:inline-block tw:min-h-[14px] tw:min-w-[160px] tw:border-b tw:border-dotted tw:border-[#64748b] tw:outline-none', className)}
+      className={cn('tw:inline-block tw:min-h-[14px] tw:min-w-[160px] tw:border-x-0 tw:border-t-0 tw:border-b tw:border-solid tw:border-[#64748b] tw:outline-none', className)}
     />
   );
 }
@@ -164,11 +164,11 @@ export function AdcSheetReport({ jobData, items }) {
         <ReportTable className="tw:mt-[28px]">
           <ReportBody>
             <ReportRow>
-              <ReportCell look="bare" className="tw:w-1/2 tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
+              <ReportCell look="bare" className="tw:w-1/2 tw:border-x-0 tw:border-b-0 tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
                 Signature of the Importer / Authorised Signatory<br />Place: ............ &nbsp; Date: ............
               </ReportCell>
               <ReportCell look="bare" className="tw:w-[5%]" />
-              <ReportCell look="bare" className="tw:w-[45%] tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
+              <ReportCell look="bare" className="tw:w-[45%] tw:border-x-0 tw:border-b-0 tw:border-t tw:border-solid tw:border-black tw:pt-[4px]">
                 Customs Broker {job.chaCode ? '(' + job.chaCode + ')' : ''}
               </ReportCell>
             </ReportRow>
