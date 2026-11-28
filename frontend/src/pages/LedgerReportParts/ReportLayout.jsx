@@ -33,7 +33,7 @@ export function ReportPage({ icon: Icon, tone = 'primary', title, subtitle, acti
 
 export function ReportFrame({ filters, filtersLabel = 'Parameters :', children }) {
   return (
-    <div className="tw:min-w-0 tw:rounded-md tw:border tw:border-input tw:bg-card tw:shadow-sm">
+    <div className="tw:min-w-0 tw:rounded-md tw:border tw:border-input tw:bg-card">
       {filters && (
         <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-t-md tw:border-b tw:border-warning/30 tw:bg-warning/10 tw:px-4 tw:py-3 tw:print:hidden tw:md:flex-row tw:md:flex-wrap tw:md:items-center tw:md:gap-6">
           <span className="tw:flex tw:items-center tw:gap-2 tw:text-entry tw:font-bold tw:text-warning">
@@ -95,7 +95,7 @@ const CARD_TONES = {
 export function SummaryCard({ label, value, note, tone = 'primary', className, children }) {
   const colors = CARD_TONES[tone];
   return (
-    <div className={cn('tw:flex tw:min-w-0 tw:flex-col tw:gap-1 tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:p-4 tw:shadow-xs', colors.card, className)}>
+    <div className={cn('tw:flex tw:min-w-0 tw:flex-col tw:gap-1 tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:p-4', colors.card, className)}>
       <div className="tw:text-entry tw:font-semibold tw:opacity-70">{label}</div>
       <div className={cn('tw:text-2xl tw:font-bold tw:tabular-nums', colors.value)}>{value}</div>
       {note && <div className="tw:text-[11px] tw:opacity-70">{note}</div>}

@@ -45,7 +45,8 @@ const MIN_SEARCH_LENGTH = 2;
 const HISTORY_ROWS = 50;
 const HISTORY_SUGGESTIONS = 8;
 const HTTP_GONE = 410;
-const NO_DIRECTOR_PHONE = 'Director WhatsApp number not set (DIRECTOR_PHONE in .env or App Setting PO_DIRECTOR_PHONE)';
+const NO_DIRECTOR_EMAIL = 'e-mail NOT sent: no director e-mail id in Settings > Purchase Order approval';
+const NO_DIRECTOR_PHONE ='Director WhatsApp number not set (DIRECTOR_PHONE in .env or App Setting PO_DIRECTOR_PHONE)';
 
 const errorBody = (message) => ({ body: { error: message } });
 const mailFrom = () => `"EagleView ERP" <${process.env.SMTP_USER}>`;
@@ -113,8 +114,9 @@ async function approvalItemsHtml(items, po) {
   return approvalItemsTableHtml(rowsHtml, po);
 }
 
-/** Sends the mail and says whether it went (the screen shows it). */
+/** Sends the mail and says whether it went (the screen shows it). No director e-mail id saved: nothing is sent. */
 async function mailNoteAfterSending(mail, to) {
+  if (!to) return NO_DIRECTOR_EMAIL;
   try {
     await sendMail(mail);
     return 'e-mail sent to ' + to;

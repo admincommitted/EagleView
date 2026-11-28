@@ -37,7 +37,7 @@ export default function FieldTrackingDashboard() {
           onSelect={setSelectedAgent}
           onAddAgent={() => setOpenWindow('addAgent')}
         />
-        <div className="tw:relative tw:flex tw:min-h-[420px] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:shadow-sm">
+        <div className="tw:relative tw:flex tw:min-h-[420px] tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card">
           <AgentMap agents={dashboard.agents} selectedAgent={selectedAgent} locationHistory={dashboard.locationHistory} onSelect={setSelectedAgent} />
           {selectedAgent && (
             <SelectedAgentPanel

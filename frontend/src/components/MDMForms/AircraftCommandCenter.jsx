@@ -195,7 +195,7 @@ const AircraftCommandCenter = ({ aircraft, onClose }) => {
 
   return (
     <div className="tw:fixed tw:inset-0 tw:z-[9999] tw:flex tw:items-center tw:justify-center tw:bg-white/85 tw:normal-case tw:backdrop-blur-[8px]">
-      <div className="tw:flex tw:max-h-[calc(100vh-1rem)] tw:w-[calc(100%-1rem)] tw:max-w-[900px] tw:flex-col tw:overflow-y-auto tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white tw:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+      <div className="tw:flex tw:max-h-[calc(100vh-1rem)] tw:w-[calc(100%-1rem)] tw:max-w-[900px] tw:flex-col tw:overflow-y-auto tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white">
         <div className="tw:flex tw:items-center tw:justify-between tw:gap-3 tw:border-b tw:border-slate-300 tw:bg-slate-50 tw:p-5">
           <div className="tw:flex tw:items-center tw:gap-[15px]">
             <Shield size={28} className="tw:shrink-0 tw:text-sky-400" />

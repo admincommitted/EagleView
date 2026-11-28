@@ -64,7 +64,7 @@ export function NumberField({ icon, label, name, value, onChange, wide = false, 
 export function ExposureTotal({ amount, tone }) {
   const isRisk = tone === 'danger';
   return (
-    <div className={cn('tw:rounded-xl tw:border tw:p-5 tw:text-center tw:shadow-sm', isRisk ? 'tw:border-destructive/30 tw:bg-destructive/5' : 'tw:border-success/30 tw:bg-success/5')}>
+    <div className={cn('tw:rounded-xl tw:border tw:p-5 tw:text-center', isRisk ? 'tw:border-destructive/30 tw:bg-destructive/5' : 'tw:border-success/30 tw:bg-success/5')}>
       <span className={cn('tw:text-[11px] tw:font-bold tw:tracking-[1.5px] tw:uppercase', TONES[tone].text)}>Total Exposure</span>
       <div className={cn('tw:mt-1.5 tw:text-[32px] tw:font-extrabold', TONES[tone].text)}>&#8377; {amount}</div>
     </div>
@@ -73,7 +73,7 @@ export function ExposureTotal({ amount, tone }) {
 
 export function ExposureLine({ icon: Icon, title, note, amount, tone }) {
   return (
-    <div className={cn('tw:flex tw:items-center tw:justify-between tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:px-3.5 tw:py-2.5 tw:shadow-sm', TONES[tone].border)}>
+    <div className={cn('tw:flex tw:items-center tw:justify-between tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:px-3.5 tw:py-2.5', TONES[tone].border)}>
       <div className="tw:flex tw:items-center tw:gap-2.5">
         <Icon className={cn('tw:size-4', TONES[tone].text)} />
         <div>

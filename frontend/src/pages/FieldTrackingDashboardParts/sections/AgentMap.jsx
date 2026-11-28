@@ -23,10 +23,10 @@ function agentIcon(agent, isSelected) {
   return new L.divIcon({
     className: 'custom-leaflet-icon',
     html: `<div style="display:flex; flex-direction:column; align-items:center; transform: translate(-50%, -100%); width: 150px;">
-              <div style="background:${isSelected ? '#0f172a' : '#ffffff'}; color:${isSelected ? '#ffffff' : '#0f172a'}; padding:4px 8px; border-radius:12px; font-size:12px; font-weight:700; white-space:nowrap; box-shadow:0 4px 6px rgba(0,0,0,0.1); border:${isSelected ? 'none' : '1px solid #cbd5e1'}; margin-bottom:4px; z-index:${isSelected ? '100' : '10'}; pointer-events: auto;">
+              <div style="background:${isSelected ? '#0f172a' : '#ffffff'}; color:${isSelected ? '#ffffff' : '#0f172a'}; padding:4px 8px; border-radius:12px; font-size:12px; font-weight:700; white-space:nowrap; border:${isSelected ? 'none' : '1px solid #cbd5e1'}; margin-bottom:4px; z-index:${isSelected ? '100' : '10'}; pointer-events: auto;">
                   ${agent.name}
               </div>
-              <div style="width:28px; height:28px; background:${color}; border-radius:50%; border:3px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3); z-index:${isSelected ? '100' : '10'}; position:relative; display: flex; align-items: center; justify-content: center; font-size: 14px;">
+              <div style="width:28px; height:28px; background:${color}; border-radius:50%; border:3px solid white; z-index:${isSelected ? '100' : '10'}; position:relative; display: flex; align-items: center; justify-content: center; font-size: 14px;">
                  ${vehicleEmoji}
                  ${isSelected ? '<div style="position:absolute; inset:-8px; background:rgba(14,165,233,0.4); border-radius:50%; animation:ping 1.5s infinite"></div>' : ''}
               </div>
@@ -77,7 +77,7 @@ export default function AgentMap({ agents, selectedAgent, locationHistory, onSel
       </MapContainer>
 
       <div className="tw:pointer-events-none tw:absolute tw:right-5 tw:bottom-[30px] tw:z-[1000]">
-        <div className="tw:flex tw:items-center tw:gap-2 tw:rounded-full tw:bg-background tw:px-4 tw:py-2 tw:text-[13px] tw:font-bold tw:shadow-md">
+        <div className="tw:flex tw:items-center tw:gap-2 tw:rounded-full tw:bg-background tw:px-4 tw:py-2 tw:text-[13px] tw:font-bold">
           <span className="tw:size-2 tw:animate-[ping_2s_infinite] tw:rounded-full tw:bg-success tw:ring-[3px] tw:ring-success/15" />
           Live Fleet Tracking
         </div>

@@ -19,7 +19,7 @@ function StatCard({ label, value, icon: Icon, tone = "primary", active, onClick,
       onClick={onClick}
       onKeyDown={(event) => onClick && (event.key === "Enter" || event.key === " ") && onClick()}
       className={cn(
-        "tw:relative tw:flex tw:min-h-[76px] tw:flex-col tw:justify-between tw:overflow-hidden tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:px-3.5 tw:py-2.5 tw:shadow-xs tw:outline-none tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40",
+        "tw:relative tw:flex tw:min-h-[76px] tw:flex-col tw:justify-between tw:overflow-hidden tw:rounded-lg tw:border tw:border-l-4 tw:border-border tw:bg-card tw:px-3.5 tw:py-2.5 tw:outline-none tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40",
         colors.bar,
         onClick && "tw:cursor-pointer tw:transition-colors tw:hover:bg-accent",
         active && "tw:bg-accent tw:ring-2 tw:ring-primary/40",

@@ -17,7 +17,7 @@ function ConnectionStatus({ qrState, connecting, onConnect, onDisconnect }) {
   return (
     <div className={cn('tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:border tw:px-4 tw:py-4 tw:md:flex-row tw:md:items-center tw:md:justify-between tw:md:px-6', tone.card)}>
       <div className="tw:flex tw:items-center tw:gap-2.5">
-        <span className={cn('tw:size-2.5 tw:shrink-0 tw:rounded-full tw:shadow-sm', tone.dot)} />
+        <span className={cn('tw:size-2.5 tw:shrink-0 tw:rounded-full', tone.dot)} />
         <span className={cn('tw:text-[13px] tw:font-bold', tone.text)}>{label}</span>
       </div>
       {qrState.status === 'disconnected' && qrState.error && <div className="tw:flex-1 tw:text-[11px] tw:text-destructive tw:md:mx-3.5">{qrState.error}</div>}

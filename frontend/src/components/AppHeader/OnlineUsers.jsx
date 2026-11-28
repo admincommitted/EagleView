@@ -14,7 +14,7 @@ const userLabel = (user) => {
 };
 
 function OnlineDot({ className }) {
-  return <span className={cn('tw:size-2 tw:shrink-0 tw:rounded-full tw:bg-[#4ade80] tw:shadow-[0_0_6px_#4ade80]', className)} />;
+  return <span className={cn('tw:size-2 tw:shrink-0 tw:rounded-full tw:bg-[#4ade80]', className)} />;
 }
 
 // Hover shows who is online; a click opens the broadcast message window.

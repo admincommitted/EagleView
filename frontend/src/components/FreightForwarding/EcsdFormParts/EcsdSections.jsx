@@ -21,7 +21,7 @@ const ISSUING_PARTY_FIELDS = [
 
 export function EcsdPanel({ title, aside, className, children }) {
   return (
-    <div className={cn('tw:flex tw:min-w-0 tw:flex-col tw:gap-1.5 tw:overflow-hidden tw:rounded tw:border tw:border-muted-foreground tw:bg-card tw:shadow-md', className)}>
+    <div className={cn('tw:flex tw:min-w-0 tw:flex-col tw:gap-1.5 tw:overflow-hidden tw:rounded tw:border tw:border-muted-foreground tw:bg-card', className)}>
       {title && (
         <div className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-l-[6px] tw:border-b-muted-foreground tw:border-l-primary tw:bg-primary/10 tw:px-3 tw:py-1.5 tw:text-[13px] tw:font-extrabold tw:text-head tw:uppercase">
           <span>{title}</span>
@@ -115,7 +115,7 @@ export function LinkedHawbsPanel({ linkedHawbs, loading }) {
     </span>
   );
   return (
-    <EcsdPanel title="Linked House AWBs" aside={status} className="tw:shadow-none">
+    <EcsdPanel title="Linked House AWBs" aside={status}>
       {linkedHawbs.length === 0 && !loading
         ? <div className="tw:p-3 tw:text-center tw:text-[11px] tw:text-muted-foreground">No linked House AWBs found for this MAWB</div>
         : <DataTable columns={HAWB_COLUMNS} rows={linkedHawbs} rowKey={(hawb, index) => index} />}

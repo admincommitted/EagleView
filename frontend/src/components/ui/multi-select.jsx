@@ -42,7 +42,7 @@ function MultiSelect({
           data-required={required ? "true" : undefined}
           data-filled={value?.length ? "true" : undefined}
           className={cn(
-            "tw:flex tw:min-h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1 tw:py-0.5 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:shadow-soft tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/20 tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
+            "tw:flex tw:min-h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1 tw:py-0.5 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
             className
           )}
         >
@@ -81,7 +81,7 @@ function MultiSelect({
           {value?.length > 0 && (
             <div className="tw:flex tw:justify-between tw:border-t tw:border-border tw:px-2 tw:py-1 tw:text-[11px] tw:text-muted-foreground">
               <span>{value.length} picked</span>
-              <button type="button" className="tw:border-0 tw:bg-transparent tw:p-0 tw:text-[11px] tw:text-primary tw:shadow-none tw:cursor-pointer" onClick={() => onValueChange?.([])}>Clear all</button>
+              <button type="button" className="tw:border-0 tw:bg-transparent tw:p-0 tw:text-[11px] tw:text-primary tw:cursor-pointer" onClick={() => onValueChange?.([])}>Clear all</button>
             </div>
           )}
         </Command>

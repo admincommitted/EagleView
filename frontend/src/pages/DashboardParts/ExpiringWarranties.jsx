@@ -8,7 +8,7 @@ function WarrantyRow({ asset }) {
   const days = Math.ceil((new Date(asset.warrantyExpiryDate) - new Date()) / DAY_MS);
   const isExpired = days < 0;
   return (
-    <div className={cn('tw:flex tw:items-center tw:justify-between tw:gap-2 tw:rounded-md tw:border-l-4 tw:bg-card tw:px-4 tw:py-3 tw:shadow-xs', isExpired ? 'tw:border-l-destructive' : 'tw:border-l-warning')}>
+    <div className={cn('tw:flex tw:items-center tw:justify-between tw:gap-2 tw:rounded-md tw:border-l-4 tw:bg-card tw:px-4 tw:py-3', isExpired ? 'tw:border-l-destructive' : 'tw:border-l-warning')}>
       <div className="tw:min-w-0">
         <strong className="tw:mb-1 tw:block tw:text-[13px] tw:text-foreground">{asset.assetName}</strong>
         <span className="tw:text-entry tw:text-muted-foreground">Assigned: {asset.assignedTo || 'Unassigned'}</span>

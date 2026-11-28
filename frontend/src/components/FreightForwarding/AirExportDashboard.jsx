@@ -141,7 +141,7 @@ const SUPPORT_CONTACTS = [
 
 function SupportFooter() {
   return (
-    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:bg-linear-to-br tw:from-head tw:to-primary tw:px-6 tw:py-4 tw:text-primary-foreground tw:shadow-md tw:md:flex-row tw:md:items-center tw:md:justify-between">
+    <div className="tw:flex tw:flex-col tw:gap-3 tw:rounded-lg tw:bg-linear-to-br tw:from-head tw:to-primary tw:px-6 tw:py-4 tw:text-primary-foreground tw:md:flex-row tw:md:items-center tw:md:justify-between">
       <div className="tw:flex tw:items-center tw:gap-3">
         <div className="tw:flex tw:rounded-lg tw:bg-white/20 tw:p-2.5"><HelpCircle className="tw:size-5.5" /></div>
         <div>

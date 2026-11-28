@@ -134,7 +134,7 @@ async function sendLeoOnWhatsapp(job) {
 
 function JobCard({ job, onOpen }) {
   return (
-    <Card className="tw:gap-2 tw:p-2.5 tw:transition-shadow tw:hover:shadow-md">
+    <Card className="tw:gap-2 tw:p-2.5 tw:transition-shadow">
       <div className="tw:flex tw:items-start tw:justify-between tw:gap-2">
         <div className="tw:min-w-0">
           <CardTitle className="tw:text-foreground">{job.jobNo || 'DRAFT'}</CardTitle>
@@ -223,7 +223,7 @@ function RiskRadar({ riskJobs, onCalculate }) {
               size="block"
               title="Work out the penalty"
               onClick={() => onCalculate(risk.job)}
-              className={cn('tw:justify-between tw:border-l-4 tw:bg-card tw:text-foreground tw:hover:shadow-md', isHigh ? 'tw:border-l-destructive' : 'tw:border-l-warning')}
+              className={cn('tw:justify-between tw:border-l-4 tw:bg-card tw:text-foreground', isHigh ? 'tw:border-l-destructive' : 'tw:border-l-warning')}
             >
               <span className="tw:min-w-0">
                 <span className="tw:block tw:font-bold">{risk.jobNo}</span>

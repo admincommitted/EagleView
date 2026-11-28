@@ -23,7 +23,7 @@ const LIST_OF_TAB = {
 function EntryForm({ chart }) {
   const { activeTab, editMode, setShowForm } = chart;
   return (
-    <div className={cn('tw:animate-in tw:fade-in-0 tw:slide-in-from-bottom-2 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-sm tw:md:p-8', activeTab === 'ledgers' ? 'tw:max-w-[800px]' : 'tw:max-w-[640px]')}>
+    <div className={cn('tw:animate-in tw:fade-in-0 tw:slide-in-from-bottom-2 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:md:p-8', activeTab === 'ledgers' ? 'tw:max-w-[800px]' : 'tw:max-w-[640px]')}>
       <div className="tw:mb-6 tw:flex tw:items-center tw:justify-between tw:border-b tw:border-border/60 tw:pb-4">
         <h4 className="tw:m-0 tw:flex tw:items-center tw:gap-2 tw:text-lg tw:text-slate-800">
           <Activity className="tw:size-5 tw:text-blue-500" /> {editMode ? 'Edit' : 'Create'} {chartTabOf(activeTab).entryLabel}

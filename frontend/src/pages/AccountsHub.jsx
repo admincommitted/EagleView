@@ -55,7 +55,7 @@ const scopeKeyOf = ({ activeBranch, activeYear }) => {
 
 // which branch and year the figures are from (changed in the top bar)
 function ScopeBadges({ branch, year }) {
-  const badgeClass = 'tw:inline-flex tw:items-center tw:gap-1.25 tw:rounded-full tw:border tw:px-2.5 tw:py-0.75 tw:text-[11.5px] tw:font-extrabold tw:tracking-[0.02em] tw:shadow-xs';
+  const badgeClass = 'tw:inline-flex tw:items-center tw:gap-1.25 tw:rounded-full tw:border tw:px-2.5 tw:py-0.75 tw:text-[11.5px] tw:font-extrabold tw:tracking-[0.02em]';
   return (
     <>
       {branch && (
@@ -67,7 +67,7 @@ function ScopeBadges({ branch, year }) {
         </span>
       )}
       {year && (
-        <span title="Financial year in scope (change it in the top bar)" className={cn(badgeClass, 'tw:border-violet-300 tw:bg-violet-100 tw:text-violet-800 tw:shadow-none')}>
+        <span title="Financial year in scope (change it in the top bar)" className={cn(badgeClass, 'tw:border-violet-300 tw:bg-violet-100 tw:text-violet-800')}>
           <CalendarDays className="tw:size-3" />FY {year.code || year.name}
         </span>
       )}
@@ -148,7 +148,7 @@ function NewMenu({ items, onPick }) {
         <Button
           variant="default"
           size="lg"
-          className="tw:px-4.5 tw:font-semibold tw:shadow-md"
+          className="tw:px-4.5 tw:font-semibold"
           {...hoverProps}
           onPointerDown={(event) => { if (event.pointerType === 'mouse' && open) event.preventDefault(); }}
         >

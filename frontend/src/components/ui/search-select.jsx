@@ -44,7 +44,7 @@ function SearchSelect({
           data-required={required ? "true" : undefined}
           data-filled={selected || value ? "true" : undefined}
           className={cn(
-            "tw:flex tw:h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1.5 tw:py-0 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:shadow-soft tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:focus-visible:ring-[3px] tw:focus-visible:ring-ring/20 tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
+            "tw:flex tw:h-[22px] tw:w-full tw:min-w-0 tw:items-center tw:justify-between tw:gap-1 tw:rounded-sm tw:border tw:border-input tw:bg-background tw:px-1.5 tw:py-0 tw:text-left tw:text-entry tw:font-normal tw:text-foreground tw:filter-none tw:outline-none tw:cursor-pointer tw:transition-[border-color,box-shadow] tw:duration-150 tw:hover:border-input-hover tw:focus-visible:border-ring tw:data-[state=open]:border-ring tw:disabled:cursor-not-allowed tw:disabled:opacity-60 tw:data-[required=true]:border-required-line",
             className
           )}
         >
@@ -71,7 +71,7 @@ function SearchSelect({
           <CommandList>
             <CommandEmpty>
               {allowCustom && query.trim() ? (
-                <button type="button" className="tw:w-full tw:border-0 tw:bg-transparent tw:px-2 tw:text-left tw:text-entry tw:text-primary tw:shadow-none tw:cursor-pointer" onClick={() => pick(query.trim())}>
+                <button type="button" className="tw:w-full tw:border-0 tw:bg-transparent tw:px-2 tw:text-left tw:text-entry tw:text-primary tw:cursor-pointer" onClick={() => pick(query.trim())}>
                   Use “{query.trim()}”
                 </button>
               ) : emptyText}

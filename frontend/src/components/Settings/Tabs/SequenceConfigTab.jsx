@@ -184,7 +184,7 @@ export default function SequenceConfigTab() {
   else if (MODES.some((mode) => !(saved[mode.id] || {}).configured)) saveState = 'DEFAULT rows are not saved yet';
 
   return (
-    <div className="tw:flex tw:min-h-[500px] tw:flex-col tw:gap-4 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-xs tw:md:p-6">
+    <div className="tw:flex tw:min-h-[500px] tw:flex-col tw:gap-4 tw:rounded-xl tw:border tw:border-border tw:bg-card tw:p-4 tw:md:p-6">
       <SettingsHeading icon={Settings2} title="Branch-Wise Sequence Config"
         description="Job number = prefix + next number. The next number moves on by one with every new job."
         actions={(

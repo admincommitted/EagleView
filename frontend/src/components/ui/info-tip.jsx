@@ -11,7 +11,7 @@ function InfoTip({ children, side = "top", className }) {
           tabIndex={-1}
           aria-label="Help"
           className={cn(
-            "tw:inline-flex tw:size-4 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0 tw:text-primary tw:shadow-none tw:filter-none tw:cursor-help tw:hover:text-head",
+            "tw:inline-flex tw:size-4 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full tw:border-0 tw:bg-transparent tw:p-0 tw:text-primary tw:filter-none tw:cursor-help tw:hover:text-head",
             className
           )}
         >

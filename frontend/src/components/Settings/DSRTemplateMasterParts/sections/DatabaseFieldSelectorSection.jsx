@@ -9,7 +9,7 @@ function FieldCard({ field, selected, onToggle }) {
   return (
     <Label
       className={cn(
-        'tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:whitespace-normal tw:rounded-lg tw:border tw:px-3 tw:py-2.5 tw:shadow-xs tw:transition-all',
+        'tw:flex tw:cursor-pointer tw:items-center tw:gap-3 tw:whitespace-normal tw:rounded-lg tw:border tw:px-3 tw:py-2.5 tw:transition-all',
         selected ? 'tw:border-blue-200 tw:bg-blue-50' : 'tw:border-slate-200 tw:bg-white'
       )}
     >

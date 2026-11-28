@@ -34,7 +34,7 @@ function JobAlert({ toastId, kind, message, onView }) {
   const isQuery = kind === 'QUERY';
   const Icon = isQuery ? AlertTriangle : CheckCircle;
   return (
-    <Card className={isQuery ? 'tw:max-w-[350px] tw:border-l-4 tw:border-l-destructive tw:shadow-lg' : 'tw:max-w-[350px] tw:border-l-4 tw:border-l-success tw:shadow-lg'}>
+    <Card className={isQuery ? 'tw:max-w-[350px] tw:border-l-4 tw:border-l-destructive' : 'tw:max-w-[350px] tw:border-l-4 tw:border-l-success'}>
       <CardContent className="tw:flex-row tw:items-center tw:gap-3 tw:p-3">
         <Icon className={isQuery ? 'tw:size-6 tw:shrink-0 tw:text-destructive' : 'tw:size-6 tw:shrink-0 tw:text-success'} />
         <div className="tw:flex-1">
@@ -134,7 +134,7 @@ function JobCard({ job, onOpen }) {
       title="Open this job"
       onClick={onOpen}
       onKeyDown={(event) => event.key === 'Enter' && onOpen()}
-      className="tw:cursor-pointer tw:gap-2 tw:p-2.5 tw:transition-shadow tw:outline-none tw:hover:shadow-md tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40"
+      className="tw:cursor-pointer tw:gap-2 tw:p-2.5 tw:transition-shadow tw:outline-none tw:focus-visible:ring-2 tw:focus-visible:ring-ring/40"
     >
       <div className="tw:flex tw:items-start tw:justify-between tw:gap-2">
         <div className="tw:min-w-0">

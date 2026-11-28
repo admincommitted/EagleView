@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // the heading band is in the theme colour: everything in the title (icons, coloured words) takes its white text
-const HEADER_CLASS = "tw:border-b-0 tw:bg-linear-to-r tw:from-primary-from tw:to-primary-to tw:text-primary-foreground tw:shadow-[inset_0_-1px_0_rgb(255_255_255/0.15)]"
+const HEADER_CLASS = "tw:border-b-0 tw:bg-linear-to-r tw:from-primary-from tw:to-primary-to tw:text-primary-foreground"
 const TITLE_CLASS = "tw:flex tw:items-center tw:gap-1.5 tw:text-[15px] tw:font-semibold tw:text-inherit tw:[&_*]:text-inherit tw:[&_svg]:text-current"
 const DESCRIPTION_CLASS = "tw:text-white/80"
 const HEADER_CLOSE_CLASS = "tw:text-white tw:opacity-90 tw:hover:bg-white/20"

@@ -92,7 +92,7 @@ function CreateAirWaybillScreen({ freshScreen }) {
       <AirExportActionTabs activeTab="create" />
       <div className="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-4 tw:pt-1 tw:pb-10">
         <HeaderSection ctx={ctx} />
-        <div className="tw:flex tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded tw:border tw:border-input tw:bg-card tw:shadow-md">
+        <div className="tw:flex tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded tw:border tw:border-input tw:bg-card">
           <PartiesSection ctx={ctx} />
           <RoutingSection ctx={ctx} />
           <HandlingOciSection ctx={ctx} />

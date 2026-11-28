@@ -69,14 +69,14 @@ function EscalationFields({ template, onUpdate }) {
 export default function TemplateConfigurationSection({ template, onUpdate, onDelete, onSave, onOpenFieldSelector, columnHandlers, colorRuleHandlers }) {
   if (!template) {
     return (
-      <div className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:justify-center tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:text-slate-500 tw:shadow-sm">
+      <div className="tw:flex tw:min-w-0 tw:flex-1 tw:items-center tw:justify-center tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:text-slate-500">
         Select a template from the left or create a new one.
       </div>
     );
   }
 
   return (
-    <div className="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-4 tw:overflow-auto tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4 tw:shadow-sm">
+    <div className="tw:flex tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-4 tw:overflow-auto tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-4">
       <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2 tw:border-b tw:border-slate-200 tw:pb-4">
         <div className="tw:flex tw:items-center tw:gap-2">
           <Settings className="tw:size-5 tw:text-blue-500" />

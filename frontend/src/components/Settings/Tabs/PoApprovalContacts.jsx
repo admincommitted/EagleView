@@ -13,7 +13,7 @@ const LINK_BASE_PATTERN = /^https?:\/\/[^\s/]+(:\d+)?$/;
 const TOAST_MS = 4500;
 
 const contactFields = (modulePhone) => [
-  { name: 'email', label: 'Director e-mail id(s)', placeholder: 'director@committedcargo.com', note: 'More than one: separate with a comma.', className: 'tw:md:col-span-2' },
+  { name: 'email', label: 'Director e-mail id(s)', placeholder: 'director@committedcargo.com', note: 'More than one: separate with a comma. Blank = no approval e-mail is sent.', className: 'tw:md:col-span-2' },
   {
     name: 'phone', label: 'Director WhatsApp number', placeholder: modulePhone || '98XXXXXXXX',
     note: modulePhone ? `Blank = ${modulePhone} ("Purchase" number in Settings > WhatsApp).` : 'Sent through the WhatsApp connected in Settings > WhatsApp.',
@@ -56,7 +56,6 @@ export default function PoApprovalContacts() {
   const save = async () => {
     const emails = contacts.email.split(/[,;]/).map((email) => email.trim()).filter(Boolean);
     const badEmails = emails.filter((email) => !EMAIL_PATTERN.test(email));
-    if (!emails.length) { showNotice("Enter the director's e-mail id", 'error'); return; }
     if (badEmails.length) { showNotice(`Not an e-mail id: ${badEmails.join(', ')}`, 'error'); return; }
     const digits = contacts.phone.replace(/\D/g, '');
     if (contacts.phone.trim() && (digits.length < 10 || digits.length > 15)) { showNotice('WhatsApp number: 10 digits, or with country code', 'error'); return; }

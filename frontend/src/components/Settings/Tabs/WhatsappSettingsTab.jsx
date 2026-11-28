@@ -20,7 +20,7 @@ function ConnectionModeSwitch({ activeMode, onSwitch }) {
         const selected = activeMode === mode.id;
         return (
           <ChoiceButton key={mode.id} selected={selected} onClick={() => onSwitch(mode.id)}
-            className={cn('tw:flex-col tw:items-center tw:gap-0.5 tw:border-0 tw:text-center', selected ? 'tw:bg-background tw:shadow-sm' : 'tw:bg-transparent')}>
+            className={cn('tw:flex-col tw:items-center tw:gap-0.5 tw:border-0 tw:text-center', selected ? 'tw:bg-background' : 'tw:bg-transparent')}>
             <span className={cn('tw:text-[13px]', selected ? 'tw:font-bold tw:text-foreground' : 'tw:font-medium tw:text-muted-foreground')}>{mode.label}</span>
             <span className="tw:text-[11px] tw:text-muted-foreground">{mode.desc}</span>
           </ChoiceButton>

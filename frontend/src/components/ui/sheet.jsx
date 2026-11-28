@@ -26,7 +26,7 @@ function SheetContent({ side = "left", title, description, className, children, 
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "tw:fixed tw:z-[3000] tw:flex tw:flex-col tw:border-border tw:bg-background tw:text-entry tw:text-foreground tw:normal-case tw:shadow-xl tw:outline-none tw:duration-200 tw:data-[state=closed]:animate-out tw:data-[state=open]:animate-in",
+          "tw:fixed tw:z-[3000] tw:flex tw:flex-col tw:border-border tw:bg-background tw:text-entry tw:text-foreground tw:normal-case tw:outline-none tw:duration-200 tw:data-[state=closed]:animate-out tw:data-[state=open]:animate-in",
           SIDES[side],
           className
         )}

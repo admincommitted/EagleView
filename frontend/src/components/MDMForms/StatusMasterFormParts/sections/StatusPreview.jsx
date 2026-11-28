@@ -27,7 +27,7 @@ export default function StatusPreview({ status }) {
   return (
     <div className="tw:flex tw:w-full tw:flex-col tw:gap-4 tw:border-dashed tw:border-border tw:pt-4 tw:md:border-l tw:md:pt-0 tw:md:pl-6">
       <PreviewBlock title="Dashboard Preview">
-        <div className="tw:flex tw:items-start tw:justify-between tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-3 tw:shadow-xs">
+        <div className="tw:flex tw:items-start tw:justify-between tw:rounded-lg tw:border tw:border-border tw:bg-card tw:p-3">
           <div className="tw:text-entry tw:font-bold tw:text-foreground">Job #12345</div>
           <StatusChip status={status}>{label}</StatusChip>
         </div>

@@ -52,7 +52,7 @@ function NoAgents({ onAddAgent }) {
 
 export default function AgentSidebar({ loading, agents, selectedAgent, searchQuery, onSearch, onSelect, onAddAgent }) {
   return (
-    <div className="tw:flex tw:max-h-[50vh] tw:min-h-0 tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:shadow-sm tw:lg:max-h-none">
+    <div className="tw:flex tw:max-h-[50vh] tw:min-h-0 tw:flex-col tw:overflow-hidden tw:rounded-xl tw:border tw:border-border tw:bg-card tw:lg:max-h-none">
       <div className="tw:border-b tw:border-border tw:bg-page tw:p-4 tw:lg:p-5">
         <div className="tw:mb-3 tw:text-[16px] tw:font-bold tw:text-foreground">Active Agents</div>
         <Input data-allow-text leftIcon={Search} className="tw:h-9 tw:rounded-lg tw:text-[13px]" placeholder="Search by name or role..." value={searchQuery} onChange={(event) => onSearch(event.target.value)} />

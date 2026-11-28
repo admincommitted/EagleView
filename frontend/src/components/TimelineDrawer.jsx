@@ -34,7 +34,7 @@ export default function TimelineDrawer({ isOpen, onClose, jobId, module = 'IMPOR
   };
 
   return (
-    <div className="tw:fixed tw:inset-x-0 tw:top-[76px] tw:bottom-[80px] tw:z-[999999] tw:flex tw:flex-col tw:border-l tw:border-border tw:bg-page tw:shadow-[-4px_0_15px_rgba(0,0,0,0.1)] tw:md:left-auto tw:md:w-[350px]">
+    <div className="tw:fixed tw:inset-x-0 tw:top-[76px] tw:bottom-[80px] tw:z-[999999] tw:flex tw:flex-col tw:border-l tw:border-border tw:bg-page tw:md:left-auto tw:md:w-[350px]">
       <div className="tw:flex tw:items-center tw:justify-between tw:border-b tw:border-border tw:bg-card tw:p-4">
         <h3 className="tw:m-0 tw:text-base tw:font-semibold tw:text-foreground">Timeline & Logs</h3>
         <Button variant="ghost" size="icon" aria-label="Close" onClick={onClose}><X className="tw:size-5" /></Button>

@@ -78,7 +78,7 @@ function AskWindow({ container, role = 'dialog', icon: Icon, iconClassName, titl
         <DialogPrimitive.Content asChild role={role} onOpenAutoFocus={focusFirst} onCloseAutoFocus={giveFocusBack}>
           <form
             onSubmit={(event) => { event.preventDefault(); onSubmit?.(); }}
-            className="tw:fixed tw:top-1/2 tw:left-1/2 tw:z-[3000] tw:m-0 tw:w-[470px] tw:max-w-[calc(100%-32px)] tw:-translate-x-1/2 tw:-translate-y-1/2 tw:overflow-hidden tw:rounded-lg tw:bg-background tw:text-foreground tw:normal-case tw:shadow-2xl tw:outline-none"
+            className="tw:fixed tw:top-1/2 tw:left-1/2 tw:z-[3000] tw:m-0 tw:w-[470px] tw:max-w-[calc(100%-32px)] tw:-translate-x-1/2 tw:-translate-y-1/2 tw:overflow-hidden tw:rounded-lg tw:bg-background tw:text-foreground tw:normal-case tw:outline-none"
           >
             <div className="tw:flex tw:items-center tw:gap-2.5 tw:border-b tw:border-border tw:bg-page tw:px-3.5 tw:py-2.5">
               <span className={cn('tw:flex tw:size-7 tw:shrink-0 tw:items-center tw:justify-center tw:rounded-full', iconClassName)}>

@@ -2,7 +2,7 @@ import { Badge, Button, badgeVariants } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import DocketFromJob from '../../DocketFromJob';
 import { beTypeLabel, transportModeLabel } from './jobCodes';
-import { filingStatusClass, filingStatusText, icegateJobNumber, icegateReplyButton } from './jobStatus';
+import { filingStatusClass, filingStatusText, icegateReplyButton } from './jobStatus';
 
 const WRAPPING_BADGE = 'tw:h-auto tw:max-w-full tw:flex-wrap tw:whitespace-normal tw:md:whitespace-nowrap';
 
@@ -10,9 +10,9 @@ function StripDivider() {
   return <span className="tw:text-border">|</span>;
 }
 
-function StripValue({ label, title, valueClassName, children }) {
+function StripValue({ label, valueClassName, children }) {
   return (
-    <span title={title}>
+    <span>
       {label}: <strong className={cn('tw:text-foreground', valueClassName)}>{children}</strong>
     </span>
   );
@@ -48,12 +48,10 @@ function AmendedJobBadge({ jobData, onOpenAmendment, onOpenJob }) {
 
 // The job line above the tabs: job no, docket, BE type, mode, filing status, lock / amendment and the ICEGATE reply.
 export default function JobInfoStrip({ jobData, beType, transportMode, icegateResult, filedLock, onOpenAmendment, onOpenJob, onShowAck }) {
-  const icegateJobNo = icegateJobNumber(jobData);
   const replyButton = icegateReplyButton(jobData, icegateResult);
   return (
     <div className="job-strip tw:mt-0.5 tw:flex tw:flex-wrap tw:items-center tw:gap-1.5 tw:text-[10px] tw:font-medium tw:text-muted-foreground">
       <StripValue label="JOB">{jobData.jobNo || ''}</StripValue>
-      {icegateJobNo && <StripValue label="ICEGATE JOB NO" title="Job no. in ICEGATE mails and replies; search the job list by it too">{icegateJobNo}</StripValue>}
       <DocketFromJob side="Import" job={jobData} />
       <StripDivider />
       <StripValue label="TYPE">{beTypeLabel(beType)}</StripValue>

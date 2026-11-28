@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveCo
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
-const TOOLTIP_STYLE = { borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' };
+const TOOLTIP_STYLE = { borderRadius: '8px', border: '1px solid #e2e8f0' };
 const LEGEND_STYLE = { fontSize: '13px', paddingTop: '20px' };
 const CHART_HEIGHT = 350;
 

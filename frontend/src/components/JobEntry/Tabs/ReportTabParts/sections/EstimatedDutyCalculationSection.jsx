@@ -31,7 +31,7 @@ function EstimatedDuty({ ctx }) {
   ];
   const igstNote = missingIgstNote(ctx.itemsWithoutIgst);
   return (
-    <div className="tw:mx-auto tw:max-w-[600px] tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-8 tw:text-black tw:shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <div className="tw:mx-auto tw:max-w-[600px] tw:rounded-[4px] tw:border tw:border-[#cbd5e1] tw:bg-white tw:p-8 tw:text-black">
       <h2 className="tw:m-0 tw:mb-6 tw:text-center">Estimated Duty Calculation</h2>
       {igstNote && <ReportNote>{igstNote}</ReportNote>}
       <ReportTable className="tw:text-[13px]">

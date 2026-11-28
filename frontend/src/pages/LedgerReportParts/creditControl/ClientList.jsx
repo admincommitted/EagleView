@@ -83,7 +83,7 @@ export default function ClientList({ clients, loading, error, asOn, note, select
   const shownClients = search ? clients.filter((client) => matchesSearch(client, search)) : clients;
 
   return (
-    <div className="tw:min-w-0 tw:overflow-hidden tw:rounded-lg tw:border tw:border-border tw:bg-card tw:shadow-xs tw:lg:flex-1">
+    <div className="tw:min-w-0 tw:overflow-hidden tw:rounded-lg tw:border tw:border-border tw:bg-card tw:lg:flex-1">
       <div className="tw:border-b tw:border-border tw:bg-page tw:p-4">
         <Input data-allow-text="" leftIcon={Search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search Client..." className="tw:h-8" />
         <AgeingLegend />
